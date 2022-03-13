@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "bashdb",
+            "request": "launch",
+            "name": "Bash-Debug (select script from list of sh files)",
+            "cwd": "${workspaceFolder}/tools",
+            "program": "${command:SelectScriptName}",
+            "args": []
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "xpulumi test",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi",
+            "args": [ "test" ],
+            "justMyCode": false
+        }
+    ]
+}
