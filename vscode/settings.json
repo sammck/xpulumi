@@ -3,7 +3,7 @@
     "python.envFile": "${workspaceFolder}/.env",
     "[python]": {
         "editor.insertSpaces": true,
-        "editor.tabSize": 2  
+        "editor.tabSize": 2
     },
     "terminal.integrated.env.osx": {
       "PATH": "${workspaceFolder}/bin:${env:PATH}",

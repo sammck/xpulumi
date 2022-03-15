@@ -5,3 +5,4 @@
 
 """Constants used by xpulumi"""
 
+PULUMI_STANDARD_BACKEND: str = 'https://api.pulumi.com'

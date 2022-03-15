@@ -10,10 +10,14 @@ python = "^3.8"
 colorama = "^0.4.4"
 jq = "^1.2.2"
 argcomplete = "^2.0.0"
+pulumi = "^3.26.1"
+boto3 = "^1.21.18"
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.931"
 python-semantic-release = "^7.25.2"
+boto3-stubs = "^1.21.19"
+types-requests = "^2.27.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
