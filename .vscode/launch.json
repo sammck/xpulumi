@@ -22,7 +22,7 @@
             "type": "python",
             "request": "launch",
             "module": "xpulumi",
-            "args": [ "test" ],
+            "args": [ "--tb", "test" ],
             "justMyCode": false
         }
     ]

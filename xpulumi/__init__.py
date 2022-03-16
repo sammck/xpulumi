@@ -12,4 +12,10 @@ from .internal_types import Jsonable, JsonableDict, JsonableList
 
 from .exceptions import (
     XPulumiError,
+    PulumiApiError
   )
+
+from .backend import XPulumiBackend
+from .api_client import PulumiApiClient
+from .context import XPulumiContext
+from .base_context import XPulumiContextBase

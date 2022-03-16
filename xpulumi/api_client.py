@@ -29,28 +29,9 @@ import zlib
 import base64
 
 from .util import file_url_to_pathname, pathname_to_file_url
-from .exceptions import XPulumiError
+from .exceptions import XPulumiError, PulumiApiError
 from .context import XPulumiContext
 from .constants import PULUMI_STANDARD_BACKEND
-
-class PulumiApiError(XPulumiError):
-  _url: str
-  _data: JsonableDict
-
-  def __init__(self, url: str, data: JsonableDict):
-    message = data.get('message', "The Pulumi API request failed")
-    super().__init__(message)
-    self._data = data
-
-  @property
-  def status_code(self) -> int:
-    result = self._data.get('code', 0)
-    assert isinstance(result, (int, str))
-    return int(result)
-
-  @property
-  def url(self) -> str:
-    return self._url
 
 class PulumiApiClient:
   _api_url: str
@@ -118,25 +99,30 @@ class PulumiApiClient:
         req_params: Optional[Dict[str, str]]=None,
         req_data: Jsonable=None,
         gzip_req_data: bool=False,
-      ) -> Jsonable:
+      ) -> JsonableDict:
     bin_req_data = None if req_data is None else json.dumps(req_data).encode('utf-8')
     req_url, resp = self.raw_api_request(method, api_path, req_params=req_params, req_data=bin_req_data, gzip_req_data=gzip_req_data)
     bin_resp_data = resp.content
     resp_data: Jsonable = None
-    try:
-      resp_data = resp.json()
-    except:
-      pass
+    if len(bin_resp_data) > 0:
+      try:
+        resp_data = resp.json()
+        if not isinstance(resp_data, dict):
+          resp_data = dict(json_content=resp_data)
+      except:
+        resp_data = dict(code=resp.status_code, message=bin_resp_data.decode('utf-8'))
+    else:
+      resp_data = {}
+    if (resp.status_code < 200 or resp.status_code >= 300):
+      if not 'code' in resp_data:
+        resp_data['code'] = resp.status_code
+      if not 'message' in resp_data:
+        resp_data['message'] = f"Unexpected HTTP status code {resp.status_code} from {req_url}"
     if resp.status_code >= 400 and resp.status_code < 600:
       if resp.status_code == 401 and self.access_token is None or self.access_token == "":
         raise XPulumiError(f"Pulumi API requires an access token: {req_url}")
-      if not isinstance(resp_data, dict):
-        resp_data = dict(code=resp.status_code, message=bin_resp_data.decode('utf-8'))
+    if resp.status_code < 200 or resp.status_code >= 300:
       raise PulumiApiError(req_url, resp_data)
-    elif resp.status_code < 200 or resp.status_code >= 300:
-      raise XPulumiError(f"Unexpected HTTP status code {resp.status_code} from {req_url}")
-    if resp_data is None:
-      raise XPulumiError(f"Malformed JSON response from {req_url}")
     return resp_data
 
   def api_get(

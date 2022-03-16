@@ -247,14 +247,15 @@ class XPulumiBackend:
       if self.scheme in ('https', 'http'):
         env['PULUMI_ACCESS_TOKEN'] = self.require_access_token()
       # TODO: determine secret provider and passphrase_id from stack config
-      secrets_provider = "default://" if self.scheme == 'https' else "passphrase://"
-      if secrets_provider == "passphrase://":
+      secrets_provider = "service" if self.scheme == 'https' else "passphrase"
+      if secrets_provider == "passphrase":
         env['PULUMI_CONFIG_PASSPHRASE'] = self.ctx.get_pulumi_secret_passphrase(self.url, organization=organization, project=project, stack=stack)
-      project_backend = pauto.ProjectBackend(self.url)
+      project_backend = pauto.ProjectBackend(self.get_project_backend_url(project=project, organization=organization))
       project_settings = pauto.ProjectSettings(project, "python", backend=project_backend)
       stack_settings = pauto.StackSettings(secrets_provider=secrets_provider)
       stacks_settings = {}
       stacks_settings[stack] = stack_settings
+      export_data: Jsonable
       with tempfile.TemporaryDirectory() as work_dir:
         ws = pauto.LocalWorkspace(
             work_dir=work_dir,
@@ -263,9 +264,10 @@ class XPulumiBackend:
             secrets_provider=secrets_provider,
             project_settings=project_settings,
             stack_settings=stacks_settings)
+        
         if decrypt_secrets:
           deployment = ws.export_stack(stack)
-          export_data = cast(JsonableDict, deployment.deployment)
+          export_data = dict(version=deployment.version, deployment=cast(JsonableDict, deployment.deployment))
         else:
           resp = ws._run_pulumi_cmd_sync(
               ["stack", "export", "--stack", stack]

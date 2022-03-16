@@ -5,7 +5,7 @@
 # MIT License - See LICENSE file accompanying this package.
 #
 
-"""Command-line interface for secret_kv package"""
+"""Command-line interface for xpulumi package"""
 
 
 import base64
@@ -126,6 +126,9 @@ class CommandHandler:
     return 1
 
   def cmd_test(self) -> int:
+    from xpulumi.test_func import run_test
+    result = run_test()
+    self.pretty_print(result)
     return 0
 
   def cmd_version(self) -> int:
@@ -233,7 +236,7 @@ class CommandHandler:
         if traceback:
           raise
 
-        print(f"{self.ecolor(Fore.RED)}secret-kv: error: {ex}{self.ecolor(Style.RESET_ALL)}", file=sys.stderr)
+        print(f"{self.ecolor(Fore.RED)}xpulumi: error: {ex}{self.ecolor(Style.RESET_ALL)}", file=sys.stderr)
     return rc
 
 def run(argv: Optional[Sequence[str]]=None) -> int:

@@ -34,7 +34,7 @@ class XPulumiContext(ABC):
   def get_environ(self) -> Dict[str, str]: ...
 
   @abstractmethod
-  def get_pulumi_access_token(self, https_backend_url: Optional[str]=None) -> str: ...
+  def get_pulumi_access_token(self, backend_url: Optional[str]=None) -> Optional[str]: ...
   
   @abstractmethod
   def get_pulumi_secret_passphrase(
@@ -44,6 +44,7 @@ class XPulumiContext(ABC):
         project: Optional[str]=None,
         stack: Optional[str]=None,
         passphrase_id: Optional[str] = None,
+        passphrase_salt: Optional[str] =None,
     ) -> str: ...
   
   @abstractmethod

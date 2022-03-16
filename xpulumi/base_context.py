@@ -23,10 +23,12 @@ from copy import deepcopy
 import distutils.spawn
 import boto3.session
 #from botocore.session import Session as BotocoreSession
+import json
 
 from .context import XPulumiContext, BotoAwsSession, BotocoreSession
 from .util import file_url_to_pathname
 from .exceptions import XPulumiError
+from .constants import PULUMI_STANDARD_BACKEND
 
 #SessionVarEntry = Tuple[Optional[str], Optional[Union[List[str], str]], Any, Optional[Callable[[Any], Any]]]
 
@@ -77,12 +79,19 @@ class XPulumiContextBase(XPulumiContext):
   """Cached map from (backend, org, project, stack) to passphrase. "None" values used to provide
      defaults for project, backend, or entire context."""
 
+  _access_token_map: Dict[str, Tuple[Optional[str], Optional[str]]]
+  """Cached map from backend URL to access token and optional username"""
+
+  _credentials_data: Optional[JsonableDict] = None
+
   def __init__(self):
     super().__init__()
     self._aws_account_map = {}
     self._environ = dict(os.environ)
     self._cwd = os.getcwd()
+    self._passphrase_by_backend_org_project_stack = {}
     self._passphrase_by_id = {}
+    self._access_token_map = {}
 
   def load_aws_session(
         self,
@@ -114,7 +123,60 @@ class XPulumiContextBase(XPulumiContext):
   def get_environ(self) -> Dict[str, str]:
     return self._environ
 
-  def get_pulumi_access_token(self, https_backend_url: Optional[str]=None) -> str: ...
+  def get_pulumi_access_token_and_username(self, backend_url: Optional[str]=None) -> Tuple[Optional[str], Optional[str]]:
+    if backend_url is None:
+      backend_url = PULUMI_STANDARD_BACKEND
+    if backend_url in self._access_token_map:
+      access_token, username = self._access_token_map[backend_url]
+    else:
+      access_token = self.get_environ().get("PULUMI_ACCESS_TOKEN", None)
+      if access_token == '':
+        access_token = None
+      if access_token is None:
+        access_token, username = self.get_credentials_backend_data(backend_url)
+      self._access_token_map[backend_url] = (access_token, username)
+    return access_token, username
+
+  def get_pulumi_access_token(self, backend_url: Optional[str]=None) -> Optional[str]:
+    return self.get_pulumi_access_token_and_username(backend_url=backend_url)[0]
+
+  def get_pulumi_cred_username(self, backend_url: Optional[str]=None) -> Optional[str]:
+    return self.get_pulumi_access_token_and_username(backend_url=backend_url)[1]
+
+  def get_credentials_filename(self) -> Optional[str]:
+    pulumi_home = self.get_pulumi_home()
+    result = os.path.join(pulumi_home, "credentials.json")
+    return result
+
+  def get_credentials_data(self) -> JsonableDict:
+    result: JsonableDict
+    if self._credentials_data is None:
+      credentials_file = self.get_credentials_filename()
+      if not credentials_file is None:
+        try:
+          with open(credentials_file) as f:
+            json_text = f.read()
+        except FileNotFoundError:
+          pass
+        json_data = json.loads(json_text)
+        if isinstance(json_data, dict):
+          self._credentials_data = json_data
+      if self._credentials_data is None:
+        self._credentials_data = {}
+    return self._credentials_data
+
+  def get_credentials_backend_data(self, backend_url: str) -> Tuple[Optional[str], Optional[str]]:
+    creds = self.get_credentials_data()
+    accounts = creds.get('accounts', None)
+    if isinstance(accounts, dict):
+      be_data = accounts.get(backend_url, None)
+      if isinstance(be_data, dict):
+        access_token = be_data.get('accessToken', None)
+        username = be_data.get('username', None)
+        assert access_token is None or isinstance(access_token, str)
+        assert username is None or isinstance(username, str)
+        return access_token, username
+    return None, None
 
   def load_pulumi_secret_passphrase(
         self,
@@ -123,8 +185,9 @@ class XPulumiContextBase(XPulumiContext):
         project: Optional[str]=None,
         stack: Optional[str]=None,
         passphrase_id: Optional[str] = None,
+        passphrase_salt: Optional[str] = None,
       ) -> str:
-    raise XPulumiError(f"Unable to dewtermine secrets passphrase for backend={backend_url}, organization={organization}, project={project}, stack={stack}, passphrase_id={passphrase_id}")
+    raise XPulumiError(f"Unable to determine secrets passphrase for backend={backend_url}, organization={organization}, project={project}, stack={stack}, passphrase_id={passphrase_id}")
 
   def set_pulumi_secret_passphrase(
         self,
