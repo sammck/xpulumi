@@ -75,6 +75,9 @@ class XPulumiContextBase(XPulumiContext):
   _passphrase_by_id: Dict[str, str]
   """Cached map from passphrase unique ID to passphrase"""
 
+  _passphrase_by_salt_state: Dict[str, str]
+  """Cached map from salt state to passphrase"""
+
   _passphrase_by_backend_org_project_stack: Dict[Tuple[Optional[str], Optional[str], Optional[str], Optional[str]], str]
   """Cached map from (backend, org, project, stack) to passphrase. "None" values used to provide
      defaults for project, backend, or entire context."""
@@ -86,11 +89,12 @@ class XPulumiContextBase(XPulumiContext):
 
   def __init__(self):
     super().__init__()
-    self._aws_account_map = {}
+    self._aws_account_region_map = {}
     self._environ = dict(os.environ)
     self._cwd = os.getcwd()
     self._passphrase_by_backend_org_project_stack = {}
     self._passphrase_by_id = {}
+    self._passphrase_by_salt_state = {}
     self._access_token_map = {}
 
   def load_aws_session(
@@ -185,9 +189,9 @@ class XPulumiContextBase(XPulumiContext):
         project: Optional[str]=None,
         stack: Optional[str]=None,
         passphrase_id: Optional[str] = None,
-        passphrase_salt: Optional[str] = None,
+        salt_state: Optional[str] = None,
       ) -> str:
-    raise XPulumiError(f"Unable to determine secrets passphrase for backend={backend_url}, organization={organization}, project={project}, stack={stack}, passphrase_id={passphrase_id}")
+    raise XPulumiError(f"Unable to determine secrets passphrase for backend={backend_url}, organization={organization}, project={project}, stack={stack}, passphrase_id={passphrase_id}, stalt_state={salt_state}")
 
   def set_pulumi_secret_passphrase(
         self,
@@ -197,7 +201,10 @@ class XPulumiContextBase(XPulumiContext):
         project: Optional[str]=None,
         stack: Optional[str]=None,
         passphrase_id: Optional[str] = None,
+        salt_state: Optional[str] = None,
       ):
+    if not salt_state is None:
+      self._passphrase_by_salt_state[salt_state] = passphrase
     self._passphrase_by_backend_org_project_stack[(backend_url, organization, project, stack)] = passphrase
     if not passphrase_id is None:
       self._passphrase_by_id[passphrase_id] = passphrase
@@ -205,10 +212,18 @@ class XPulumiContextBase(XPulumiContext):
   def set_pulumi_secret_passphrase_by_id(
         self,
         passphrase: str,
-        passphrase_id: Optional[str] = None,
+        passphrase_id: str
       ):
     if not passphrase_id is None:
       self._passphrase_by_id[passphrase_id] = passphrase
+
+  def set_pulumi_secret_passphrase_by_salt_state(
+        self,
+        passphrase: str,
+        salt_state: str
+      ):
+    if not salt_state is None:
+      self._passphrase_by_salt_state[salt_state] = passphrase
 
   def get_pulumi_secret_passphrase(
         self,
@@ -217,8 +232,13 @@ class XPulumiContextBase(XPulumiContext):
         project: Optional[str]=None,
         stack: Optional[str]=None,
         passphrase_id: Optional[str] = None,
+        salt_state: Optional[str] = None,
       ) -> str:
-    result = self._passphrase_by_backend_org_project_stack.get((backend_url, organization, project, stack), None)
+    result = None
+    if not salt_state is None:
+      result = self._passphrase_by_salt_state.get(salt_state, None)
+    if result is None:
+      result = self._passphrase_by_backend_org_project_stack.get((backend_url, organization, project, stack), None)
     if result is None and not passphrase_id is None:
       result = self._passphrase_by_id.get(passphrase_id, None)
     if result is None and not stack is None:
@@ -241,6 +261,8 @@ class XPulumiContextBase(XPulumiContext):
       self._passphrase_by_backend_org_project_stack[(backend_url, organization, project, stack)] = result
     if not passphrase_id is None and not passphrase_id in self._passphrase_by_id:
       self._passphrase_by_id[passphrase_id] = result
+    if not salt_state is None and not salt_state in self._passphrase_by_salt_state:
+      self._passphrase_by_salt_state[salt_state] = result
     return result
 
   def get_pulumi_home(self) -> str:

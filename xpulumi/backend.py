@@ -26,11 +26,12 @@ import tempfile
 import json
 import requests
 
-from .util import file_url_to_pathname, pathname_to_file_url
+from .util import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
 from .exceptions import XPulumiError
 from .context import XPulumiContext
 from .api_client import PulumiApiClient
-from .constants import PULUMI_STANDARD_BACKEND
+from .passphrase import PassphraseCipher
+from .constants import PULUMI_STANDARD_BACKEND, PULUMI_JSON_SECRET_PROPERTY_NAME, PULUMI_JSON_SECRET_PROPERTY_VALUE
 
 class XPulumiBackend:
   _ctx: XPulumiContext
@@ -150,68 +151,40 @@ class XPulumiBackend:
       ) -> ParseResult:
     return urlparse(self.get_stack_backend_url(stack, organization=organization, project=project))
 
-  def get_s3_bucket(self) -> str:
-    if self.scheme != 's3':
-      raise XPulumiError(f"Not an S3 backend: {self.url}")
-    return self.url_parts.netloc
+  def read_uri_file_blob(self, blob_uri: str) -> bytes:
+    parts = urlparse(blob_uri)
+    if parts.scheme != 'file':
+      raise XPulumiError(f"Invalid 'file:' URL: {blob_uri}")
+    pathname = file_url_to_pathname(blob_uri, self.ctx.get_cwd())
+    with open(pathname, 'rb') as f:
+      bin_data = f.read()
+    return bin_data
 
-  def get_s3_key(self) -> str:
-    if self.scheme != 's3':
-      raise XPulumiError(f"Not an S3 backend: {self.url}")
-    key = self.url_parts.path
+  def read_uri_s3_blob(self, blob_uri: str) -> bytes:
+    parts = urlparse(blob_uri)
+    if parts.scheme != 's3':
+      raise XPulumiError(f"Invalid 'file:' URL: {blob_uri}")
+    bucket = parts.netloc
+    key = parts.path
     while key.startswith('/'):
       key = key[1:]
-    return key
+    aws_account = self.options.get("aws_account", None)
+    aws_region = self.options.get("aws_region", None)
+    aws = self.ctx.get_aws_session(aws_account=aws_account, aws_region=aws_region)
+    s3 = aws.client('s3')
+    resp = s3.get_object(Bucket=bucket, Key=key)
+    bin_data = resp['Body'].read()
+    assert isinstance(bin_data, bytes)
+    return bin_data
 
-  def get_s3_project_key(self, organization: Optional[str]=None, project: Optional[str]=None) -> str:
-    if self.scheme != 's3':
-      raise XPulumiError(f"Not an S3 backend: {self.url}")
-    url_parts = self.get_project_backend_url_parts(organization=organization, project=project)
-    key = url_parts.path
-    while key.startswith('/'):
-      key = key[1:]
-    return key
-
-  def get_s3_stack_key(self, stack: str, organization: Optional[str]=None, project: Optional[str]=None) -> str:
-    if self.scheme != 's3':
-      raise XPulumiError(f"Not an S3 backend: {self.url}")
-    url_parts = self.get_stack_backend_url_parts(stack, organization=organization, project=project)
-    key = url_parts.path
-    while key.startswith('/'):
-      key = key[1:]
-    return key
-
-  def get_file_backend_pathname(self, cwd: Optional[str]=None, allow_relative: bool=True) -> str:
-    result = file_url_to_pathname(self.url, cwd=cwd, allow_relative=allow_relative)
-    return result
-
-  def get_file_project_backend_pathname(
-        self,
-        cwd: Optional[str]=None,
-        allow_relative: bool=True,
-        organization: Optional[str]=None,
-        project: Optional[str]=None
-      ) -> str:
-    result = file_url_to_pathname(
-        self.get_project_backend_url(organization=organization, project=project),
-        cwd=cwd,
-        allow_relative=allow_relative
-      )
-    return result
-
-  def get_file_stack_backend_pathname(
-        self,
-        stack: str,
-        cwd: Optional[str]=None,
-        allow_relative: bool=True,
-        organization: Optional[str]=None,
-        project: Optional[str]=None
-      ) -> str:
-    result = file_url_to_pathname(
-        self.get_stack_backend_url(stack, organization=organization, project=project),
-        cwd=cwd,
-        allow_relative=allow_relative
-      )
+  def read_uri_blob(self, blob_uri: str) -> bytes:
+    scheme = urlparse(blob_uri).scheme
+    if scheme == 'file':
+      result = self.read_uri_file_blob(blob_uri)
+    elif scheme == 's3':
+      result = self.read_uri_s3_blob(blob_uri)
+    else:
+      raise XPulumiError(f"Direct blob reading not supported for scheme '{scheme}': {blob_uri}")
     return result
 
   def require_access_token(self) -> str:
@@ -234,6 +207,132 @@ class XPulumiBackend:
       self._pulumi_account_name = result
     return self._pulumi_account_name
 
+  def export_stack_with_cli(
+        self,
+        project: str,
+        stack: str,
+        organization: Optional[str]=None,
+        decrypt_secrets: bool=False,
+      ) -> JsonableDict:
+    env = dict(self.ctx.get_environ())
+    if self.scheme in ('https', 'http'):
+      env['PULUMI_ACCESS_TOKEN'] = self.require_access_token()
+    # TODO: determine secret provider and passphrase_id from stack config
+    secrets_provider = "service" if self.scheme == 'https' else "passphrase"
+    if secrets_provider == "passphrase":
+      env['PULUMI_CONFIG_PASSPHRASE'] = self.ctx.get_pulumi_secret_passphrase(self.url, organization=organization, project=project, stack=stack)
+    project_backend = pauto.ProjectBackend(self.get_project_backend_url(project=project, organization=organization))
+    project_settings = pauto.ProjectSettings(project, "python", backend=project_backend)
+    stack_settings = pauto.StackSettings(secrets_provider=secrets_provider)
+    stacks_settings = {}
+    stacks_settings[stack] = stack_settings
+    export_data: Jsonable
+    with tempfile.TemporaryDirectory() as work_dir:
+      ws = pauto.LocalWorkspace(
+          work_dir=work_dir,
+          pulumi_home=self.ctx.get_pulumi_home(),
+          env_vars=env,
+          secrets_provider=secrets_provider,
+          project_settings=project_settings,
+          stack_settings=stacks_settings)
+      
+      if decrypt_secrets:
+        deployment = ws.export_stack(stack)
+        export_data = dict(version=deployment.version, deployment=cast(JsonableDict, deployment.deployment))
+      else:
+        resp = ws._run_pulumi_cmd_sync(
+            ["stack", "export", "--stack", stack]
+        )
+        export_data = json.loads(resp.stdout)
+    if not isinstance(export_data, dict) or not 'deployment' in export_data:
+      raise RuntimeError(f"Could not locate stack resource via CLI in stack state for backend {self.url}, org={organization}, project={project}, stack={stack}")
+    return export_data
+
+  def jsonable_contains_encrypted_secrets(self, value: Jsonable) -> bool:
+    if value is None or isinstance(value, (str, int, float, bool)):
+      pass
+    elif isinstance(value, list):
+      for v in value:
+        if self.jsonable_contains_encrypted_secrets(v):
+          return True
+    elif isinstance(value, dict):
+      if (PULUMI_JSON_SECRET_PROPERTY_NAME in value
+              and value[PULUMI_JSON_SECRET_PROPERTY_NAME] == PULUMI_JSON_SECRET_PROPERTY_VALUE
+              and 'ciphertext' in value):
+        return True
+      for v in value.values():
+        if self.jsonable_contains_encrypted_secrets(v):
+          return True
+    else:
+      raise XPulumiError(f"Value is not Jsonable: {full_type(value)}")
+    return False
+
+  def decrypt_jsonable(self, value: Jsonable, decrypter: PassphraseCipher) -> Jsonable:
+    result: Jsonable
+    if value is None or isinstance(value, (str, int, float, bool)):
+      result = value
+    elif isinstance(value, list):
+      result = [ self.decrypt_jsonable(v, decrypter) for v in value ]
+    elif isinstance(value, dict):
+      if (PULUMI_JSON_SECRET_PROPERTY_NAME in value
+              and value[PULUMI_JSON_SECRET_PROPERTY_NAME] == PULUMI_JSON_SECRET_PROPERTY_VALUE
+              and 'ciphertext' in value):
+        ciphertext = value['ciphertext']
+        plaintext = decrypter.decrypt(ciphertext)
+        result = { PULUMI_JSON_SECRET_PROPERTY_NAME: PULUMI_JSON_SECRET_PROPERTY_VALUE, "plaintext": plaintext }
+      else:
+        result = {}
+        for k, v in value.items():
+          if not isinstance(k, str):
+            raise XPulumiError(f"Property name is not Jsonable: {full_type(k)}")
+          result[k] = self.decrypt_jsonable(v, decrypter=decrypter)
+    return result
+
+  def export_stack_with_rest_api(
+        self,
+        project: str,
+        stack: str,
+        organization: Optional[str]=None,
+        decrypt_secrets: bool=False,
+      ) -> JsonableDict:
+    if self.scheme not in ('http', 'https'):
+      raise XPulumiError(f"Scheme {self.scheme} not supported using REST API: {self.url}")
+    if decrypt_secrets:
+      raise XPulumiError(f"Secret decryption not supported using REST API: {self.url}")
+    export_data = self.api_client().export_stack_deployment(project, stack, organization=organization)
+    if not isinstance(export_data, dict) or not 'deployment' in export_data:
+      raise RuntimeError(f"Could not locate stack resource via REST API stack state data for backend {self.url}, org={organization}, project={project}, stack={stack}")
+    return export_data
+
+  def export_stack_with_blob_backend(
+        self,
+        project: str,
+        stack: str,
+        organization: Optional[str]=None,
+        decrypt_secrets: bool=False,
+      ) -> JsonableDict:
+    if self.scheme not in ('file', 's3'):
+      raise XPulumiError(f"Scheme {self.scheme} not supported using blob read: {self.url}")
+    if decrypt_secrets:
+      raise XPulumiError(f"Secret decryption not supported using blob read: {self.url}")
+    stack_url = self.get_stack_backend_url(stack=stack, project=project, organization=organization)
+    stack_blob = self.read_uri_blob(stack_url)
+    stack_state = json.loads(stack_blob.decode('utf-8'))
+    export_data: Jsonable = None
+    if isinstance(stack_state, dict):
+      version = stack_state.get('version', None)
+      checkpoint = stack_state.get('checkpoint', None)
+      if isinstance(checkpoint, dict):
+        checkpoint_stack = checkpoint.get("stack", None)
+        if not checkpoint_stack is None and checkpoint_stack != stack:
+          raise RuntimeError(f"Backend checkpoint stack \"{checkpoint_stack}\" does not match requested stack for backend {self.url}, org={organization}, project={project}, stack={stack}")
+        latest = checkpoint.get('latest', None)
+        if isinstance(latest, dict):
+          export_data = dict(deployment=latest, version=version)
+    if export_data is None:
+      raise RuntimeError(f"Malformed backend state file for backend {self.url}, org={organization}, project={project}, stack={stack}")
+    return export_data
+
   def export_stack(
         self,
         project: str,
@@ -242,42 +341,32 @@ class XPulumiBackend:
         decrypt_secrets: bool=False,
         bypass_pulumi: bool=True,
       ) -> JsonableDict:
-    if not bypass_pulumi or decrypt_secrets or self.scheme not in ('https', 's3', 'file', 'http'):
-      env = dict(self.ctx.get_environ())
-      if self.scheme in ('https', 'http'):
-        env['PULUMI_ACCESS_TOKEN'] = self.require_access_token()
-      # TODO: determine secret provider and passphrase_id from stack config
-      secrets_provider = "service" if self.scheme == 'https' else "passphrase"
-      if secrets_provider == "passphrase":
-        env['PULUMI_CONFIG_PASSPHRASE'] = self.ctx.get_pulumi_secret_passphrase(self.url, organization=organization, project=project, stack=stack)
-      project_backend = pauto.ProjectBackend(self.get_project_backend_url(project=project, organization=organization))
-      project_settings = pauto.ProjectSettings(project, "python", backend=project_backend)
-      stack_settings = pauto.StackSettings(secrets_provider=secrets_provider)
-      stacks_settings = {}
-      stacks_settings[stack] = stack_settings
-      export_data: Jsonable
-      with tempfile.TemporaryDirectory() as work_dir:
-        ws = pauto.LocalWorkspace(
-            work_dir=work_dir,
-            pulumi_home=self.ctx.get_pulumi_home(),
-            env_vars=env,
-            secrets_provider=secrets_provider,
-            project_settings=project_settings,
-            stack_settings=stacks_settings)
-        
-        if decrypt_secrets:
-          deployment = ws.export_stack(stack)
-          export_data = dict(version=deployment.version, deployment=cast(JsonableDict, deployment.deployment))
-        else:
-          resp = ws._run_pulumi_cmd_sync(
-              ["stack", "export", "--stack", stack]
-          )
-          export_data = json.loads(resp.stdout)
+    if not bypass_pulumi or self.scheme not in ('https', 's3', 'file', 'http'):
+      export_data = self.export_stack_with_cli(
+          project,
+          stack,
+          organization=organization,
+          decrypt_secrets=decrypt_secrets,
+        )
     else:
       if self.scheme in ('https', 'http'):
-        export_data = self.api_client().export_stack_deployment(project, stack, organization=organization)
+        export_data = self.export_stack_with_rest_api(project, stack, organization=organization)
+      elif self.scheme in ('file', 's3'):
+        export_data = self.export_stack_with_blob_backend(project, stack, organization=organization)
       else:
         raise NotImplementedError(f"Unable to bypass pulumi CLI for scheme {self.scheme}://")
+      if decrypt_secrets and self.jsonable_contains_encrypted_secrets(export_data):
+        deployment = export_data['deployment']
+        secrets_providers = deployment['secrets_providers']
+        secret_provider_type = secrets_providers['type']
+        if secret_provider_type == 'passphrase':
+          salt_state = secrets_providers['state']['salt']
+          passphrase = self.ctx.get_pulumi_secret_passphrase(self.url, project=project, stack=stack, organization=organization, salt_state=salt_state)
+          decrypter = PassphraseCipher(passphrase, salt_state)
+          export_data = self.decrypt_jsonable(export_data, decrypter)
+        else:
+          # TODO: support other secrets providers.  For now, just rerun the request using the CLI
+          export_data = self.export_stack_with_cli(project, stack, organization=organization, decrypt_secrets=decrypt_secrets)
     if not isinstance(export_data, dict) or not 'deployment' in export_data:
       raise RuntimeError(f"Could not locate stack resource in stack state file for backend {self.url}, org={organization}, project={project}, stack={stack}")
     return export_data
@@ -305,6 +394,15 @@ class XPulumiBackend:
     stack_outputs = stack_data['outputs']
     if not isinstance(stack_outputs, dict):
       raise RuntimeError(f"Malformed outputs in stack state file for backend {self.url}, org={organization}, project={project}, stack={stack}")
+    stack_outputs = dict(stack_outputs)
+    for k, v in list(stack_outputs.items()):
+      if (isinstance(v, dict)
+              and PULUMI_JSON_SECRET_PROPERTY_NAME in v
+              and v[PULUMI_JSON_SECRET_PROPERTY_NAME] == PULUMI_JSON_SECRET_PROPERTY_VALUE):
+        if 'ciphertext' in v:
+          stack_outputs[k] = "[secret]"
+        elif 'plaintext' in v:
+          stack_outputs[k] = json.loads(v['plaintext'])
     return stack_outputs
 
   def __str__(self) -> str:

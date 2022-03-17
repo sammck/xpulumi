@@ -310,7 +310,7 @@ class PassphraseCipher:
       bin_plaintext = cipher.decrypt_and_verify(ciphertext_data, ciphertext_tag)
       plaintext = bin_plaintext.decode('utf-8')
     except Exception as e:
-      raise XPulumiError(f"Ciphertext cannot be decrypted: {ciphertext}") from e
+      raise XPulumiError(f"Ciphertext cannot be decrypted with given passphrase and salt \"{self.salt_state}\": {ciphertext}") from e
     return plaintext
 
 

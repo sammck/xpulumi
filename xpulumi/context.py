@@ -44,7 +44,7 @@ class XPulumiContext(ABC):
         project: Optional[str]=None,
         stack: Optional[str]=None,
         passphrase_id: Optional[str] = None,
-        passphrase_salt: Optional[str] =None,
+        salt_state: Optional[str] =None,
     ) -> str: ...
   
   @abstractmethod
