@@ -7,13 +7,14 @@
 
 """Pulumi-compatible passphrase encryption/decryption"""
 
-from typing import Optional
+from typing import Optional, cast
 
 from .exceptions import XPulumiError
 import Cryptodome
 from Cryptodome.Protocol.KDF import PBKDF2
 from Cryptodome.Hash import SHA256
 from Cryptodome.Cipher import AES
+from Cryptodome.Cipher._mode_gcm import GcmMode
 from Cryptodome.Random import get_random_bytes
 from base64 import b64encode, b64decode
 from binascii import hexlify
@@ -256,7 +257,7 @@ class PassphraseCipher:
     """
     if nonce is None:
       nonce = get_random_bytes(self.NONCE_SIZE_BYTES)
-    cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
+    cipher = cast(GcmMode, AES.new(self._key, AES.MODE_GCM, nonce=nonce))
     bin_plaintext = plaintext.encode('utf-8')
     ciphertext_data, tag = cipher.encrypt_and_digest(bin_plaintext)
     assert len(tag) == self.TAG_SIZE_BYTES
@@ -306,7 +307,7 @@ class PassphraseCipher:
       ciphertext_data_and_tag = b64decode(parts[2])
       ciphertext_data = ciphertext_data_and_tag[:-self.TAG_SIZE_BYTES]
       ciphertext_tag = ciphertext_data_and_tag[-self.TAG_SIZE_BYTES:]
-      cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
+      cipher = cast(GcmMode, AES.new(self._key, AES.MODE_GCM, nonce=nonce))
       bin_plaintext = cipher.decrypt_and_verify(ciphertext_data, ciphertext_tag)
       plaintext = bin_plaintext.decode('utf-8')
     except Exception as e:

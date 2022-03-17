@@ -169,7 +169,9 @@ class XPulumiBackend:
     while key.startswith('/'):
       key = key[1:]
     aws_account = self.options.get("aws_account", None)
+    assert aws_account is None or isinstance(aws_account, str)
     aws_region = self.options.get("aws_region", None)
+    assert aws_region is None or isinstance(aws_region, str)
     aws = self.ctx.get_aws_session(aws_account=aws_account, aws_region=aws_region)
     s3 = aws.client('s3')
     resp = s3.get_object(Bucket=bucket, Key=key)
@@ -329,7 +331,7 @@ class XPulumiBackend:
         latest = checkpoint.get('latest', None)
         if isinstance(latest, dict):
           export_data = dict(deployment=latest, version=version)
-    if export_data is None:
+    if not isinstance(export_data, dict):
       raise RuntimeError(f"Malformed backend state file for backend {self.url}, org={organization}, project={project}, stack={stack}")
     return export_data
 
@@ -357,13 +359,14 @@ class XPulumiBackend:
         raise NotImplementedError(f"Unable to bypass pulumi CLI for scheme {self.scheme}://")
       if decrypt_secrets and self.jsonable_contains_encrypted_secrets(export_data):
         deployment = export_data['deployment']
+        assert isinstance(deployment, dict)
         secrets_providers = deployment['secrets_providers']
         secret_provider_type = secrets_providers['type']
         if secret_provider_type == 'passphrase':
           salt_state = secrets_providers['state']['salt']
           passphrase = self.ctx.get_pulumi_secret_passphrase(self.url, project=project, stack=stack, organization=organization, salt_state=salt_state)
           decrypter = PassphraseCipher(passphrase, salt_state)
-          export_data = self.decrypt_jsonable(export_data, decrypter)
+          export_data = cast(JsonableDict, self.decrypt_jsonable(export_data, decrypter))
         else:
           # TODO: support other secrets providers.  For now, just rerun the request using the CLI
           export_data = self.export_stack_with_cli(project, stack, organization=organization, decrypt_secrets=decrypt_secrets)

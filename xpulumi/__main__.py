@@ -21,16 +21,28 @@ import colorama # type: ignore[import]
 from colorama import Fore, Back, Style
 import subprocess
 from io import TextIOWrapper
+import yaml
+from secret_kv import create_kv_store
+
+from xpulumi.config import XPulumiConfig
+from xpulumi.exceptions import XPulumiError
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
+from xpulumi.constants import XPULUMI_CONFIG_DIRNAME, XPULUMI_CONFIG_FILENAME_BASE
 from xpulumi import (
     __version__ as pkg_version,
     Jsonable,
     JsonableDict,
     JsonableList,
   )
-from xpulumi.util import full_name_of_type, full_type
+from xpulumi.util import (
+    full_name_of_type,
+    full_type,
+    get_git_root_dir,
+    append_lines_to_file_if_missing,
+  )
+from xpulumi.pulumi_cli import install_pulumi
 
 def is_colorizable(stream: TextIO) -> bool:
   is_a_tty = hasattr(stream, 'isattry') and stream.isatty()
@@ -69,6 +81,7 @@ class CommandHandler:
 
   def ecolor(self, codes: str) -> str:
     return codes if self._colorize_stderr else ""
+
 
   def abspath(self, path: str) -> str:
     return os.path.abspath(os.path.join(self._cwd, os.path.expanduser(path)))
@@ -135,6 +148,37 @@ class CommandHandler:
     self.pretty_print(pkg_version)
     return 0
 
+  def cmd_init_env(self) -> int:
+    args = self._args
+
+    project_dir = get_git_root_dir(self._cwd)
+    if project_dir is None:
+      raise XPulumiError("Could not locate Git project root directory; please run inside git working directory or use -C")
+    append_lines_to_file_if_missing(os.path.join(project_dir, ".gitignore"), ['.xpulumi/', '.secret-kv/'], create_file=True)
+    xpulumi_dir = os.path.join(project_dir, XPULUMI_CONFIG_DIRNAME)
+    if not os.path.exists(xpulumi_dir):
+      os.mkdir(xpulumi_dir)
+    xpulumi_config_file_yaml = os.path.join(xpulumi_dir, XPULUMI_CONFIG_FILENAME_BASE + ".yaml")
+    xpulumi_config_file_json = os.path.join(xpulumi_dir, XPULUMI_CONFIG_FILENAME_BASE + ".json")
+    if os.path.exists(xpulumi_config_file_yaml):
+      config_file = xpulumi_config_file_yaml
+    elif os.path.exists(xpulumi_config_file_json):
+      config_file = xpulumi_config_file_json
+    else:
+      config_file = xpulumi_config_file_yaml
+      new_config_data: JsonableDict = dict()
+      with open(config_file, 'w') as f:
+        yaml.dump(new_config_data, f)
+    cfg = XPulumiConfig(config_file)
+    xpulumi_dir = os.path.join(cfg.xpulumi_dir, '.pulumi')
+    install_pulumi(xpulumi_dir, min_version='latest')
+    project_root_dir = cfg.project_root_dir
+    secret_kv_dir = os.path.join(project_root_dir, '.secret-kv')
+    if not os.path.exists(secret_kv_dir):
+      create_kv_store(project_root_dir)
+
+    return 0
+
   def run(self) -> int:
     """Run the xpulumi command-line tool with provided arguments
 
@@ -179,11 +223,17 @@ class CommandHandler:
                         help='Additional help available with "<command-name> -h"')
 
                 
-    # ======================= keys
+    # ======================= version
 
     parser_version = subparsers.add_parser('version', 
                             description='''Display version information. JSON-quoted string. If a raw string is desired, user -r.''')
     parser_version.set_defaults(func=self.cmd_version)
+
+    # ======================= version
+
+    parser_init_env = subparsers.add_parser('init-env', 
+                            description='''Initialize a new overall GitHub project environment.''')
+    parser_init_env.set_defaults(func=self.cmd_init_env)
 
     # ======================= test
 

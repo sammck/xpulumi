@@ -28,5 +28,5 @@ def run_test() -> Jsonable:
   assert isinstance(passphrase, str)
   ctx.set_pulumi_secret_passphrase(passphrase)
   be = XPulumiBackend(ctx, 's3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj', options={ 'includes_organization': True })
-  outputs = be.get_stack_outputs('test-project', 'dev', decrypt_secrets=True, bypass_pulumi=True)
+  outputs = be.get_stack_outputs('test-project', 'dev', decrypt_secrets=False, bypass_pulumi=True)
   return outputs

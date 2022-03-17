@@ -5,7 +5,7 @@
 
 """Miscellaneous utility functions"""
 
-from typing import Type, Any, Optional
+from typing import Type, Any, Optional, Union, List
 from .internal_types import Jsonable
 
 import json
@@ -13,6 +13,7 @@ import hashlib
 import os
 from urllib.parse import urlparse, ParseResult, urlunparse, unquote as url_unquote
 import pathlib
+import subprocess
 
 from .exceptions import XPulumiError
 
@@ -98,3 +99,62 @@ def pathname_to_file_url(pathname: str, cwd: Optional[str]=None) -> str:
   pathname = os.path.abspath(os.path.join(os.path.expanduser(cwd), os.path.expanduser(pathname)))
   url = pathlib.Path(pathname).as_uri()
   return url
+
+def get_git_config_value(name: str, cwd: Optional[str]=None) -> str:
+  if cwd is None:
+    cwd = '.'
+  result = subprocess.check_output(['git', '-C', cwd, 'config', name]).decode('utf-8').rstrip()
+  return result
+
+def get_git_user_email(cwd: Optional[str]=None) -> str:
+  return get_git_config_value('user.email', cwd=cwd)
+
+def get_git_user_friendly_name(cwd: Optional[str]=None) -> str:
+  return get_git_config_value('user.email', cwd=cwd)
+
+def get_git_root_dir(starting_dir: str=".") -> Optional[str]:
+  starting_dir = os.path.abspath(starting_dir)
+  rel_root_dir: Optional[str] = None
+  try:
+    rel_root_dir = subprocess.check_output(
+        ['git', '-C', starting_dir, 'rev-parse', '--show-cdup'],
+        stderr=subprocess.DEVNULL,
+      ).decode('utf-8').rstrip()
+  except subprocess.CalledProcessError:
+    pass
+  result = None if rel_root_dir is None else os.path.abspath(os.path.join(starting_dir, rel_root_dir))
+  return result
+
+def append_lines_to_file_if_missing(pathname: str, lines: Union[str, List[str]], create_file: Optional[bool] = False) -> bool:
+  result: bool = False
+
+  if not isinstance(lines, list):
+    lines = [lines]
+
+  if create_file and not os.path.exists(pathname):
+    with os.path.open(pathname, 'w') as f:
+      pass
+
+  if len(lines) > 0:
+    adjusted = [x.rstrip("\n\r") for x in lines]
+    found = dict((x, False) for x in adjusted)
+    with open(pathname, "r+") as f:
+      ends_with_newline: bool = True
+      for line in f:
+        ends_with_newline = line.endswith("\n")
+        bline = line.rstrip("\n\r")
+        if bline in found:
+          found[bline] = True
+      for line in adjusted:
+        if not found[line]:
+          if not ends_with_newline:
+            f.write("\n")
+            ends_with_newline = True
+          f.write(line + "\n")
+          result = True
+      
+
+
+
+
+
