@@ -132,8 +132,9 @@ def append_lines_to_file_if_missing(pathname: str, lines: Union[str, List[str]],
     lines = [lines]
 
   if create_file and not os.path.exists(pathname):
-    with os.path.open(pathname, 'w') as f:
+    with open(pathname, 'w') as f:
       pass
+    result = True
 
   if len(lines) > 0:
     adjusted = [x.rstrip("\n\r") for x in lines]
@@ -152,9 +153,4 @@ def append_lines_to_file_if_missing(pathname: str, lines: Union[str, List[str]],
             ends_with_newline = True
           f.write(line + "\n")
           result = True
-      
-
-
-
-
-
+  return result

@@ -1,0 +1,99 @@
+#!/bin/bash
+
+set -eo pipefail
+
+BIN_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_DIR="$( dirname "$BIN_DIR" )"
+VENV_DIR="$PROJECT_DIR/.venv"
+VENV_BIN_DIR="$VENV_DIR/bin"
+SECRET_KV="$VENV_BIN_DIR/secret-kv"
+
+function usage() {
+  cat >&2 <<EOF
+usage: init-env [-h] [-p <secret-kv-passphrase> ]
+
+Initialize the dev invironment for this project.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -p KV_PASSPHRASE, --passphrase KV_PASSPHRASE
+                        Set the passphrase used to protect secrets in the project.  Default: use the secret-kv default.
+EOF
+
+}
+
+#argv=()
+passphrase=
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -p|--passphrase)
+      shift; passphrase="$1"; shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*|--*)
+      option="$1"; shift
+      usage
+      echo >&2
+      echo "Unrecognized option $option" >&2
+      exit 1
+      ;;
+    *)
+      break
+      # argv+=("$1"); shift
+      ;;
+  esac
+done
+
+# set -- "${argv[@]}"
+
+if [[ $# -gt 0 ]]; then
+  usage
+  echo >&2
+  echo "Unexpected positional argument '$1'" >&2
+  exit 1
+fi
+
+function do_init_env() {
+    cd "$PROJECT_DIR" || return $?
+
+    "$BIN_DIR/install-prerequisites.sh"  || return $?
+
+    # . "$BIN_DIR/bash-helpers.sh" 
+
+    mkdir -p build/common/bin  || return $?
+    mkdir -p install/bin  || return $?
+
+    poetry install  || return $?
+
+    . "$BIN_DIR/activate"
+
+    if [ ! -e "$PROJECT_DIR/.secret-kv/secret-kv-config.json" ]; then
+      if [ -n "$passphrase" ]; then
+        "$SECRET_KV" create-store "$PROJECT_DIR"
+      else
+        "$SECRET_KV" -p "$passphrase" create-store "$PROJECT_DIR"
+      fi
+    fi
+
+    PULUMI_DIR="$PROJECT_DIR/install/pulumi"
+
+    python -m install_pulumi -u -d "$PULUMI_DIR"  || return $?
+}
+
+
+RETCODE=0
+do_init_env || RETCODE=$?
+if [[ "$RETCODE" -ne 0 ]]; then
+  echo "Project environment initialization failed." >&2
+  exit 1
+fi
+
+echo "Project environment initialization succeeded!" >&2

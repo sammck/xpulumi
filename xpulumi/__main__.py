@@ -30,19 +30,24 @@ from xpulumi.exceptions import XPulumiError
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
 from xpulumi.constants import XPULUMI_CONFIG_DIRNAME, XPULUMI_CONFIG_FILENAME_BASE
+
 from xpulumi import (
     __version__ as pkg_version,
     Jsonable,
     JsonableDict,
     JsonableList,
   )
+
 from xpulumi.util import (
     full_name_of_type,
     full_type,
     get_git_root_dir,
     append_lines_to_file_if_missing,
   )
-from xpulumi.pulumi_cli import install_pulumi
+
+from xpulumi.installer import (
+    install_pulumi,
+  )
 
 def is_colorizable(stream: TextIO) -> bool:
   is_a_tty = hasattr(stream, 'isattry') and stream.isatty()
