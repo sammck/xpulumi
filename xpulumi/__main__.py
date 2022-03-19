@@ -47,6 +47,7 @@ from xpulumi.util import (
 
 from xpulumi.installer import (
     install_pulumi,
+    sudo_call,
   )
 
 def is_colorizable(stream: TextIO) -> bool:
@@ -153,6 +154,23 @@ class CommandHandler:
     self.pretty_print(pkg_version)
     return 0
 
+  def cmd_run(self) -> int:
+    args = self._args
+    group: Optional[str] = args.run_with_group
+    use_sudo: bool = args.use_sudo
+    sudo_reason: Optional[str] = args.sudo_reason
+    cmd_and_args: List[str] = args.cmd_and_args
+
+    if len(cmd_and_args) == 0:
+      cmd_and_args = [ 'bash' ]
+
+    if cmd_and_args[0].startswith('-'):
+      raise XPulumiError(f"Unrecognized command option {cmd_and_args[0]}")
+
+    exit_code = sudo_call(cmd_and_args, run_with_group=group, use_sudo=use_sudo, sudo_reason=sudo_reason)
+
+    return exit_code
+
   def cmd_init_env(self) -> int:
     args = self._args
 
@@ -234,11 +252,25 @@ class CommandHandler:
                             description='''Display version information. JSON-quoted string. If a raw string is desired, user -r.''')
     parser_version.set_defaults(func=self.cmd_version)
 
-    # ======================= version
+    # ======================= init-end
 
     parser_init_env = subparsers.add_parser('init-env', 
                             description='''Initialize a new overall GitHub project environment.''')
     parser_init_env.set_defaults(func=self.cmd_init_env)
+
+    # ======================= run
+
+    parser_run = subparsers.add_parser('run', 
+                            description='''Run a command, optionally in group or with sudo.''')
+    parser_run.add_argument('-g', '--group', dest="run_with_group", default=None,
+                        help='Run with membership in the specified OS group, using sudo if current process has not picked up membership')
+    parser_run.add_argument('--sudo', dest="use_sudo", action='store_true', default=False,
+                        help='''Run with sudo.''')
+    parser_run.add_argument('--sudo-reason', default=None,
+                        help='Provide a reason for why sudo is needed, if it turns out to be needed')
+    parser_run.add_argument('cmd_and_args', nargs=argparse.REMAINDER,
+                        help='Command and arguments as would be provided to sudo.')
+    parser_run.set_defaults(func=self.cmd_run)
 
     # ======================= test
 

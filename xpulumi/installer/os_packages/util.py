@@ -27,6 +27,8 @@ import threading
 from collections import defaultdict
 from functools import lru_cache, _make_key
 
+from xpulumi.exceptions import XPulumiError
+
 
 if TYPE_CHECKING:
   from subprocess import _CMD, _FILE, _ENV
@@ -813,5 +815,14 @@ def os_groupadd_user(group_name: str, user: Optional[str]=None, stderr: Optional
   if not os_group_includes_user(user):
     sudo_check_output_stderr_exception(['usermod', '-a', '-G', group_name, user], stderr=stderr, sudo_reason=f"Adding user '{user}' to OS group '{group_name}'")
 
-def should_run_with_group(group_name: str) -> bool:
-  return not os_group_includes_current_process(group_name) and os_group_includes_user(group_name)
+def should_run_with_group(group_name: str, require: bool=True) -> bool:
+  if require:
+    if not os_group_includes_user(group_name):
+      if os_group_exists(group_name):
+        raise XPulumiError(f"User \"{get_current_os_user()}\" is not a member of OS group \"{group_name}\"")
+      else:
+        raise XPulumiError(f"OS group \"{group_name}\" does not exist")
+    result = not os_group_includes_current_process(group_name)
+  else:
+    result = not os_group_includes_current_process(group_name) and os_group_includes_user(group_name)
+  return result

@@ -25,5 +25,13 @@
             "args": [ "--tb", "test" ],
             "justMyCode": false
         }
+        {
+            "name": "run -g fjhf pwd",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi",
+            "args": [ "--tb", "run", "-g", "fjhf", "pwd" ],
+            "justMyCode": false
+        }
     ]
 }
