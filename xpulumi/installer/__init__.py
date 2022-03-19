@@ -22,7 +22,7 @@ from .os_packages import (CalledProcessErrorWithStderrMessage, PackageList,
                           invalidate_os_package_list, os_group_exists,
                           os_group_includes_current_process,
                           os_group_includes_user, os_groupadd_user,
-                          os_package_is_installed, running_as_root, run_once,
+                          os_package_is_installed, run_once, running_as_root,
                           searchpath_append, searchpath_contains_dir,
                           searchpath_force_append, searchpath_join,
                           searchpath_normalize, searchpath_parts_append,
@@ -41,6 +41,9 @@ from .os_packages import (CalledProcessErrorWithStderrMessage, PackageList,
                           update_apt_sources_list, update_gpg_keyring,
                           update_os_package_list, upgrade_os_packages)
 
+from .poetry import (get_poetry_prog, get_poetry_version, install_poetry,
+                     poetry_is_installed)
+                     
 from .pulumi import (default_pulumi_dir, get_installed_pulumi_dir, get_pulumi,
                      get_pulumi_cmd_version, get_pulumi_dir_in_path,
                      get_pulumi_in_path, get_pulumi_latest_version,

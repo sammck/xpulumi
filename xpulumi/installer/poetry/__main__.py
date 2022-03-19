@@ -5,13 +5,13 @@
 # MIT License - See LICENSE file accompanying this package.
 #
 
-"""Standard Pulumi CLI installer/upgrader command-line tool"""
+"""Standard Poetry CLI installer/upgrader command-line tool"""
 
 from typing import Optional, Sequence
 
 # do not use relative imports
-from xpulumi.installer.pulumi import default_pulumi_dir, install_pulumi
-import xpulumi.installer.pulumi.installer
+from xpulumi.installer.poetry import install_poetry, default_poetry_dir
+import xpulumi.installer.poetry.installer
 
 def main(argv: Optional[Sequence[str]]=None):
   import argparse
@@ -24,7 +24,7 @@ def main(argv: Optional[Sequence[str]]=None):
   parser.add_argument('--upgrade', '-u', action='store_true', default=False,
                       help='Upgrade to latest version. Shorthand for --min-version=latest. Ignored if --min-version is provided.')
   parser.add_argument('--dir', '-d', dest='dirname', default=None,
-                      help=f"Install in the specified directory. Default={default_pulumi_dir}")
+                      help=f"Install in the specified directory. Default={default_poetry_dir}")
   parser.add_argument('--min-version', default=None,
                       help='Upgrade to at least the specified version. May be "latest". By default, no upgrade is performed if installed.')
   parser.add_argument('--install-version', default=None,
@@ -32,7 +32,7 @@ def main(argv: Optional[Sequence[str]]=None):
 
   args = parser.parse_args(argv)
 
-  xpulumi.installer.pulumi.installer.verbose = args.verbose
+  xpulumi.installer.poetry.installer.verbose = args.verbose
   force: bool = args.force
   upgrade: bool = args.upgrade
   dirname: Optional[str] = args.dirname
@@ -43,7 +43,7 @@ def main(argv: Optional[Sequence[str]]=None):
     if upgrade:
       min_version = 'latest'
 
-  install_pulumi(
+  install_poetry(
         dirname,
         min_version=min_version,
         upgrade_version=install_version,

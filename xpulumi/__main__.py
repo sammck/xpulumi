@@ -47,6 +47,7 @@ from xpulumi.util import (
 
 from xpulumi.installer import (
     install_pulumi,
+    install_poetry,
     sudo_call,
   )
 
@@ -177,6 +178,9 @@ class CommandHandler:
     project_dir = get_git_root_dir(self._cwd)
     if project_dir is None:
       raise XPulumiError("Could not locate Git project root directory; please run inside git working directory or use -C")
+
+    install_poetry()
+    
     append_lines_to_file_if_missing(os.path.join(project_dir, ".gitignore"), ['.xpulumi/', '.secret-kv/'], create_file=True)
     xpulumi_dir = os.path.join(project_dir, XPULUMI_CONFIG_DIRNAME)
     if not os.path.exists(xpulumi_dir):

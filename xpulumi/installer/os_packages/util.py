@@ -185,6 +185,24 @@ def invalidate_os_package_list() -> None:
   global _os_package_metadata_stale
   _os_package_metadata_stale = True
 
+def download_url_text(
+      url: str,
+      pool_manager: Optional[urllib3.PoolManager]=None,
+    ) -> str:
+  if pool_manager is None:
+    pool_manager = urllib3.PoolManager()
+  resp = cast(urllib3.HTTPResponse, pool_manager.request('GET', url, preload_content=False))
+  return resp.data.decode('utf-8')
+
+def download_url_bytes(
+      url: str,
+      pool_manager: Optional[urllib3.PoolManager]=None,
+    ) -> bytes:
+  if pool_manager is None:
+    pool_manager = urllib3.PoolManager()
+  resp = cast(urllib3.HTTPResponse, pool_manager.request('GET', url, preload_content=False))
+  return resp.data
+
 def download_url_file(
       url: str,
       filename: str,
