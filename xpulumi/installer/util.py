@@ -555,6 +555,72 @@ def sudo_check_output_stderr_exception(
     raise CalledProcessErrorWithStderrMessage(exit_code, args, stderr = stderr_s)
   return stdout_bytes
 
+def sudo_check_call_stderr_exception(
+      args: _CMD,
+      bufsize: int = -1,
+      executable: Optional[StrOrBytesPath] = None,
+      stdin: Optional[_FILE] = None,
+      stdout: Optional[_FILE] = None,
+      stderr: Optional[_FILE] = None,
+      preexec_fn: Optional[Callable[[], Any]] = None,
+      close_fds: bool = True,
+      shell: bool = False,
+      cwd: Optional[StrOrBytesPath] = None,
+      env: Optional[_ENV] = None,
+      universal_newlines: Optional[bool] = None,
+      startupinfo: Any = None,
+      creationflags: int = 0,
+      restore_signals: bool = True,
+      start_new_session: bool = False,
+      pass_fds: Any = (),
+      *,
+      text: Optional[bool] = None,
+      encoding: Optional[str] = None,
+      errors: Optional[str] = None,
+      use_sudo: bool = True,
+      run_with_group: Optional[str] = None,
+      sudo_reason: Optional[str] = None,
+    ) -> int:
+  args = _sudo_fix_args(
+      args,
+      stderr=stderr,
+      shell=shell,
+      use_sudo=use_sudo,
+      run_with_group=run_with_group,
+      sudo_reason=sudo_reason,
+    )
+
+  with subprocess.Popen(             # type: ignore [misc]
+        args,
+        bufsize=bufsize,
+        executable=executable,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=subprocess.PIPE,
+        preexec_fn=preexec_fn,
+        close_fds=close_fds,
+        cwd=cwd,
+        env=env,
+        universal_newlines=cast(bool, universal_newlines),
+        startupinfo=startupinfo,
+        creationflags=creationflags,
+        restore_signals=restore_signals,
+        start_new_session=start_new_session,
+        pass_fds=pass_fds,
+        text=text,
+        encoding=cast(str, encoding),
+        errors=errors,
+      ) as proc:
+    (stdout_bytes, stderr_bytes) = cast(Tuple[Union[str, bytes], Union[str, bytes]], proc.communicate())
+    exit_code = proc.returncode
+  if exit_code != 0:
+    if encoding is None:
+      encoding = 'utf-8'
+    stderr_s = stderr_bytes if isinstance(stderr_bytes, str) else stderr_bytes.decode(encoding)
+    stderr_s = stderr_s.rstrip()
+    raise CalledProcessErrorWithStderrMessage(exit_code, args, stderr = stderr_s)
+  return exit_code
+
 def unix_mv(source: str, dest: str, use_sudo: bool=False, sudo_reason: Optional[str]=None) -> None:
   """
   Equivalent to the linux "mv" commandline.  Atomic within same volume, and overwrites the destination.

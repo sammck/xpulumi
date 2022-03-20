@@ -175,7 +175,8 @@ class CommandHandler:
 
   def cmd_init_env(self) -> int:
     from xpulumi.installer.docker import install_docker
-    
+    from xpulumi.installer.aws_cli import install_aws_cli
+
     args = self._args
 
     pl = PackageList()
@@ -186,6 +187,7 @@ class CommandHandler:
     pl.install_all()
 
     install_docker()
+    install_aws_cli()
 
     project_dir = get_git_root_dir(self._cwd)
     if project_dir is None:
