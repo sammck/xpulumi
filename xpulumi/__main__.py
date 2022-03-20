@@ -45,13 +45,6 @@ from xpulumi.util import (
     append_lines_to_file_if_missing,
   )
 
-from xpulumi.installer import (
-    install_pulumi,
-    install_poetry,
-    sudo_call,
-    PackageList,
-  )
-
 def is_colorizable(stream: TextIO) -> bool:
   is_a_tty = hasattr(stream, 'isattry') and stream.isatty()
   return is_a_tty
@@ -176,6 +169,11 @@ class CommandHandler:
   def cmd_init_env(self) -> int:
     from xpulumi.installer.docker import install_docker
     from xpulumi.installer.aws_cli import install_aws_cli
+    from xpulumi.installer.gh import install_gh
+    from xpulumi.installer.pulumi import install_pulumi
+    from xpulumi.installer.poetry import install_poetry
+    from xpulumi.installer.util import sudo_call
+    from xpulumi.installer.os_packages import PackageList
 
     args = self._args
 
@@ -188,6 +186,7 @@ class CommandHandler:
 
     install_docker()
     install_aws_cli()
+    install_gh()
 
     project_dir = get_git_root_dir(self._cwd)
     if project_dir is None:

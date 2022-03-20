@@ -7,7 +7,7 @@
 
 """Installer for standard Pulumi CLI"""
 
-from typing import TextIO, Tuple, Optional, Dict, Iterator, Sequence
+from typing import TextIO, Tuple, Optional, Dict, Iterator, Sequence, cast
 from pathlib import Path
 
 import subprocess
@@ -25,6 +25,31 @@ import shlex
 from enum import Enum
 from contextlib import contextmanager
 
+from xpulumi.exceptions import XPulumiError
+
+from ..util import (
+    command_exists,
+    command_exists_outside_venv,
+    download_url_file,
+    find_command_in_path,
+    find_command_in_path_outside_venv,
+    download_url_text,
+    get_current_architecture,
+    get_linux_distro_name,
+    get_tmp_dir,
+    os_group_exists,
+    os_group_includes_user,
+    run_once,
+    running_as_root,
+    should_run_with_group,
+    sudo_check_output_stderr_exception,
+    sudo_check_call_stderr_exception,
+    check_version_ge,
+    file_contents,
+    get_current_os_user,
+    unix_mv,
+)
+
 verbose: bool = False
 
 home_dir = os.path.expanduser("~")
@@ -34,17 +59,15 @@ default_pulumi_cmd = os.path.join(default_pulumi_bin_dir, 'pulumi')
 pulumi_latest_version_url = "https://www.pulumi.com/latest-version"
 pulumi_tarball_base_url="https://get.pulumi.com/releases/sdk/pulumi"
 
-_cached_pulumi_latest_version: Optional[str] = None
+@run_once
 def get_pulumi_latest_version() -> str:
   """
   Returns the latest version of Pulumi CLI available for download
   """
-  global _cached_pulumi_latest_version
-  if _cached_pulumi_latest_version is None:
-    resp: http.client.HTTPResponse = urllib.request.urlopen(pulumi_latest_version_url)
-    contents: bytes = resp.read()
-    _cached_pulumi_latest_version = contents.decode('utf-8').strip()
-  return _cached_pulumi_latest_version
+  resp: http.client.HTTPResponse = urllib.request.urlopen(pulumi_latest_version_url)
+  contents: bytes = resp.read()
+  pulumi_latest_version = contents.decode('utf-8').strip()
+  return pulumi_latest_version
 
 def get_pulumi_tarball_url(version: Optional[str]=None):
   """
@@ -92,9 +115,8 @@ def download_file(url: str, dirname: str='.', filename: Optional[str]=None) -> s
     url_path = urlparse(url).path
     filename = os.path.basename(url_path)
   filename = os.path.abspath(os.path.join(dirname, os.path.basename(filename)))
-
-  pathname, resp = urllib.request.urlretrieve(url, filename=filename)
-  return pathname
+  download_url_file(url, filename)
+  return filename
 
 
 def download_pulumi_tarball(
@@ -119,27 +141,6 @@ def download_pulumi_tarball(
   url = get_pulumi_tarball_url(version=version)
   pathname = download_file(url, dirname=dirname, filename=filename)
   return pathname, url
-
-def unix_mv(source: str, dest: str):
-  """
-  Equivalent to the linux "mv" commandline.  Atomic within same volume, and overwrites the destination.
-  Works for directories.
-
-  Args:
-      source (str): Source file or directory.
-      dest (str): Destination file or directory. Will be overwritten if it exists.
-
-  Raises:
-      RuntimeError: Any error from the mv command
-  """
-  source = os.path.expanduser(source)
-  dest = os.path.expanduser(dest)
-  with subprocess.Popen(['mv', source, dest], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-    (stdout_bytes, stderr_bytes) = proc.communicate()
-    exit_code = proc.returncode
-  if exit_code != 0:
-    stderr_s = stderr_bytes.decode('utf-8').rstrip()
-    raise RuntimeError(f"Unable to move \"{source}\" to \"{dest}\", exit code {exit_code}: {stderr_s}")
 
 class TarFilter(Enum):
   BZIP2 = 'bzip2'
@@ -240,48 +241,16 @@ def download_pulumi(dirname: str, version: Optional[str]=None, stderr: TextIO=sy
         except Exception:
           pass
 
-def get_shell_cmd_path(cmd: str) -> Optional[str]:
-  try:
-    cmd_path: Optional[str] = subprocess.check_output(f"command -v {shlex.quote(os.path.expanduser(cmd))}", shell=True).decode('utf-8').rstrip()
-    if cmd_path == '':
-      cmd_path = None
-  except subprocess.CalledProcessError as e:
-    rc: int = e.returncode
-    if rc != 1 and rc != 127:
-      raise
-    cmd_path = None
-  return cmd_path
-
-def get_pulumi_in_path(cmd: str="pulumi") -> Optional[str]:
-  cmd_path = get_shell_cmd_path(cmd)
-  return cmd_path
-
-def get_pulumi_dir_in_path(pulumi_cmd: str) -> Optional[str]:
-  result: Optional[str] = None
-
-  actual_pulumi_cmd = get_pulumi_in_path(pulumi_cmd)
-  if not actual_pulumi_cmd is None:
-    real_cmd = os.path.realpath(actual_pulumi_cmd)
-    bin_dir = os.path.dirname(real_cmd)
-    if os.path.basename(bin_dir) != 'bin':
-      raise RuntimeError(f"Pulumi CLI \"{real_cmd}\" must reside in a \"bin\" subdirectory")
-    result = os.path.dirname(bin_dir)
-  return result
-
 def get_installed_pulumi_dir(dirname: Optional[str]=None) -> Optional[str]:
   result: Optional[str] = None
   if dirname is None:
-    result = get_pulumi_dir_in_path('pulumi')
-    if result is None:
-      if os.path.exists(default_pulumi_cmd):
-        result = default_pulumi_dir
-  else:
-    dirname = os.path.abspath(os.path.expanduser(dirname))
-    if os.path.exists(os.path.join(dirname, 'bin', 'pulumi')):
-      result = dirname
+    dirname = default_pulumi_dir
+  dirname = os.path.abspath(os.path.expanduser(dirname))
+  if os.path.exists(os.path.join(dirname, 'bin', 'pulumi')):
+    result = dirname
   return result
 
-def get_pulumi(dirname: Optional[str]=None) -> Optional[str]:
+def get_pulumi_prog(dirname: Optional[str]=None) -> Optional[str]:
   result: Optional[str] = None
   dirname = get_installed_pulumi_dir(dirname)
   if not dirname is None:
@@ -289,35 +258,18 @@ def get_pulumi(dirname: Optional[str]=None) -> Optional[str]:
   return result
 
 def pulumi_is_installed(dirname: Optional[str]=None) -> bool:
-  return not get_pulumi(dirname) is None
+  return not get_pulumi_prog(dirname) is None
 
-def parse_pulumi_version(version: str) -> Tuple[int, int, int]:
-  m = re.match(r'^ *v?([0-9]+)(\.([0-9]+)(\.([0-9]+))?)? *$', version)
-  if not m:
-    raise RuntimeError(f"Improperly formated pulumi version string \"{version}\"")
-  major = int(m[1])
-  minor = 0 if m[3] is None else int(m[3])
-  subminor = 0 if m[5] is None else int(m[5])
-  return major, minor, subminor
-
-def get_pulumi_cmd_version(pulumi_cmd: str='pulumi', stderr: TextIO=sys.stderr) -> str:
-  actual_pulumi_cmd = get_pulumi_in_path(pulumi_cmd)
-  if actual_pulumi_cmd is None:
-    raise RuntimeError("Pulumi is not installed")
-  with subprocess.Popen([actual_pulumi_cmd, 'version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-    (pulumi_out_bytes, pulumi_err_bytes) = proc.communicate()
-    exit_code = proc.returncode
-  pulumi_out = pulumi_out_bytes.decode('utf-8').rstrip()
-  pulumi_err = pulumi_err_bytes.decode('utf-8').rstrip()
-  if exit_code != 0:
-    print(pulumi_err, file=stderr)
-    raise RuntimeError(f"Unexpected nonzero exit code from \"pulumi version\": {exit_code}")
-  m = re.match(r'^v([^ ]+)$', pulumi_out, re.MULTILINE)
-  if not m:
-    print(pulumi_err, file=stderr)
-    raise RuntimeError(f"Unexpected output from \"pulumi version\": \"\"\"\"{pulumi_out}\"\"")
-  pulumi_version = m[1]
-  return pulumi_version
+def get_pulumi_version(dirname: Optional[str]=None) -> str:
+  version = cast(bytes,
+      sudo_check_output_stderr_exception(
+          [get_pulumi_prog(dirname), 'version'],
+          use_sudo=False
+        )
+    ).decode('utf-8').rstrip()
+  if version.startswith('v'):
+    version = version[1:]
+  return version
 
 def install_pulumi(
       dirname:Optional[str] = None,
@@ -353,21 +305,19 @@ def install_pulumi(
   """
   if dirname is None:
     dirname = default_pulumi_dir
-  min_version_t = None if min_version is None else (0, 0, 0) if min_version=='latest' else parse_pulumi_version(min_version)
   if upgrade_version == 'latest':
     upgrade_version = None
-  upgrade_version_t = None if upgrade_version is None else parse_pulumi_version(upgrade_version)
+  if min_version == 'latest':
+    min_version = get_pulumi_latest_version()    
 
-  if min_version != 'latest' and not min_version_t is None and not upgrade_version_t is None:
-    if upgrade_version_t < min_version_t:
-      raise RuntimeError("Requested Pulumi upgrade version {upgrade_version} is less than than minimum required version {min_version}")
+  if not upgrade_version is None and not min_version is None and not check_version_ge(upgrade_version, min_version):
+    raise RuntimeError("Requested Pulumi upgrade version {upgrade_version} is less than than minimum required version {min_version}")
 
   dirname = os.path.abspath(os.path.expanduser(dirname))
   pulumi_cmd = os.path.join(dirname, 'bin', 'pulumi')
   old_version: Optional[str] = None
-  old_version_t: Optional[Tuple[int, int, int]] = None
   if pulumi_is_installed(dirname):
-    old_version = get_pulumi_cmd_version(pulumi_cmd)
+    old_version = get_pulumi_version(dirname)
     if force:
       print(f"Forcing upgrade/reinstall of Pulumi version {old_version} in {dirname}", file=sys.stderr)
     else:
@@ -375,59 +325,28 @@ def install_pulumi(
         print(f"Pulumi version {old_version} is already installed in {dirname}; no need to reinstall", file=stderr)
         return dirname, False
       else:
-        old_version_t = parse_pulumi_version(old_version)
-        if min_version == 'latest':
-          min_version = get_pulumi_latest_version()
-          min_version_t = parse_pulumi_version(min_version)
-          if old_version_t >= min_version_t:
-            print(f"Pulumi version {old_version} is already installed in {dirname} and is the latest version; no need to upgrade", file=stderr)
-            return dirname, False
-          else:
-            print(f"Installed Pulumi version {old_version} in {dirname} is not the latest version {min_version}; upgrading", file=stderr)
+        if check_version_ge(old_version, min_version):
+          print(f"Pulumi version {old_version} is already installed in {dirname} and meets minimum version {min_version}; no need to upgrade", file=stderr)
+          return dirname, False
         else:
-          if min_version_t is None or old_version_t >= min_version_t:
-            print(f"Pulumi version {old_version} is already installed in {dirname} and meets minimum version {min_version}; no need to upgrade", file=stderr)
-            return dirname, False
-          else:
-            print(f"Installed Pulumi version {old_version} in {dirname} does not meet minimum version {min_version}; upgrading", file=stderr)
+          print(f"Installed Pulumi version {old_version} in {dirname} does not meet minimum version {min_version}; upgrading", file=stderr)
   else:
     print(f"Pulumi not installed in {dirname}; installing", file=stderr)
 
-  if not min_version is None and min_version == 'latest':
-    min_version = get_pulumi_latest_version()
-    min_version_t = parse_pulumi_version(min_version)
-
   if upgrade_version is None:
     upgrade_version = get_pulumi_latest_version()
-    upgrade_version_t = parse_pulumi_version(upgrade_version)
-    if not min_version_t is None:
-      if upgrade_version_t < min_version_t:
-        raise RuntimeError(f"Minimum required Pulumi version {min_version} is greater than latest released version {upgrade_version}")
-    if not force and not old_version_t is None and upgrade_version_t <= old_version_t:
-      print(f"The latest Pulumi version {old_version} is already installed in {dirname}; no need to upgrade", file=stderr)
-      return dirname, False
+    if not min_version is None and not check_version_ge(upgrade_version, min_version):
+      raise RuntimeError("Requested Pulumi upgrade version {upgrade_version} is less than than minimum required version {min_version}")
 
   download_pulumi(dirname, upgrade_version, stderr=stderr)
   print(f"Pulumi cli version {upgrade_version} successfully installed in {dirname}.", file=stderr)
   return dirname, True
 
 
-def get_short_pulumi_cmd(cmd: str='pulumi') -> str:
-  pulumi_cmd = get_pulumi_in_path(cmd)
+def get_pulumi_username(dirname: Optional[str]=None, stderr: TextIO=sys.stderr) -> Optional[str]:
+  pulumi_cmd = get_pulumi_prog(dirname)
   if pulumi_cmd is None:
-    raise RuntimeError(f"Pulumi is not installed at {cmd}")
-  path_pulumi_cmd = get_pulumi_in_path()
-  if not path_pulumi_cmd is None and path_pulumi_cmd == pulumi_cmd:
-    return 'pulumi'
-  short_pulumi_cmd = os.path.relpath(pulumi_cmd, os.path.expanduser('~'))
-  if not short_pulumi_cmd.startswith('.'):
-    return f"~/{short_pulumi_cmd}"
-  return pulumi_cmd
-
-def get_pulumi_username(cmd: str='pulumi', stderr: TextIO=sys.stderr) -> Optional[str]:
-  pulumi_cmd = get_pulumi_in_path(cmd)
-  if pulumi_cmd is None:
-    raise RuntimeError(f"Pulumi is not installed at {cmd}")
+    raise XPulumiError(f"Pulumi is not installed in {dirname}")
   with subprocess.Popen([pulumi_cmd, 'whoami'], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
     (pulumi_out_bytes, pulumi_err_bytes) = proc.communicate()
     exit_code = proc.returncode
@@ -440,7 +359,7 @@ def get_pulumi_username(cmd: str='pulumi', stderr: TextIO=sys.stderr) -> Optiona
     """
     if not pulumi_err.startswith("error: PULUMI_ACCESS_TOKEN must be set "):
       print(pulumi_err, file=stderr)
-      raise RuntimeError(f"Unexpected stderr output from \"pulumi whoami\", exit_code={exit_code}")
+      raise XPulumiError(f"Unexpected stderr output from \"pulumi whoami\", exit_code={exit_code}")
   else:
     if exit_code != 0:
       raise RuntimeError("Unexpected nonzero exit code from \"pulumi whoami\": {exit_code}")

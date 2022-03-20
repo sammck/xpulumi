@@ -276,7 +276,7 @@ def install_docker(force: bool=False):
       raise XPulumiError(
         f"Docker client installed/upgraded, but version {version} still does not meet the minimum version {MIN_DOCKER_CLIENT_VERSION}")
   
-    print("Docker client version {version} successfully installed...", file=sys.stderr)
+    print(f"Docker client version {version} successfully installed...", file=sys.stderr)
 
   if not os_group_exists('docker'):  
     raise XPulumiError(

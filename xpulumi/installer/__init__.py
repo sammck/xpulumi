@@ -18,10 +18,9 @@ from .os_packages import (PackageList, create_os_group, get_dpkg_arch, get_os_pa
                           update_os_package_list, upgrade_os_packages)
 from .poetry import (get_poetry_prog, get_poetry_version, install_poetry,
                      poetry_is_installed)
-from .pulumi import (default_pulumi_dir, get_installed_pulumi_dir, get_pulumi,
-                     get_pulumi_cmd_version, get_pulumi_dir_in_path,
-                     get_pulumi_in_path, get_pulumi_latest_version,
-                     get_pulumi_username, get_short_pulumi_cmd, install_pulumi,
+from .pulumi import (default_pulumi_dir, get_pulumi_prog,
+                     get_pulumi_version, get_pulumi_latest_version,
+                     get_pulumi_username, install_pulumi,
                      pulumi_is_installed)
 from .util import (CalledProcessErrorWithStderrMessage, check_version_ge,
                    chown_root, command_exists,
