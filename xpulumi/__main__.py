@@ -49,6 +49,7 @@ from xpulumi.installer import (
     install_pulumi,
     install_poetry,
     sudo_call,
+    PackageList,
   )
 
 def is_colorizable(stream: TextIO) -> bool:
@@ -173,14 +174,25 @@ class CommandHandler:
     return exit_code
 
   def cmd_init_env(self) -> int:
+    from xpulumi.installer.docker import install_docker
+    
     args = self._args
+
+    pl = PackageList()
+    pl.add_packages_if_missing(['build-essential', 'meson', 'ninja-build', 'python3.8', 'python3.8-venv', 'sqlcipher'])
+    pl.add_package_if_cmd_missing('sha256sum', 'coreutils')
+    pl.add_package_if_cmd_missing('curl')
+    pl.add_package_if_cmd_missing('git')
+    pl.install_all()
+
+    install_docker()
 
     project_dir = get_git_root_dir(self._cwd)
     if project_dir is None:
       raise XPulumiError("Could not locate Git project root directory; please run inside git working directory or use -C")
 
     install_poetry()
-    
+
     append_lines_to_file_if_missing(os.path.join(project_dir, ".gitignore"), ['.xpulumi/', '.secret-kv/'], create_file=True)
     xpulumi_dir = os.path.join(project_dir, XPULUMI_CONFIG_DIRNAME)
     if not os.path.exists(xpulumi_dir):

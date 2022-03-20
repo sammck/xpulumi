@@ -16,7 +16,7 @@ fi
 function get_binfmt_field() {
     local target_architecture="$1"; shift
     local field_name="$1"; shift
-    local var_binfmts_pathname="$/var/lib/binfmts/qemu-$target_architecture"
+    local var_binfmts_pathname="/var/lib/binfmts/qemu-$target_architecture"
     local value;
     if value="$(sed -n 's/^'"$field_name"' \(.\+\)$/\1/p' $var_binfmts_pathname)"; then
         echo "$value"

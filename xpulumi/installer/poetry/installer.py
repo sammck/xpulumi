@@ -28,7 +28,7 @@ from contextlib import contextmanager
 
 from xpulumi.exceptions import XPulumiError
 
-from ..os_packages.util import (
+from ..util import (
     command_exists,
     find_command_in_path,
     download_url_text,
