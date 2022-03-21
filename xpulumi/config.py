@@ -7,11 +7,13 @@
 
 """xpulumi configuration"""
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from .internal_types import JsonableDict
 
+if TYPE_CHECKING:
+  from base_context import XPulumiContextBase
+
 import os
-import json
 import yaml
 from yaml import load, dump
 try:
@@ -20,7 +22,6 @@ except ImportError:
   from yaml import Loader, Dumper  #type: ignore[misc]
 
 from .constants import XPULUMI_CONFIG_FILENAME_BASE, XPULUMI_CONFIG_DIRNAME
-from .base_context import XPulumiContextBase
 
 def locate_xpulumi_config_file(config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True) -> str:
   if starting_dir is None:
@@ -111,6 +112,7 @@ class XPulumiConfig:
   def project_root_dir(self) -> str:
     return self._project_root_dir
 
-  def create_context(self) -> XPulumiContextBase:
-    ctx = XPulumiContextBase()
+  def create_context(self, cwd: Optional[str]=None) -> 'XPulumiContextBase':
+    from .base_context import XPulumiContextBase
+    ctx = XPulumiContextBase(self, cwd=cwd)
     return ctx

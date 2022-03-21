@@ -1,0 +1,4 @@
+encryptionsalt: v1:wXfjgewlDKk=:v1:Lc9rr0e5gwAYLytm:zKniEmezjarRbsknPtcWhdZBksNaoA==
+config:
+  aws:region: us-west-2
+  be-bucket-492598163938-us-west-2:bucket_name: 492598163938-us-west-2-cloud-dev

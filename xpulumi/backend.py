@@ -4,11 +4,9 @@
 #
 
 """
-Abtract context for working with Pulumi.
+Abtract backend for working with Pulumi.
 
-Allows the application to provide certain requirements such as passphrases, defaults, etc.
-on demand.
-
+Allows the application to work with a particular backend configuration.
 """
 
 from typing import Optional, cast, Dict
@@ -29,32 +27,86 @@ import requests
 from .util import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
 from .exceptions import XPulumiError
 from .context import XPulumiContext
+from .base_context import XPulumiContextBase
 from .api_client import PulumiApiClient
 from .passphrase import PassphraseCipher
 from .constants import PULUMI_STANDARD_BACKEND, PULUMI_JSON_SECRET_PROPERTY_NAME, PULUMI_JSON_SECRET_PROPERTY_VALUE
 
+
 class XPulumiBackend:
-  _ctx: XPulumiContext
+  _ctx: XPulumiContextBase
+  _name: Optional[str] = None
   _url: str
   _url_parts: ParseResult
   _scheme: str
+  _cfg_data: JsonableDict
   _options: JsonableDict
   _requests_session: Optional[requests.Session] = None
   _access_token: Optional[str] = None
   _pulumi_account_name: Optional[str] = None
   _api_client: Optional[PulumiApiClient] = None
+  _includes_organization: bool
+  _includes_project: bool
+  _default_organization: Optional[str] = None
 
-  def __init__(self, ctx: XPulumiContext, url: str=PULUMI_STANDARD_BACKEND, options: Optional[JsonableDict]=None):
+  def __init__(
+        self,
+        name: Optional[str] = None,
+        ctx: Optional[XPulumiContextBase]=None,
+        url: Optional[str]=None,
+        options: Optional[JsonableDict]=None,
+        cwd: Optional[str]=None
+      ):
+    if ctx is None:
+      ctx = XPulumiContextBase(cwd=cwd)
     self._ctx = ctx
+    if not name is None:
+      if not url is None or not options is None:
+        raise XPulumiError("if Backend name is provided, then url and options must be None")
+      self.init_from_name(name)
+    else:
+      self._cfg_data = dict(options=options)
+      self.final_init(url, options=options, cwd=cwd)
+
+  def final_init(
+        self,
+        url: Optional[str]=None,
+        options: Optional[JsonableDict]=None,
+        cwd: Optional[str]=None
+      ) -> None:
+    if url is None:
+      url = PULUMI_STANDARD_BACKEND
     self._url = url
     self._url_parts = urlparse(url)
     self._options = {} if options is None else deepcopy(options)
     if self.scheme == "file":
-      # make file: URLs absolute. User cwd option if provided.
-      self._url = pathname_to_file_url(self.abspath(file_url_to_pathname(url)))
+      # make file: URLs absolute. Use cwd option if provided.
+      if cwd is None:
+        cwd = options.get('cwd', None)
+      self._url = pathname_to_file_url(self.abspath(file_url_to_pathname(url, cwd=cwd)))
       self._url_parts = urlparse(url)
-      if self.scheme == 'https':
-        self._requests_session = requests.Session()
+    if self.scheme == 'https':
+      self._requests_session = requests.Session()
+      self._includes_organization = True
+      self._includes_project = True
+    else:
+      self._includes_organization = self.options.get('includes_organization', False)
+      assert isinstance(self._includes_organization, bool)
+      self._includes_project = self.options.get('includes_project', False)
+      assert isinstance(self._includes_project, bool)
+    self._default_organization = self.options.get("default_organization", None)
+
+  def init_from_name(self, name: str) -> None:
+    backend_dir = self._ctx.get_backend_infra_dir(name)
+    cfg_file = os.path.join(backend_dir, "backend.json")
+    if not os.path.exists(cfg_file):
+      raise XPulumiError(f"XPulumi backend does not exist: {name}")
+    with open(cfg_file) as f:
+      cfg_data = json.load(f)
+    self._cfg_data = cfg_data
+    url: Optional[str] = cfg_data.get('uri', None)
+    options: Optional[JsonableDict] = cfg_data.get('options', None)
+    self.final_init(url, options=options, cwd=backend_dir)
 
   @property
   def ctx(self) -> XPulumiContext:
@@ -92,19 +144,15 @@ class XPulumiBackend:
 
   @property
   def includes_organization(self) -> bool:
-    if self.scheme == 'https':
-      return True
-    result = self.options.get('includes_organization', False)
-    assert isinstance(result, bool)
-    return result
+    return self._includes_organization
 
   @property
   def includes_project(self) -> bool:
-    if self.scheme == 'https':
-      return True
-    result = self.options.get('includes_project', False)
-    assert isinstance(result, bool)
-    return result
+    return self._includes_project
+
+  @property
+  def default_organization(self) -> Optional[str]:
+    return self._default_organization
 
   @property
   def is_standard(self) -> bool:
@@ -409,5 +457,5 @@ class XPulumiBackend:
     return stack_outputs
 
   def __str__(self) -> str:
-    return f"<Pulumi backend {self.url}>"
+    return f"<XPulumi backend {self.name} ==> {self.url}>"
 

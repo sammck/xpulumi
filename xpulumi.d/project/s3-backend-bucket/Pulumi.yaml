@@ -1,0 +1,7 @@
+# AUTO-GENERATED--DO NOT EDIT! Main Pulumi config file for project be-bucket-492598163938-us-west-2
+description: Github-hosted pulumi backend for S3 bucket used in other backends
+name: be-bucket-492598163938-us-west-2
+runtime:
+  name: python
+  options:
+    virtualenv: ../../../.venv

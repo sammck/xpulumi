@@ -1,6 +1,9 @@
 {
-  "includes_organization": false,
-  "includes_project": false,
+  "options": {
+    "includes_organization": false,
+    "includes_project": false,
+    "default_organization": "g"
+  },
   "name": "local",
   "uri": "file://./state"
 }

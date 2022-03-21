@@ -29,6 +29,7 @@ from .context import XPulumiContext, BotoAwsSession, BotocoreSession
 from .util import file_url_to_pathname
 from .exceptions import XPulumiError
 from .constants import PULUMI_STANDARD_BACKEND
+from .config import XPulumiConfig
 
 #SessionVarEntry = Tuple[Optional[str], Optional[Union[List[str], str]], Any, Optional[Callable[[Any], Any]]]
 
@@ -60,6 +61,9 @@ def get_aws_account(s: BotoAwsSession) -> str:
   return get_aws_identity(s)['Account']
 
 class XPulumiContextBase(XPulumiContext):
+
+  XPULUMI_INFRA_DIRNAME = 'xpulumi.d'
+
   _aws_account_region_map: Dict[Tuple[Optional[str], Optional[str]], BotoAwsSession]
   """Maps an aws account name and region to an AWS session"""
 
@@ -87,15 +91,51 @@ class XPulumiContextBase(XPulumiContext):
 
   _credentials_data: Optional[JsonableDict] = None
 
-  def __init__(self):
+  _config: Optional[XPulumiConfig] = None
+
+  _project_root_dir: Optional[str] = None
+
+  def __init__(self, config: Optional[XPulumiConfig]=None, cwd: Optional[str]=None):
     super().__init__()
     self._aws_account_region_map = {}
     self._environ = dict(os.environ)
-    self._cwd = os.getcwd()
+    self._cwd = os.getcwd() if cwd is None else os.path.abspath(os.path.expanduser(cwd))
     self._passphrase_by_backend_org_project_stack = {}
     self._passphrase_by_id = {}
     self._passphrase_by_salt_state = {}
     self._access_token_map = {}
+    if not config is None:
+      self.init_from_config(config)
+
+  def init_from_config(self, config: XPulumiConfig) -> None:
+    self._config = config
+    self._project_root_dir = config.project_root_dir
+
+  def get_config(self) -> XPulumiConfig:
+    if self._config is None:
+      config = XPulumiConfig(starting_dir=self._cwd)
+      self.init_from_config(config)
+    return self._config
+
+  def get_project_root_dir(self) -> str:
+    if self._project_root_dir is None:
+      self.get_config()
+    return self._project_root_dir
+
+  def get_project_root_dir(self) -> str:
+    if self._project_root_dir is None:
+      self.get_config()
+    return self._project_root_dir
+
+  def get_infra_dir(self) -> str:
+    return os.path.join(self.get_project_root_dir(), self.XPULUMI_INFRA_DIRNAME)
+
+  def get_backend_infra_dir(self, backend: str) -> str:
+    return os.path.join(self.get_infra_dir(), 'backend', backend)
+
+  def get_project_infra_dir(self, project: str) -> str:
+    return os.path.join(self.get_infra_dir(), 'project', project)
+
 
   def load_aws_session(
         self,

@@ -274,8 +274,10 @@ class CommandHandler:
     backend_data: JsonableDict = dict(
         name=new_backend,
         uri=rel_backend_uri,
-        includes_organization=False,
-        includes_project=False,
+        options=dict(
+          includes_organization=False,
+          includes_project=False,
+        )
       )
     with open(os.path.join(backend_dir, "backend.json"), 'w') as f:
       print(json.dumps(backend_data, indent=2, sort_keys=True), file=f)
