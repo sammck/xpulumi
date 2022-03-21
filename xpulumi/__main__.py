@@ -23,9 +23,13 @@ import subprocess
 from io import TextIOWrapper
 import yaml
 from secret_kv import create_kv_store
+from urllib.parse import urlparse, ParseResult
 
 from xpulumi.config import XPulumiConfig
+from xpulumi.context import XPulumiContext
 from xpulumi.exceptions import XPulumiError
+from xpulumi.base_context import XPulumiContextBase
+from xpulumi.backend import XPulumiBackend
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
@@ -43,6 +47,8 @@ from xpulumi.util import (
     full_type,
     get_git_root_dir,
     append_lines_to_file_if_missing,
+    file_url_to_pathname,
+    pathname_to_file_url
   )
 
 def is_colorizable(stream: TextIO) -> bool:
@@ -73,6 +79,9 @@ class CommandHandler:
   _parser: argparse.ArgumentParser
   _args: argparse.Namespace
   _cwd: str
+
+  _cfg: Optional[XPulumiConfig] = None
+  _ctx: Optional[XPulumiContextBase] = None
 
   def __init__(self, argv: Optional[Sequence[str]]=None):
     self._argv = argv
@@ -150,6 +159,7 @@ class CommandHandler:
     return 0
 
   def cmd_run(self) -> int:
+    from xpulumi.installer.util import sudo_call
     args = self._args
     group: Optional[str] = args.run_with_group
     use_sudo: bool = args.use_sudo
@@ -219,6 +229,79 @@ class CommandHandler:
 
     return 0
 
+  def get_config(self) -> XPulumiConfig:
+    if self._cfg is None:
+      self._cfg = XPulumiConfig(starting_dir=self._cwd)
+    return self._cfg
+
+  def get_context(self) -> XPulumiContextBase:
+    if self._ctx is None:
+      self._ctx = self.get_config().create_context()
+    return self._ctx
+
+  def get_project_root_dir(self) -> str:
+    return self.get_config().project_root_dir
+
+  def get_xpulumi_data_dir(self) -> str:
+    return os.path.join(self.get_project_root_dir(), 'xpulumi.d')
+
+  def get_project_dir(self, project_name: str) -> str:
+    return os.path.join(self.get_xpulumi_data_dir(), 'project', project_name)
+
+  def get_backend_dir(self, backend: str) -> str:
+    return os.path.join(self.get_xpulumi_data_dir(), 'backend', backend)
+
+  def create_file_backend(self, new_backend: str, new_backend_uri: Optional[str]=None):
+    backend_dir = self.get_backend_dir(new_backend)
+    if os.path.exists(backend_dir):
+      raise XPulumiError(f"Backend \"{new_backend}\" already exists")
+    if new_backend_uri is None or new_backend_uri == "file" or new_backend_uri == "file:" or new_backend_uri == "file://":
+      new_backend_uri = "file://./state"
+    backend_pathname = file_url_to_pathname(new_backend_uri, cwd=backend_dir, allow_relative=True)
+    new_backend_uri = pathname_to_file_url(backend_pathname)
+    rel_backend_pathname = os.path.relpath(backend_pathname, backend_dir)
+    rel_backend_uri = "file://./" + rel_backend_pathname.replace('\\', '/')
+
+    backend_parent_dir = os.path.dirname(backend_pathname)
+    if os.path.exists(backend_pathname):
+      raise XPulumiError(f"File fackend at \"{new_backend_uri}\" already exists")
+    if backend_parent_dir != backend_dir and not os.path.isdir(backend_parent_dir):
+      raise XPulumiError(f"Parent directory of file backend {new_backend_uri} does not exist")
+    os.makedirs(backend_dir)
+    os.makedirs(backend_pathname)
+    with open(os.path.join(backend_pathname, '.gitignore'), 'w') as f:
+      print("!.pulumi/", file=f)
+    backend_data: JsonableDict = dict(
+        name=new_backend,
+        uri=rel_backend_uri,
+        includes_organization=False,
+        includes_project=False,
+      )
+    with open(os.path.join(backend_dir, "backend.json"), 'w') as f:
+      print(json.dumps(backend_data, indent=2, sort_keys=True), file=f)
+
+  def create_s3_backend(self, new_backend: str, new_backend_uri: str, new_s3_bucket_project: Optional[str]=None, new_s3_bucket_backend: Optional[str]=None):
+    raise NotImplementedError()
+
+
+  def cmd_be_create(self) -> int:
+    args = self._args
+    new_s3_bucket_project: Optional[str] = args.new_s3_bucket_project,
+    new_s3_bucket_backend: optional[str] = args.backend
+    new_backend: str = args.new_backend
+    new_backend_uri: Optional[str] = args.new_backend_uri
+    if new_backend_uri is None or new_backend_uri == "file" or new_backend_uri == "file:" or new_backend_uri == "file://":
+      new_backend_uri = "file://./state"
+    parts = urlparse(new_backend_uri)
+    if parts.scheme == 'file':
+      self.create_file_backend(new_backend, new_backend_uri)
+    elif parts.scheme == 's3':
+      self.create_s3_backend(new_backend, new_backend_uri, new_s3_bucket_project=new_s3_bucket_project, new_s3_bucket_backend=new_s3_bucket_backend)
+    else:
+      raise XPulumiError(f"Cannot create a new backend with scheme {parts.scheme}")
+    return 0
+
+
   def run(self) -> int:
     """Run the xpulumi command-line tool with provided arguments
 
@@ -255,12 +338,14 @@ class CommandHandler:
                         help="Change the effective directory used to search for configuration")
     parser.add_argument('--config',
                         help="Specify the location of the config file")
+    parser.add_argument('-b', '--backend', default=None,
+                        help='Specify the local name of the backend to operate on. Default is the configured default backend')
     parser.set_defaults(func=self.cmd_bare)
 
     subparsers = parser.add_subparsers(
                         title='Commands',
                         description='Valid commands',
-                        help='Additional help available with "<command-name> -h"')
+                        help='Additional help available with "xpulumi <command-name> -h"')
 
                 
     # ======================= version
@@ -269,7 +354,7 @@ class CommandHandler:
                             description='''Display version information. JSON-quoted string. If a raw string is desired, user -r.''')
     parser_version.set_defaults(func=self.cmd_version)
 
-    # ======================= init-end
+    # ======================= init-env
 
     parser_init_env = subparsers.add_parser('init-env', 
                             description='''Initialize a new overall GitHub project environment.''')
@@ -293,6 +378,27 @@ class CommandHandler:
 
     parser_test = subparsers.add_parser('test', description="Run a simple test. For debugging only.  Will be removed.")
     parser_test.set_defaults(func=self.cmd_test)
+
+    # ======================= backend
+
+    parser_backend = subparsers.add_parser('backend', 
+                            description='''Subcommands related to management of pulumi backends.''')
+    backend_subparsers = parser_backend.add_subparsers(
+                        title='Commands',
+                        description='Valid backend subcommands',
+                        help='Additional help available with "xpulumi backend <subcommand-name> -h"')
+
+    # ======================= backend create
+
+    parser_be_create = backend_subparsers.add_parser('create', 
+                            description='''Create a backend.''')
+    parser_be_create.add_argument('--new-s3-bucket-project', default=None,
+                        help='If an S3 backend, create a new project with the given name and a "global" stack on the current backend that creates and manages the bucket.')
+    parser_be_create.add_argument('new_backend',
+                        help='The new backend name')
+    parser_be_create.add_argument('new_backend_uri', nargs='?', default=None,
+                        help='The backend URI, either file: or s3:. If simply "file", creates a backend in the backend dir. Default is "file"')
+    parser_be_create.set_defaults(func=self.cmd_be_create)
 
 
     # =========================================================

@@ -1,0 +1,6 @@
+{
+  "includes_organization": false,
+  "includes_project": false,
+  "name": "local",
+  "uri": "file://./state"
+}

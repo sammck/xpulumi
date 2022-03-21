@@ -20,7 +20,7 @@ except ImportError:
   from yaml import Loader, Dumper  #type: ignore[misc]
 
 from .constants import XPULUMI_CONFIG_FILENAME_BASE, XPULUMI_CONFIG_DIRNAME
-
+from .base_context import XPulumiContextBase
 
 def locate_xpulumi_config_file(config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True) -> str:
   if starting_dir is None:
@@ -41,7 +41,7 @@ def locate_xpulumi_config_file(config_path: Optional[str]=None, starting_dir: Op
     tail_1_json = XPULUMI_CONFIG_FILENAME_BASE + '.json'
     tail_2_json = os.path.join(XPULUMI_CONFIG_DIRNAME, tail_1_json)
     tail_1_yaml = XPULUMI_CONFIG_FILENAME_BASE + '.yaml'
-    tail_2_yaml = os.path.join(XPULUMI_CONFIG_DIRNAME, tail_1_json)
+    tail_2_yaml = os.path.join(XPULUMI_CONFIG_DIRNAME, tail_1_yaml)
     while True:
       p = os.path.join(test_path, tail_1_json)
       if os.path.isfile(p):
@@ -110,3 +110,7 @@ class XPulumiConfig:
   @property
   def project_root_dir(self) -> str:
     return self._project_root_dir
+
+  def create_context(self) -> XPulumiContextBase:
+    ctx = XPulumiContextBase()
+    return ctx

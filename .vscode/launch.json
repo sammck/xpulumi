@@ -26,11 +26,11 @@
             "justMyCode": false
         }
         {
-            "name": "run -g fjhf pwd",
+            "name": "backend create local",
             "type": "python",
             "request": "launch",
             "module": "xpulumi",
-            "args": [ "--tb", "run", "-g", "fjhf", "pwd" ],
+            "args": [ "--tb", "backend", "create", "local"],
             "justMyCode": false
         }
     ]
