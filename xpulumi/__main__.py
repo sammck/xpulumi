@@ -9,7 +9,7 @@
 
 
 import base64
-from typing import Optional, Sequence, List, Union, Dict, TextIO
+from typing import Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping, cast, Any, Iterator, Iterable, Tuple
 
 import os
 import sys
@@ -24,12 +24,15 @@ from io import TextIOWrapper
 import yaml
 from secret_kv import create_kv_store
 from urllib.parse import urlparse, ParseResult
+import ruamel.yaml
+from io import StringIO
 
 from xpulumi.config import XPulumiConfig
 from xpulumi.context import XPulumiContext
 from xpulumi.exceptions import XPulumiError
 from xpulumi.base_context import XPulumiContextBase
 from xpulumi.backend import XPulumiBackend
+from xpulumi.installer.util import file_contents
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
@@ -73,6 +76,76 @@ class NoExitArgumentParser(argparse.ArgumentParser):
     if message:
         self._print_message(message, sys.stderr)
     raise ArgparseExitError(status, message)
+
+class RoundTripConfig(MutableMapping[str, Any]):
+  _config_file: str
+  _text: str
+  _data: MutableMapping
+  _yaml: Optional[ruamel.yaml.YAML] = None
+
+  def __init__(self, config_file: str):
+    self._config_file = config_file
+    text = file_contents(config_file)
+    self._text = text
+    if config_file.endswith('.yaml'):
+      self._yaml = ruamel.yaml.YAML()
+      self._data = self._yaml.load(text)
+    else:
+      self._data = json.loads(text)
+
+  @property
+  def data(self) -> MutableMapping:
+    return self._data
+
+  def save(self):
+    if self._yaml is None:
+      text = json.dumps(cast(JsonableDict, self.data), indent=2, sort_keys=True)
+    else:
+      with StringIO() as output:
+        self._yaml.dump(self.data, output)
+        text = output.getvalue()
+    if not text.endswith('\n'):
+      text += '\n'
+    if text != self._text:
+      with open(self._config_file, 'w') as f:
+        f.write(text)
+
+  def __setitem__(self, key: str, value: Any):
+    self.data[key] = value
+
+  def __getitem__(self, key: str) -> Any:
+    return self.data[key]
+
+  def __delitem__(self, key:str) -> None:
+    del self.data[key]
+
+  def __iter__(self) -> Iterator[Any]:
+    return iter(self.data)
+
+  def __len__(self) -> int:
+    return len(self.data)
+
+  def __contains__(self, key: str) -> bool:
+    return key in self.data
+
+  def keys(self) -> Iterable[str]:
+    return self.data.keys()
+
+  def values(self) -> Iterable[Any]:
+    return self.data.values()
+
+  def items(self) -> Iterable[Tuple[str, Any]]:
+    return self.data.items()
+
+  def update(self, *args, **kwargs) -> None:
+    if len(args) > 0:
+      assert len(args) == 1
+      assert len(kwargs) == 0
+      for k, v in kwargs.items():
+        self.data[k] = v
+    else:
+      for k, v in kwargs.items():
+        self.data[k] = v
 
 class CommandHandler:
   _argv: Optional[Sequence[str]]
@@ -234,6 +307,15 @@ class CommandHandler:
       self._cfg = XPulumiConfig(starting_dir=self._cwd)
     return self._cfg
 
+  def get_config_file(self) -> str:
+    return self.get_config().config_file  
+
+  def update_config(self, *args, **kwargs):
+    cfg_file = self.get_config_file()
+    rt = RoundTripConfig(cfg_file)
+    rt.update(*args, **kwargs)
+    rt.save()
+
   def get_context(self) -> XPulumiContextBase:
     if self._ctx is None:
       self._ctx = self.get_config().create_context()
@@ -302,6 +384,16 @@ class CommandHandler:
     else:
       raise XPulumiError(f"Cannot create a new backend with scheme {parts.scheme}")
     return 0
+
+  def cmd_be_select(self) -> int:
+    args = self._args
+    backend_name: str = args.default_backend
+    backend = XPulumiBackend(backend_name)
+    self.update_config(default_backend=backend_name)
+    return 0
+
+  def cmd_prj_create(self) -> int:
+    raise NotImplementedError()
 
 
   def run(self) -> int:
@@ -386,7 +478,7 @@ class CommandHandler:
     parser_backend = subparsers.add_parser('backend', 
                             description='''Subcommands related to management of pulumi backends.''')
     backend_subparsers = parser_backend.add_subparsers(
-                        title='Commands',
+                        title='Subcommands',
                         description='Valid backend subcommands',
                         help='Additional help available with "xpulumi backend <subcommand-name> -h"')
 
@@ -402,6 +494,38 @@ class CommandHandler:
                         help='The backend URI, either file: or s3:. If simply "file", creates a backend in the backend dir. Default is "file"')
     parser_be_create.set_defaults(func=self.cmd_be_create)
 
+    # ======================= backend select
+
+    parser_be_select = backend_subparsers.add_parser('select', 
+                            description='''Select a default backend.''')
+    parser_be_select.add_argument('default_backend',
+                        help='The new default backend name')
+    parser_be_select.set_defaults(func=self.cmd_be_select)
+
+    # ======================= project
+
+    parser_project = subparsers.add_parser('project',
+                            description='''Subcommands related to management of pulumi projects.''')
+    project_subparsers = parser_project.add_subparsers(
+                        title='Subcommands',
+                        description='Valid project subcommands',
+                        help='Additional help available with "xpulumi project <subcommand-name> -h"')
+
+    # ======================= project create
+
+    parser_prj_create = project_subparsers.add_parser('create', 
+                            description='''Create a project.''')
+    parser_prj_create.add_argument('new_project',
+                        help='The new project name')
+    parser_prj_create.add_argument('-b', '--backend', default=None,
+                        help='The name of xpulumi backend that hosts project stacks; by default the default xpulumi backend will be used.')
+    parser_prj_create.add_argument('-p', '--pulumi-project-name', default=None,
+                        help='The name of the pulumi project; by default the same as the xpulumi project name.')
+    parser_prj_create.add_argument('-g', '--organization', default=None,
+                        help='The name of the backend organization associated with the project; by default, the default for the backend is used.')
+    parser_prj_create.add_argument('-r', '--ref', dest="new_project_is_ref", action='store_true', default=False,
+                        help='''The new project is a reference to an externally managed project; no Pulumi project stubs will be created.''')
+    parser_prj_create.set_defaults(func=self.cmd_prj_create)
 
     # =========================================================
 

@@ -25,6 +25,7 @@ types-PyYAML = "^6.0.5"
 importlib-resources = "^5.4.0"
 packaging = "^21.3"
 xdg = "^5.1.1"
+"ruamel.yaml" = "^0.17.21"
 
 [tool.poetry.dev-dependencies]
 
