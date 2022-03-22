@@ -24,12 +24,13 @@ import distutils.spawn
 import boto3.session
 #from botocore.session import Session as BotocoreSession
 import json
-
+from secret_kv import open_kv_store, KvStore
 from .context import XPulumiContext, BotoAwsSession, BotocoreSession
 from .util import file_url_to_pathname
 from .exceptions import XPulumiError
 from .constants import PULUMI_STANDARD_BACKEND
 from .config import XPulumiConfig
+
 
 if TYPE_CHECKING:
   from .project import XPulumiProject
@@ -77,6 +78,9 @@ class XPulumiContextBase(XPulumiContext):
   _cwd: str
   """Working directory for this context"""
 
+  _pulumi_home: Optional[str] = None
+  """Location of pulumi installation"""
+
   _pulumi_cli: Optional[str] = None
   """Location of Pulumi CLI program. By default, located in PATH."""
 
@@ -99,6 +103,8 @@ class XPulumiContextBase(XPulumiContext):
 
   _project_root_dir: Optional[str] = None
 
+  _kv_store: Optional[KvStore] = None
+
   def __init__(self, config: Optional[XPulumiConfig]=None, cwd: Optional[str]=None):
     super().__init__()
     self._aws_account_region_map = {}
@@ -111,9 +117,22 @@ class XPulumiContextBase(XPulumiContext):
     if not config is None:
       self.init_from_config(config)
 
+  def get_kv_store(self) -> KvStore:
+    if self._kv_store is None:
+      self._kv_store = open_kv_store(self.get_project_root_dir())
+    return self._kv_store
+
+  def get_simple_kv_secret(self, name: str) -> Jsonable:
+    v = self.get_kv_store().get_value(name)
+    if v is None:
+      return None
+    else:
+      return v.as_simple_jsonable()
+
   def init_from_config(self, config: XPulumiConfig) -> None:
     self._config = config
     self._project_root_dir = config.project_root_dir
+    self._pulumi_home = config.pulumi_home
 
   def get_config(self) -> XPulumiConfig:
     if self._config is None:
@@ -174,7 +193,7 @@ class XPulumiContextBase(XPulumiContext):
   def get_project(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> 'XPulumiProject':
     project_name = self.get_project_name(project_name, cwd=cwd)
     from .project import XPulumiProject
-    project = XPulumiProject(project_name, crx=self, cwd=cwd)
+    project = XPulumiProject(project_name, ctx=self, cwd=cwd)
     return project
 
   def get_backend_infra_dir(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> str:
@@ -393,21 +412,24 @@ class XPulumiContextBase(XPulumiContext):
     return result
 
   def get_pulumi_home(self) -> str:
-    result = self.get_environ().get("PULUMI_HOME", None)
-    if result is None or result == '':
-      result = "~/.pulumi"
-    result = self.abspath(result)
-    return result
+    if self._pulumi_home is None:
+      pulumi_home = self.get_environ().get("PULUMI_HOME", None)
+      if pulumi_home is None or pulumi_home == '':
+        pulumi_home = "~/.pulumi"
+      pulumi_home = self.abspath(pulumi_home)
+      self._pulumi_home = pulumi_home
+      self.get_environ()["PULUMI_HOME"] = pulumi_home
+    return self._pulumi_home
 
   def set_pulumi_home(self, pulumi_home: str):
-    pulumi_home = self.abspath(pulumi_home)
-    self.get_environ()["PULUMI_HOME"] = pulumi_home
+    self._pulumi_home = self.abspath(pulumi_home)
+    self.get_environ()["PULUMI_HOME"] = self._pulumi_home
 
   def get_pulumi_cli(self) -> str:
     if self._pulumi_cli is None:
-      self._pulumi_cli = distutils.spawn.find_executable('pulumi')
+      self._pulumi_cli = os.path.join(self.get_pulumi_home(), 'bin', 'pulumi')
       if self._pulumi_cli is None:
-        raise XPulumiError("Unable to locate pulumi CLI executable in PATH")
+        raise XPulumiError(f"Unable to locate pulumi CLI executable in PULUMI_HOME: {self.get_pulumi_home()}")
     return self._pulumi_cli
 
   def set_pulumi_cli(self, cli_executable: str):

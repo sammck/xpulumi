@@ -1,6 +1,0 @@
-# AUTO-GENERATED--DO NOT EDIT! Deployed project config file for project test-project
-secrets:
-  provider: secret_kv_passphrase
-  options:
-    secret_kv_passphrase_key: pulumi/passphrase/test-project/dev
-env: {}

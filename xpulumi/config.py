@@ -79,6 +79,7 @@ class XPulumiConfig:
   _config_data: JsonableDict
   _xpulumi_dir: str
   _project_root_dir: str
+  _pulumi_home: str
 
   def __init__(self, config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True):
     self._config_file = locate_xpulumi_config_file(config_path=config_path, starting_dir=starting_dir, scan_parent_dirs=scan_parent_dirs)
@@ -96,6 +97,7 @@ class XPulumiConfig:
     assert isinstance(project_root_dir, str)
     project_root_dir = os.path.abspath(os.path.join(xpulumi_dir, os.path.expanduser(project_root_dir)))
     self._project_root_dir = project_root_dir
+    self._pulumi_home = os.path.join(xpulumi_dir, '.pulumi')
 
   @property
   def config_file(self) -> str:
@@ -112,6 +114,10 @@ class XPulumiConfig:
   @property
   def project_root_dir(self) -> str:
     return self._project_root_dir
+
+  @property
+  def pulumi_home(self) -> str:
+    return self._pulumi_home
 
   def create_context(self, cwd: Optional[str]=None) -> 'XPulumiContextBase':
     from .base_context import XPulumiContextBase
