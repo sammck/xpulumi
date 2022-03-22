@@ -1,0 +1,10 @@
+{
+  "options": {
+    "includes_organization": true,
+    "includes_project": false,
+    "aws_region": "us-west-2",
+    "aws_account": "492598163938"
+  },
+  "name": "s3",
+  "uri": "s3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj"
+ }

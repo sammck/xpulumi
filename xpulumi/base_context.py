@@ -11,7 +11,7 @@ on demand.
 
 """
 
-from typing import Optional, cast, Dict, Tuple, List, Callable, Union, Any
+from typing import TYPE_CHECKING, Optional, cast, Dict, Tuple, List, Callable, Union, Any
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -30,6 +30,10 @@ from .util import file_url_to_pathname
 from .exceptions import XPulumiError
 from .constants import PULUMI_STANDARD_BACKEND
 from .config import XPulumiConfig
+
+if TYPE_CHECKING:
+  from .project import XPulumiProject
+  from .backend import XPulumiBackend
 
 #SessionVarEntry = Tuple[Optional[str], Optional[Union[List[str], str]], Any, Optional[Callable[[Any], Any]]]
 
@@ -99,7 +103,7 @@ class XPulumiContextBase(XPulumiContext):
     super().__init__()
     self._aws_account_region_map = {}
     self._environ = dict(os.environ)
-    self._cwd = os.getcwd() if cwd is None else os.path.abspath(os.path.expanduser(cwd))
+    self._cwd = os.getcwd() if cwd is None else os.path.abspath(os.path.normpath(os.path.expanduser(cwd)))
     self._passphrase_by_backend_org_project_stack = {}
     self._passphrase_by_id = {}
     self._passphrase_by_salt_state = {}
@@ -130,12 +134,95 @@ class XPulumiContextBase(XPulumiContext):
   def get_infra_dir(self) -> str:
     return os.path.join(self.get_project_root_dir(), self.XPULUMI_INFRA_DIRNAME)
 
-  def get_backend_infra_dir(self, backend: str) -> str:
-    return os.path.join(self.get_infra_dir(), 'backend', backend)
+  def get_project_infra_dir(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> str:
+    return os.path.join(self.get_infra_dir(), 'project', self.get_project_name(project_name, cwd=cwd))
 
-  def get_project_infra_dir(self, project: str) -> str:
-    return os.path.join(self.get_infra_dir(), 'project', project)
+  def get_optional_project_name(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> Optional[str]:
+    if project_name is None:
+      if cwd is None:
+        cwd = self.get_cwd()
+      else:
+        cwd = self.abspath(cwd)
+      rdir = os.path.relpath(cwd, os.path.join(self.get_infra_dir(), 'project'))
+      rdir_parts = rdir.split(os.sep)
+      if rdir_parts[0] == '..':
+        project_name = None
+      else:
+        project_name = rdir_parts[0]
 
+    return project_name
+
+  def get_project_name(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> str:
+    project_name = self.get_optional_project_name(project_name, cwd=cwd)
+    if project_name is None:
+      if cwd is None:
+        cwd = self.get_cwd()
+      else:
+        cwd = self.abspath(cwd)
+      raise XPulumiError(f"Working directory is not inside an XPulumi project: {cwd}")
+
+    return project_name
+
+  def get_optional_project(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> Optional['XPulumiProject']:
+    project_name = self.get_optional_project_name(project_name, cwd=cwd)
+    if project_name is None:
+      return None
+    from .project import XPulumiProject
+    project = XPulumiProject(project_name, ctx=self, cwd=cwd)
+    return project
+
+  def get_project(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> 'XPulumiProject':
+    project_name = self.get_project_name(project_name, cwd=cwd)
+    from .project import XPulumiProject
+    project = XPulumiProject(project_name, crx=self, cwd=cwd)
+    return project
+
+  def get_backend_infra_dir(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> str:
+    backend_name = self.get_backend_name(backend_name, cwd=cwd)
+    return os.path.join(self.get_infra_dir(), 'backend', backend_name)
+
+  def get_optional_backend_name(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> Optional[str]:
+    if backend_name is None:
+      if cwd is None:
+        cwd = self.get_cwd()
+      else:
+        cwd = self.abspath(cwd)
+      rdir = os.path.relpath(cwd, os.path.join(self.get_infra_dir(), 'backend'))
+      rdir_parts = rdir.split(os.sep)
+      if rdir_parts[0] == '..':
+        project = self.get_optional_project(cwd=cwd)
+        if project is None:
+          backend_name = None
+        else:
+          backend_name = project.backend.name
+      else:
+        backend_name = rdir_parts[0]
+
+    return backend_name
+
+  def get_backend_name(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> str:
+    backend_name = self.get_optional_backend_name(backend_name, cwd=cwd)
+    if backend_name is None:
+      if cwd is None:
+        cwd = self.get_cwd()
+      else:
+        cwd = self.abspath(cwd)
+      raise XPulumiError(f"Working directory is not inside an XPulumi backend or project: {cwd}")
+    return backend_name
+
+  def get_optional_backend(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> Optional['XPulumiBackend']:
+    backend_name = self.get_optional_backend_name(backend_name, cwd=cwd)
+    if backend_name is None:
+      return None
+    from .backend import XPulumiBackend
+    backend = XPulumiBackend(backend_name, ctx=self, cwd=cwd)
+    return backend
+
+  def get_backend(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> 'XPulumiBackend':
+    backend_name = self.get_backend_name(backend_name, cwd=cwd)
+    from .backend import XPulumiBackend
+    backend = XPulumiBackend(backend_name, ctx=self, cwd=cwd)
+    return backend
 
   def load_aws_session(
         self,
@@ -330,7 +417,7 @@ class XPulumiContextBase(XPulumiContext):
     return self.get_pulumi_home()
 
   def abspath(self, pathname: str) -> str:
-    result = os.path.abspath(os.path.join(self.get_cwd(), os.path.expanduser(pathname)))
+    result = os.path.abspath(os.path.normpath(os.path.join(self.get_cwd(), os.path.expanduser(pathname))))
     return result
 
   def get_cwd(self) -> str:

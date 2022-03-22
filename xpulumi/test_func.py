@@ -17,6 +17,6 @@ from .project import XPulumiProject
 from .exceptions import XPulumiError
 
 def run_test() -> Jsonable:
-  project = XPulumiProject('ext-bucket')
-  outputs = project.get_stack_outputs('global')  
+  project = XPulumiProject('test-project')
+  outputs = project.get_stack_outputs('dev')  
   return outputs

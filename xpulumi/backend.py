@@ -113,6 +113,10 @@ class XPulumiBackend:
     return self._ctx
 
   @property
+  def name(self) -> str:
+    return self._name
+
+  @property
   def url(self) -> str:
     return self._url
 
@@ -377,6 +381,8 @@ class XPulumiBackend:
         if not checkpoint_stack is None and checkpoint_stack != stack:
           raise RuntimeError(f"Backend checkpoint stack \"{checkpoint_stack}\" does not match requested stack for backend {self.url}, org={organization}, project={project}, stack={stack}")
         latest = checkpoint.get('latest', None)
+        if latest is None:
+          raise XPulumiError(f"Stack \"{stack}\" exists but has not yet been deployed for backend {self.url}, org={organization}, project={project}")
         if isinstance(latest, dict):
           export_data = dict(deployment=latest, version=version)
     if not isinstance(export_data, dict):

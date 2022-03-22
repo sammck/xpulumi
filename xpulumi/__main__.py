@@ -5,7 +5,7 @@
 # MIT License - See LICENSE file accompanying this package.
 #
 
-"""Command-line interface for xpulumi package"""
+"""Wrapper for pulumi CLI that works with xpulumi"""
 
 
 import base64
@@ -44,6 +44,7 @@ from xpulumi import (
     JsonableDict,
     JsonableList,
   )
+from xpulumi.project import XPulumiProject
 
 from xpulumi.util import (
     full_name_of_type,
@@ -155,6 +156,10 @@ class CommandHandler:
 
   _cfg: Optional[XPulumiConfig] = None
   _ctx: Optional[XPulumiContextBase] = None
+  _project_name: Optional[str] = None
+  _backend_name: Optional[str] = None
+  _project: Optional[XPulumiProject] = None
+  _backend: Optional[XPulumiBackend] = None
 
   def __init__(self, argv: Optional[Sequence[str]]=None):
     self._argv = argv
@@ -164,7 +169,6 @@ class CommandHandler:
 
   def ecolor(self, codes: str) -> str:
     return codes if self._colorize_stderr else ""
-
 
   def abspath(self, path: str) -> str:
     return os.path.abspath(os.path.join(self._cwd, os.path.expanduser(path)))
@@ -321,17 +325,41 @@ class CommandHandler:
       self._ctx = self.get_config().create_context()
     return self._ctx
 
+  def get_project_name(self) -> str:
+    if self._project_name is None:
+      self._project_name = self.get_context().get_project_name()
+    return self._project_name
+
+  def get_project(self) -> XPulumiProject:
+    if self._project is None:
+      self._project = self.get_context().get_project(self.get_project_name())
+    return self._project
+
+  def get_backend_name(self) -> str:
+    if self._backend_name is None:
+      self._backend_name = self.get_context().get_backend_name()
+    return self._backend_name
+
+  def get_backend(self) -> XPulumiBackend:
+    if self._backend is None:
+      self._backend = self.get_context().get_backend(self.get_backend_name())
+    return self._backend
+
   def get_project_root_dir(self) -> str:
     return self.get_config().project_root_dir
 
   def get_xpulumi_data_dir(self) -> str:
     return os.path.join(self.get_project_root_dir(), 'xpulumi.d')
 
-  def get_project_dir(self, project_name: str) -> str:
-    return os.path.join(self.get_xpulumi_data_dir(), 'project', project_name)
+  def get_project_dir(self, project_name: Optional[str]=None) -> str:
+    if project_name is None:
+      project_name = self.get_project_name()
+    return self.get_context().get_project_infra_dir(project_name)
 
-  def get_backend_dir(self, backend: str) -> str:
-    return os.path.join(self.get_xpulumi_data_dir(), 'backend', backend)
+  def get_backend_dir(self, backend_name: Optional[str]=None) -> str:
+    if backend_name is None:
+      backend_name = self.get_backend_name()
+    return self.get_context().get_backend_infra_dir(backend_name)
 
   def create_file_backend(self, new_backend: str, new_backend_uri: Optional[str]=None):
     backend_dir = self.get_backend_dir(new_backend)
@@ -367,7 +395,6 @@ class CommandHandler:
   def create_s3_backend(self, new_backend: str, new_backend_uri: str, new_s3_bucket_project: Optional[str]=None, new_s3_bucket_backend: Optional[str]=None):
     raise NotImplementedError()
 
-
   def cmd_be_create(self) -> int:
     args = self._args
     new_s3_bucket_project: Optional[str] = args.new_s3_bucket_project,
@@ -394,7 +421,6 @@ class CommandHandler:
 
   def cmd_prj_create(self) -> int:
     raise NotImplementedError()
-
 
   def run(self) -> int:
     """Run the xpulumi command-line tool with provided arguments
