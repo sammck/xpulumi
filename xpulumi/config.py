@@ -80,6 +80,8 @@ class XPulumiConfig:
   _xpulumi_dir: str
   _project_root_dir: str
   _pulumi_home: str
+  _default_backend_name: Optional[str] = None
+  _default_stack_name: Optional[str] = None
 
   def __init__(self, config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True):
     self._config_file = locate_xpulumi_config_file(config_path=config_path, starting_dir=starting_dir, scan_parent_dirs=scan_parent_dirs)
@@ -98,6 +100,8 @@ class XPulumiConfig:
     project_root_dir = os.path.abspath(os.path.join(xpulumi_dir, os.path.expanduser(project_root_dir)))
     self._project_root_dir = project_root_dir
     self._pulumi_home = os.path.join(xpulumi_dir, '.pulumi')
+    self._default_backend_name = self._config_data.get('default_backend', None)
+    self._default_stack_name = self._config_data.get('default_stack', None)
 
   @property
   def config_file(self) -> str:
@@ -118,6 +122,14 @@ class XPulumiConfig:
   @property
   def pulumi_home(self) -> str:
     return self._pulumi_home
+
+  @property
+  def default_backend_name(self) -> Optional[str]:
+    return self._default_backend_name
+
+  @property
+  def default_stack_name(self) -> Optional[str]:
+    return self._default_stack_name
 
   def create_context(self, cwd: Optional[str]=None) -> 'XPulumiContextBase':
     from .base_context import XPulumiContextBase

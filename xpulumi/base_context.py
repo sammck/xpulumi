@@ -105,6 +105,10 @@ class XPulumiContextBase(XPulumiContext):
 
   _kv_store: Optional[KvStore] = None
 
+  _default_backend_name: Optional[str] = None
+
+  _default_stack_name: Optional[str] = None
+
   def __init__(self, config: Optional[XPulumiConfig]=None, cwd: Optional[str]=None):
     super().__init__()
     self._aws_account_region_map = {}
@@ -133,7 +137,17 @@ class XPulumiContextBase(XPulumiContext):
     self._config = config
     self._project_root_dir = config.project_root_dir
     self._pulumi_home = config.pulumi_home
+    self._default_backend_name = config.default_backend_name
+    self._default_stack_name = config.default_stack_name
 
+  @property
+  def default_backend_name(self) -> str:
+    return self._default_backend_name
+    
+  @property
+  def default_stack_name(self) -> str:
+    return self._default_stack_name
+    
   def get_config(self) -> XPulumiConfig:
     if self._config is None:
       config = XPulumiConfig(starting_dir=self._cwd)
@@ -242,6 +256,17 @@ class XPulumiContextBase(XPulumiContext):
     from .backend import XPulumiBackend
     backend = XPulumiBackend(backend_name, ctx=self, cwd=cwd)
     return backend
+
+  def get_optional_stack_name(self, stack_name: Optional[str]=None) -> Optional[str]:
+    if stack_name is None:
+      stack_name = self.default_stack_name
+    return stack_name
+
+  def get_stack_name(self, stack_name: Optional[str]=None) -> str:
+    stack_name = self.get_optional_stack_name(stack_name)
+    if stack_name is None:
+      raise XPulumiError("A pulumi stack name is required")
+    return stack_name
 
   def load_aws_session(
         self,
@@ -447,4 +472,71 @@ class XPulumiContextBase(XPulumiContext):
 
   def set_cwd(self, cwd: str):
     self._cwd = self.abspath(cwd)
+
+  def get_environ(self) -> Dict[str, str]:
+    if self._env is None:
+      ctx = self.get_context()
+      env = dict(os.environ)
+      self._env = env
+      env['PULUMI_HOME'] = ctx.get_pulumi_home()
+      project = self.get_optional_project()
+      backend: Optional[XPulumiBackend] = None
+      if project is None:
+        if 'PULUMI_BACKEND_URL' in env:
+          del env['PULUMI_BACKEND_URL']
+        if 'PULUMI_ACCESS_TOKEN' in env:
+          del env['PULUMI_ACCESS_TOKEN']
+      else:
+        env['PULUMI_BACKEND_URL'] = project.get_project_backend_url()
+        backend = project.backend
+        if backend.scheme == 'https' or backend.scheme == 'http':
+          env['PULUMI_ACCESS_TOKEN'] = backend.require_access_token()
+        else:
+          if 'PULUMI_ACCESS_TOKEN' in env:
+            del env['PULUMI_ACCESS_TOKEN']
+        stack_name = self.get_optional_stack_name()
+      if not 'PULUMI_CONFIG_PASSPHRASE' in env:
+        passphrase: Optional[str] = None
+        if not backend is None:
+          try:
+            passphrase = ctx.get_pulumi_secret_passphrase(backend_url=backend.url, organization=project.organization, project=project.name, stack=stack_name)
+          except XPulumiError:
+            pass
+        if passphrase is None:
+          try:
+            passphrase = ctx.get_simple_kv_secret('pulumi/passphrase')
+          except Exception:
+            pass
+        if not passphrase is None:
+          env['PULUMI_CONFIG_PASSPHRASE'] = passphrase
+    return self._env
+
+  def _fix_raw_popen_args(self, arglist: List[str], kwargs: Dict[str, Any]) -> List[str]:
+    arglist = [ self.get_context().get_pulumi_cli() ] + arglist
+    env = self.get_environ()
+    call_env = kwargs.pop('env', None)
+    if not call_env is None:
+      env.update(call_env)
+    kwargs['env'] = env
+    project = self.get_optional_project()
+    if project is None:
+      cwd = self._cwd
+    else:
+      cwd = project._project_dir
+    kwargs['cwd'] = cwd
+    return arglist
+
+  def raw_pulumi_Popen(self, arglist: List[str], **kwargs) -> subprocess.Popen:
+    arglist = self._fix_raw_popen_args(arglist, kwargs)
+    return subprocess.Popen(arglist, **kwargs)
+
+  def raw_pulumi_check_call(self, arglist: List[str], **kwargs) -> int:
+    arglist = self._fix_raw_popen_args(arglist, kwargs)
+    return subprocess.check_call(arglist, **kwargs)
+
+  def raw_pulumi_call(self, arglist: List[str], **kwargs) -> int:
+    arglist = self._fix_raw_popen_args(arglist, kwargs)
+    return subprocess.call(arglist, **kwargs)
+
+
 

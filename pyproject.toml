@@ -37,6 +37,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 xpulumi = 'xpulumi.__main__:run'
+pulumi = 'xpulumi.pulumi_cli.__main__:run'
 
 [tool.semantic_release]
 version_variable = 'xpulumi/version.py:__version__'

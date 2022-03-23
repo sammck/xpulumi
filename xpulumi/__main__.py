@@ -5,8 +5,7 @@
 # MIT License - See LICENSE file accompanying this package.
 #
 
-"""Wrapper for pulumi CLI that works with xpulumi"""
-
+"""xpulumi CLI"""
 
 import base64
 from typing import Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping, cast, Any, Iterator, Iterable, Tuple
@@ -422,6 +421,13 @@ class CommandHandler:
   def cmd_prj_create(self) -> int:
     raise NotImplementedError()
 
+  def cmd_stack_select(self) -> int:
+    args = self._args
+    stack_name: str = args.default_stack
+    self.update_config(default_stack=stack_name)
+    return 0
+
+
   def run(self) -> int:
     """Run the xpulumi command-line tool with provided arguments
 
@@ -552,6 +558,23 @@ class CommandHandler:
     parser_prj_create.add_argument('-r', '--ref', dest="new_project_is_ref", action='store_true', default=False,
                         help='''The new project is a reference to an externally managed project; no Pulumi project stubs will be created.''')
     parser_prj_create.set_defaults(func=self.cmd_prj_create)
+
+    # ======================= stack
+
+    parser_stack = subparsers.add_parser('stack', 
+                            description='''Subcommands related to management of pulumi stacks.''')
+    stack_subparsers = parser_stack.add_subparsers(
+                        title='Subcommands',
+                        description='Valid stack subcommands',
+                        help='Additional help available with "xpulumi stack <subcommand-name> -h"')
+
+    # ======================= stack select
+
+    parser_stack_select = stack_subparsers.add_parser('select', 
+                            description='''Select a default stack.''')
+    parser_stack_select.add_argument('default_stack',
+                        help='The new default stack name')
+    parser_stack_select.set_defaults(func=self.cmd_stack_select)
 
     # =========================================================
 

@@ -131,7 +131,7 @@ class XPulumiProject:
     self._backend = XPulumiBackend(backend_name, ctx=ctx, cwd=project_dir)
 
   @property
-  def ctx(self) -> XPulumiContext:
+  def ctx(self) -> XPulumiContextBase:
     return self._ctx
 
   @property
@@ -147,6 +147,10 @@ class XPulumiProject:
     return self._pulumi_project_name
 
   @property
+  def project_dir(self) -> str:
+    return self._project_dir
+
+  @property
   def organization(self) -> str:
     return self._organization
 
@@ -159,6 +163,12 @@ class XPulumiProject:
   def abspath(self, pathname: str) -> str:
     return os.path.abspath(os.path.join(self._project_dir, os.path.expanduser(pathname)))
 
+  def get_optional_stack_name(self, stack_name: Optional[str]=None) -> Optional[str]:
+    return self.ctx.get_optional_stack_name(stack_name)
+
+  def get_stack_name(self, stack_name: Optional[str]=None) -> str:
+    return self.ctx.get_stack_name(stack_name)
+
   def get_project_backend_url(self) -> str:
     return self.backend.get_project_backend_url(organization=self.organization, project=self.pulumi_project_name)
 
@@ -167,25 +177,26 @@ class XPulumiProject:
 
   def get_stack_backend_url(
         self,
-        stack: str,
+        stack_name: Optional[str]=None,
       ) -> str:
-    result = self.backend.get_stack_backend_url(stack, organization=self.organization, project=self.pulumi_project_name)
+    result = self.backend.get_stack_backend_url(self.get_stack_name(stack_name), organization=self.organization, project=self.pulumi_project_name)
 
   def get_stack_backend_url_parts(
         self,
-        stack: str,
+        stack_name: Optional[str]=None,
       ) -> ParseResult:
-    return urlparse(self.get_stack_backend_url(stack))
+    return urlparse(self.get_stack_backend_url(stack_name))
 
   def export_stack(
         self,
-        stack: str,
+        stack_name: Optional[str]=None,
         decrypt_secrets: bool=False,
         bypass_pulumi: bool=True,
       ) -> JsonableDict:
+    stack_name = self.get_stack_name(stack_name)
     return self.backend.export_stack(
         self.pulumi_project_name,
-        stack,
+        stack_name,
         organization=self.organization,
         decrypt_secrets=decrypt_secrets,
         bypass_pulumi=bypass_pulumi
@@ -193,13 +204,14 @@ class XPulumiProject:
 
   def get_stack_outputs(
         self,
-        stack: str,
+        stack_name: Optional[str]=None,
         decrypt_secrets: bool=False,
         bypass_pulumi: bool=True,
       ) -> JsonableDict:
+    stack_name = self.get_stack_name(stack_name)
     return self.backend.get_stack_outputs(
         self.pulumi_project_name,
-        stack,
+        stack_name,
         organization=self.organization,
         decrypt_secrets=decrypt_secrets,
         bypass_pulumi=bypass_pulumi
