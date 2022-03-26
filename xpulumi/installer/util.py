@@ -28,6 +28,7 @@ from collections import defaultdict
 from functools import lru_cache, _make_key
 
 from ..exceptions import XPulumiError
+from ..util import run_once, get_tmp_dir
 
 if TYPE_CHECKING:
   from subprocess import _CMD, _FILE, _ENV
@@ -37,43 +38,6 @@ else:
   _FILE = Any
   _ENV = Any
   StrOrBytesPath = Any
-
-class _RunOnceState:
-  has_run: bool = False
-  result: Any = None
-  lock: threading.Lock
-
-  def __init__(self):
-    self.lock = threading.Lock()
-
-def run_once(func):
-  state = _RunOnceState()
-
-  def _run_once(*args, **kwargs) -> Any:
-    if not state.has_run:
-      with state.lock:
-        if not state.has_run:
-          state.result = func(*args, **kwargs)
-          state.has_run = True
-    return state.result
-  return _run_once
-
-@run_once
-def get_tmp_dir() -> str:
-  """Returns a temporary directory that is private to this user
-
-  Returns:
-      str: A temporary directory that is private to this user
-  """
-  parent_dir: Optional[str] = os.environ.get("XDG_RUNTIME_DIR")
-  if parent_dir is None:
-    parent_dir = tempfile.gettempdir()
-    tmp_dir = os.path.join(parent_dir, f"user-{os.getuid()}")
-  else:
-    tmp_dir = os.path.join(parent_dir, 'tmp')
-  if not os.path.exists(tmp_dir):
-    os.mkdir(tmp_dir, mode=0o700)
-  return tmp_dir
 
 def check_version_ge(version1: str, version2: str) -> bool:
   """returns True iff version1 is greater than or equal to version2

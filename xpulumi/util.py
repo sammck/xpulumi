@@ -14,8 +14,48 @@ import os
 from urllib.parse import urlparse, ParseResult, urlunparse, unquote as url_unquote
 import pathlib
 import subprocess
+import threading
+import tempfile
 
 from .exceptions import XPulumiError
+
+class _RunOnceState:
+  has_run: bool = False
+  result: Any = None
+  lock: threading.Lock
+
+  def __init__(self):
+    self.lock = threading.Lock()
+
+def run_once(func):
+  state = _RunOnceState()
+
+  def _run_once(*args, **kwargs) -> Any:
+    if not state.has_run:
+      with state.lock:
+        if not state.has_run:
+          state.result = func(*args, **kwargs)
+          state.has_run = True
+    return state.result
+  return _run_once
+
+@run_once
+def get_tmp_dir() -> str:
+  """Returns a temporary directory that is private to this user
+
+  Returns:
+      str: A temporary directory that is private to this user
+  """
+  parent_dir: Optional[str] = os.environ.get("XDG_RUNTIME_DIR")
+  if parent_dir is None:
+    parent_dir = tempfile.gettempdir()
+    tmp_dir = os.path.join(parent_dir, f"user-{os.getuid()}")
+  else:
+    tmp_dir = os.path.join(parent_dir, 'tmp')
+  if not os.path.exists(tmp_dir):
+    os.mkdir(tmp_dir, mode=0o700)
+  return tmp_dir
+
 
 def hash_pathname(pathname: str) -> str:
   result = hashlib.sha1(os.path.abspath(os.path.expanduser(pathname)).encode("utf-8")).hexdigest()
