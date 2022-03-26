@@ -37,7 +37,9 @@ from pulumi_aws import (
 
 from ..base_context import XPulumiContextBase
 from ..project import XPulumiProject
-from ..util import ( run_once, )
+from ..stack import XPulumiStack, parse_stack_name
+from ..util import ( run_once)
+
 
 initial_cwd = os.getcwd()
 
@@ -119,6 +121,45 @@ def get_current_xpulumi_project() -> XPulumiProject:
 
 def get_current_xpulumi_project_name() -> str:
   return get_current_xpulumi_project().name
+
+def get_current_xpulumi_project() -> XPulumiProject:
+  return get_xpulumi_project()
+
+def get_current_xpulumi_project_name() -> str:
+  return get_current_xpulumi_project().name
+
+_stack_cache: Dict[Tuple[Optional[str], Optional[str]], XPulumiStack] = {}
+_stack_cache_lock = threading.Lock()
+def get_xpulumi_stack(
+      stack_name: Optional[str]=None,
+      project_name: Optional[str]=None,
+    ) -> XPulumiStack:
+  with _stack_cache_lock:
+    result = _stack_cache.get((project_name, stack_name), None)
+    if result is None:
+      ctx = get_xpulumi_context()
+      r_project_name, r_stack_name = parse_stack_name(
+          stack_name=stack_name,
+          project_name=project_name,
+          ctx=ctx,
+          cwd=initial_cwd,
+          default_project_name=get_current_xpulumi_project_name(),
+          default_stack_name=get_current_xpulumi_stack_name()
+        )
+      result = _stack_cache.get((r_project_name, r_stack_name), None)
+      if result is None:
+        project = get_xpulumi_project(r_project_name)
+        result = XPulumiStack(stack_name=r_stack_name, project=project)
+        _stack_cache[(r_project_name, r_stack_name)] = result
+      if not (project_name, stack_name) in _stack_cache:
+        _stack_cache[(project_name, stack_name)] = result
+  return result
+
+def get_current_xpulumi_stack_name() -> str:
+  return pulumi.get_stack()
+
+def get_current_xpulumi_stack() -> XPulumiStack:
+  return get_xpulumi_stack(get_current_xpulumi_stack_name())
 
 def sync_get_processor_arches_from_instance_type(instance_type: str, region_name: Optional[str]=None) -> List[str]:
   """Returns a list of processor architectures supported by the given EC2 instance type

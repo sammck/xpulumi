@@ -11,33 +11,37 @@ import os
 
 from pulumi import Output, Input, get_stack
 from .. import JsonableDict, Jsonable
-from .. import XPulumiProject
-from .util import get_xpulumi_project
+from .. import XPulumiStack
+from .util import get_xpulumi_stack
 
 
 class SyncStackOutputs:
-  project: XPulumiProject
-  """The xpulumi project"""
+  _stack: XPulumiStack
+  """The xpulumi stack"""
 
-  stack_name: str
-  """The xpulumi stack name"""
-
-  outputs: JsonableDict
+  _outputs: JsonableDict
   """The actual outputs of the stack"""
 
   def __init__(
         self,
-        project_name: Optional[str]=None,
         stack_name: Optional[str]=None,
+        project_name: Optional[str]=None,
+        default_stack_name: Optional[str]=None,
+        default_project_name: Optional[str]=None,
         decrypt_secrets: bool=False
       ) -> None:
-    project = get_xpulumi_project(project_name)
-    if stack_name is None:
-      stack_name = get_stack()
-    outputs = project.get_stack_outputs(stack_name, decrypt_secrets=decrypt_secrets)
-    self.project = project
-    self.stack_name = stack_name
-    self.outputs = outputs
+    stack = get_xpulumi_stack(stack_name=stack_name, project_name=project_name)
+    outputs = stack.get_stack_outputs(decrypt_secrets=decrypt_secrets)
+    self._stack = stack
+    self._outputs = outputs
+
+  @property
+  def stack(self) -> XPulumiStack:
+    return self._stack
+
+  @property
+  def outputs(self) -> JsonableDict:
+    return self._outputs
 
   def get_output(self, name: str, default: Jsonable=None) -> Jsonable:
     return self.outputs.get(name, default)
@@ -76,8 +80,8 @@ class StackOutputs:
 
   def __init__(
         self,
-        project_name: Input[Optional[str]]=None,
         stack_name: Input[Optional[str]]=None,
+        project_name: Input[Optional[str]]=None,
         decrypt_secrets: Input[bool]=False
       ) -> None:
     """Fetch the outputs of an external deployed xpulumi stack. The returned
@@ -85,19 +89,19 @@ class StackOutputs:
        as well as all outputs as a JsonableDict.
 
     Args:
-        project_name (Input[Optional[str]], optional):
-                      The local xpulumi project name, or None to use the same project
-                      as the current stack. Default is None.
         stack_name (Input[Optional[str]], optional): 
                       The stack name within the xpulumi project, or None to use the
                       same stack name as the current project. Defaults to None.
+        project_name (Input[Optional[str]], optional):
+                      The local xpulumi project name, or None to use the same project
+                      as the current stack. Default is None.
         decrypt_secrets (Input[bool], optional):
                       True if secret outputs should be decrypted. Defaults to False.
     """
-    self._future_outputs = Output.all(project_name, stack_name, decrypt_secrets).apply(lambda args: self._resolve(*args))
+    self._future_outputs = Output.all(stack_name, project_name, decrypt_secrets).apply(lambda args: self._resolve(*args))
 
-  def _resolve(self, project_name: Optional[str], stack_name: str, decrypt_secrets: bool) -> SyncStackOutputs:
-    result = SyncStackOutputs(project_name=project_name, stack_name=stack_name, decrypt_secrets=decrypt_secrets)
+  def _resolve(self, stack_name: str, project_name: Optional[str], decrypt_secrets: bool) -> SyncStackOutputs:
+    result = SyncStackOutputs(stack_name=stack_name, project_name=project_name, decrypt_secrets=decrypt_secrets)
     return result
 
   def get_outputs(self) -> Output[JsonableDict]:

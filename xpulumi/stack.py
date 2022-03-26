@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi stack configuration.
 
 """
 
-from typing import Optional, cast, Dict
+from typing import Optional, cast, Dict, Tuple
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -41,6 +41,54 @@ try:
 except ImportError:
   from yaml import Loader, Dumper  #type: ignore[misc]
 
+def parse_stack_name(
+      stack_name: Optional[str]=None,
+      project_name: Optional[str]=None,
+      project: Optional[XPulumiProject]=None,
+      ctx: Optional[XPulumiContextBase]=None,
+      cwd: Optional[str]=None,
+      default_stack_name: Optional[str]=None,
+      default_project_name: Optional[str]=None,
+    ) -> Tuple[str, str]:
+  if stack_name == '':
+    stack_name = None
+  if project_name == '':
+    project_name = None
+  if not stack_name is None:
+    # support fully qualified "<project>:<stack>" stack name
+    if ':' in stack_name:
+      stack_name_parts = stack_name.split(':')
+      if len(stack_name_parts) != 2:
+        raise XPulumiError(f"Malformed stack name: {stack_name}")
+      if stack_name_parts[0] != '':
+        if not project_name is None and project_name != stack_name_parts[0]:
+          raise XPulumiError(f"project_name \"{project_name}\" conflicts with fully qualified stack name \"{stack_name}")
+        if not project is None and project.name != stack_name_parts[0]:
+          raise XPulumiError(f"project name \"{project.name}\" conflicts with fully qualified stack name \"{stack_name}")
+        project_name = stack_name_parts[0]
+      stack_name = None if stack_name_parts[1] == '' else stack_name_parts[1]
+  if project_name is None and project is None:
+    project_name = default_project_name
+  if project_name is None:
+    if project is None:
+      if ctx is None:
+        ctx = XPulumiContextBase(cwd=cwd)
+      project_name = ctx.get_project_name(cwd=cwd)
+    else:
+      project_name = project.name
+  else:
+    if not project is None and project_name != project.name:
+      raise XPulumiError(f"project_name \"{project_name}\" conflicts provided XPulumiProject name \"{project.name}")
+  if stack_name is None:
+    stack_name = default_stack_name
+    if stack_name is None:
+      if ctx is None:
+        ctx = XPulumiContextBase(cwd=cwd)
+      stack_name = ctx.get_stack_name()
+      if stack_name is None:
+        raise XPulumiError("No stack name provided and no default exists")
+  return project_name, stack_name
+
 class XPulumiStack:
   _project: XPulumiProject
   _stack_name: Optional[str] = None
@@ -57,6 +105,8 @@ class XPulumiStack:
         cwd: Optional[str]=None,
         project: Optional[XPulumiProject]=None,
         project_name: Optional[str]=None,
+        default_stack_name: Optional[str]=None,
+        default_project_name: Optional[str]=None,
       ):
     if stack_name == '':
       stack_name = None
@@ -76,14 +126,19 @@ class XPulumiStack:
           project_name = stack_name_parts[0]
         stack_name = None if stack_name_parts[1] == '' else stack_name_parts[1]
     if project is None:
+      if project_name is None:
+        project_name = default_project_name
       project = XPulumiProject(project_name, ctx=ctx, cwd=cwd)
-    if project_name is None:
       project_name = project.name
     else:
-      if project_name != project.name:
-        raise XPulumiError(f"project_name \"{project_name}\" conflicts provided XPulumiProject name \"{project.name}")
+      if project_name is None:
+        project_name = project.name
+      elif project_name != project.name:
+        raise XPulumiError(f"project_name \"{project_name}\" conflicts with provided XPulumiProject name \"{project.name}")
     ctx = project.ctx
     cwd = project.project_dir
+    if stack_name is None:
+      stack_name = default_stack_name
     stack_name = project.get_stack_name(stack_name)
 
     self._project = project

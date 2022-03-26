@@ -26,7 +26,7 @@ from pulumi_aws import (
   cloudwatch,
   rds,
   kms,
-  secretsmanager,
+  secretsmanager
 )
 
 from .util import (
@@ -40,7 +40,13 @@ from .util import (
 )
 
 from .stack_outputs import SyncStackOutputs
-from .common import paws, pconfig, resource_options_aws, default_tags
+from .common import (
+    aws_default_region,
+    get_aws_region_data,
+    pconfig,
+    default_tags,
+    get_availability_zones,
+  )
 
 class VpcEnv:
   DEFAULT_CIDR: str = '10.77.0.0/16'
@@ -49,7 +55,8 @@ class VpcEnv:
 
   n_azs: int
   vpc_cidr: str
-  n_potential_subnets: int
+  #n_potential_subnets: int
+  aws_region: str
   resource_prefix: str = ""
 
   azs: List[str]
@@ -73,43 +80,115 @@ class VpcEnv:
   route_table_associations: List[ec2.RouteTableAssociation]
   route_table_association_ids: List[Output[str]]
 
+  @classmethod
+  def load(
+        cls,
+        resource_prefix: Optional[str] = None,
+        cfg_prefix: Optional[str]=None,
+      ) -> 'VpcEnv':
+    vpc = VpcEnv(resource_prefix=resource_prefix)
+    vpc._load(cfg_prefix=cfg_prefix)
+    return vpc
+
+  @classmethod
+  def create(
+        cls,
+        resource_prefix: Optional[str] = None,
+        use_config: bool=True,
+        cfg_prefix: Optional[str]=None,
+        n_azs: Optional[int]=None,
+        vpc_cidr: Optional[str]=None,
+        n_potential_subnets: Optional[int]=None,
+        aws_region: Optional[str]=None,
+      ) -> 'VpcEnv':
+    vpc = VpcEnv(resource_prefix=resource_prefix)
+    vpc._create(
+        use_config=use_config,
+        cfg_prefix=cfg_prefix,
+        n_azs=n_azs,
+        vpc_cidr=vpc_cidr,
+        n_potential_subnets=n_potential_subnets,
+        aws_region=aws_region,
+      )
+    return vpc
+
+  @classmethod
+  def stack_import(
+        cls,
+        resource_prefix: Optional[str] = None,
+        stack_name: Optional[str]=None,
+        project_name: Optional[str]=None,
+        import_prefix: Optional[str]=None
+      ) -> 'VpcEnv':
+    vpc = VpcEnv(resource_prefix=resource_prefix)
+    vpc._stack_import(
+        stack_name=stack_name,
+        project_name=project_name,
+        import_prefix=import_prefix,
+      )
+    return vpc
+
   def __init__(self, resource_prefix: Optional[str] = None):
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
     pass
 
-  def create(
+  def _load(
+        self,
+        cfg_prefix: Optional[str]=None,
+      ) -> None:
+    if cfg_prefix is None:
+      cfg_prefix = ''
+    vpc_import_stack_name: Optional[str] = pconfig.get(f'{cfg_prefix}vpc_import_stack')
+    vpc_import_project_name: Optional[str] = pconfig.get(f'{cfg_prefix}vpc_import_project')
+    if not vpc_import_stack_name is None or not vpc_import_project_name is None:
+      vpc_import_prefix: Optional[str] = pconfig.get(f'{cfg_prefix}vpc_import_prefix')
+      self._stack_import(stack_name=vpc_import_stack_name, project_name=vpc_import_project_name, import_prefix=vpc_import_prefix)
+    else:
+      self._create(use_config=True)
+
+  def _create(
         self,
         use_config: bool=True,
         cfg_prefix: Optional[str]=None,
         n_azs: Optional[int]=None,
         vpc_cidr: Optional[str]=None,
-        n_potential_subnets: Optional[int]=None
+        n_potential_subnets: Optional[int]=None,
+        aws_region: Optional[str]=None,
       ) -> None:
-
     if cfg_prefix is None:
       cfg_prefix = ''
     resource_prefix = self.resource_prefix
 
     if use_config:
       if n_azs is None:
-        n_azs = pconfig.get_int(f'{cfg_prefix}n_azs') # The number of AZs that we will provision our vpc in
+        n_azs = pconfig.get_int(f'{cfg_prefix}vpc_n_azs') # The number of AZs that we will provision our vpc in
       if vpc_cidr is None:
         vpc_cidr = pconfig.get(f'{cfg_prefix}vpc_cidr')
       if n_potential_subnets is None:
-        n_potential_subnets = pconfig.get(f'{cfg_prefix}n_potential_subnets')
+        n_potential_subnets = pconfig.get_int(f'{cfg_prefix}vpc_n_potential_subnets')
+      if aws_region is None:
+        aws_region = pconfig.get(f'{cfg_prefix}vpc_aws_region')
+
+    rd = get_aws_region_data(aws_region)
+    aws_region = rd.aws_region
+    self.aws_region = aws_region
+    ro = rd.resource_options
+
     n_azs = default_val(n_azs, self.DEFAULT_N_AZS) # The number of AZs that we will provision our vpc in
     vpc_cidr = default_val(vpc_cidr, self.DEFAULT_CIDR)
     n_potential_subnets = default_val(n_potential_subnets, self.DEFAULT_N_POTENTIAL_SUBNETS)
 
-    azs = sorted(paws.get_availability_zones().names)[:n_azs]
+    self.n_azs = n_azs
+    self.vpc_cidr = vpc_cidr
+
+    azs = get_availability_zones(aws_region)[:n_azs]
     self.azs = azs
     vpc_ip_network = ipaddress.ip_network(vpc_cidr)
     #self.vpc_ip_network = vpc_ip_network
     max_n_subnet_id_bits = 32 - vpc_ip_network.prefixlen
     #self.max_n_subnet_id_bits = max_n_subnet_id_bits
-    n_potential_subnets = self.n_potential_subnets
     if n_potential_subnets < 8 or n_potential_subnets > (1 << 31) or (n_potential_subnets & (n_potential_subnets - 1)) != 0:
       raise RuntimeError("Config value n_potential_subnets must be a power of 2 >= 8: %d" % n_potential_subnets)
     #self.n_potential_subnets = n_potential_subnets
@@ -140,7 +219,7 @@ class VpcEnv:
       enable_dns_hostnames=True,
       enable_dns_support=True,
       tags=default_tags,
-      opts=resource_options_aws,
+      opts=ro,
     )
     self.vpc = vpc
 
@@ -155,7 +234,7 @@ class VpcEnv:
           cidr_block=cidr,
           map_public_ip_on_launch=True,
           tags=default_tags,
-          opts=resource_options_aws,
+          opts=ro,
         )
       )
     self.public_subnets = public_subnets
@@ -176,7 +255,7 @@ class VpcEnv:
           cidr_block=cidr,
           map_public_ip_on_launch=True,   # review: probably want to use NAT gateway for private subnets...?
           tags=default_tags,
-          opts=resource_options_aws,
+          opts=ro,
         )
       )
     self.private_subnets = private_subnets
@@ -194,7 +273,7 @@ class VpcEnv:
         f'{resource_prefix}vpc-gateway',
         tags=default_tags,
         vpc_id=vpc.id,
-        opts=resource_options_aws
+        opts=ro
       )
     self.internet_gateway = internet_gateway
 
@@ -208,7 +287,7 @@ class VpcEnv:
         dict(cidr_block="0.0.0.0/0", gateway_id=internet_gateway.id)
       ],
       tags=default_tags,
-      opts=resource_options_aws,
+      opts=ro,
     )
     self.route_table = route_table
 
@@ -220,7 +299,7 @@ class VpcEnv:
           f'{resource_prefix}default-route-table-association-{i}',
           route_table_id=route_table.id,
           subnet_id=subnet.id,
-          opts=resource_options_aws,
+          opts=ro,
         )
       )
     self.route_table_associations = route_table_associations
@@ -231,9 +310,10 @@ class VpcEnv:
     if export_prefix is None:
       export_prefix = ''
 
+    pulumi.export(f'{export_prefix}vpc_aws_region', self.aws_region)
     pulumi.export(f'{export_prefix}vpc_id', self.vpc.id)
     pulumi.export(f'{export_prefix}vpc_cidr', self.vpc_cidr)
-    pulumi.export(f'{export_prefix}azs', self.azs)
+    pulumi.export(f'{export_prefix}vpc_azs', self.azs)
     pulumi.export(f'{export_prefix}public_subnet_cidrs', self.public_subnet_cidrs)
     pulumi.export(f'{export_prefix}private_subnet_cidrs', self.private_subnet_cidrs)
     pulumi.export(f'{export_prefix}public_subnet_ids', self.public_subnet_ids)
@@ -242,49 +322,55 @@ class VpcEnv:
     pulumi.export(f'{export_prefix}route_table_id', self.route_table.id)
     pulumi.export(f'{export_prefix}route_table_association_ids', self.route_table_association_ids)
 
-  def stack_import(
+  def _stack_import(
         self,
-        project_name: Optional[str]=None,
         stack_name: Optional[str]=None,
-        export_prefix: Optional[str]=None
+        project_name: Optional[str]=None,
+        import_prefix: Optional[str]=None
       ) -> None:
-    if export_prefix is None:
-      export_prefix = ''
+    if  import_prefix is None:
+       import_prefix = ''
     resource_prefix = self.resource_prefix
 
-    outputs = SyncStackOutputs(project_name=project_name, stack_name=stack_name)
-    vpc_id: str = outputs[f'{export_prefix}vpc_id']
-    self.public_subnet_ids = outputs[f'{export_prefix}public_subnet_ids']
-    self.private_subnet_ids = outputs[f'{export_prefix}private_subnet_ids']
-    internet_gateway_id: str = outputs[f'{export_prefix}internet_gateway_id']
-    route_table_id: str = outputs[f'{export_prefix}route_table_id']
-    self.route_table_association_ids = outputs[f'{export_prefix}route_table_association_ids']
-    self.vpc_cidr = outputs[f'{export_prefix}vpc_cidr']
-    self.azs = outputs[f'{export_prefix}vpc_azs']
-    self.public_subnet_cidrs = outputs[f'{export_prefix}public_subnet_cidrs']
-    self.private_subnet_cidrs = outputs[f'{export_prefix}private_subnet_cidrs']
-    self.public_subnet_ids = outputs[f'{export_prefix}public_subnet_ids']
-    self.private_subnet_ids = outputs[f'{export_prefix}private_subnet_ids']
-    self.route_table_association_ids = outputs[f'{export_prefix}route_table_association_ids']
+    outputs = SyncStackOutputs(stack_name=stack_name, project_name=project_name)
+    aws_region: str = outputs[f'{ import_prefix}vpc_aws_region']
+    vpc_id: str = outputs[f'{ import_prefix}vpc_id']
+    self.public_subnet_ids = outputs[f'{ import_prefix}public_subnet_ids']
+    self.private_subnet_ids = outputs[f'{ import_prefix}private_subnet_ids']
+    internet_gateway_id: str = outputs[f'{ import_prefix}internet_gateway_id']
+    route_table_id: str = outputs[f'{ import_prefix}route_table_id']
+    self.route_table_association_ids = outputs[f'{ import_prefix}route_table_association_ids']
+    self.vpc_cidr = outputs[f'{ import_prefix}vpc_cidr']
+    self.azs = outputs[f'{ import_prefix}vpc_azs']
+    self.public_subnet_cidrs = outputs[f'{ import_prefix}public_subnet_cidrs']
+    self.private_subnet_cidrs = outputs[f'{ import_prefix}private_subnet_cidrs']
+    self.public_subnet_ids = outputs[f'{ import_prefix}public_subnet_ids']
+    self.private_subnet_ids = outputs[f'{ import_prefix}private_subnet_ids']
+    self.route_table_association_ids = outputs[f'{ import_prefix}route_table_association_ids']
+
+    rd = get_aws_region_data(aws_region)
+    aws_region = rd.aws_region
+    self.aws_region = aws_region
+    ro = rd.resource_options
 
     self.subnet_ids = self.public_subnet_ids + self.private_subnet_ids
 
     self.vpc = ec2.Vpc.get(
         f'{resource_prefix}vpc',
         id=vpc_id,
-        opts=resource_options_aws,
+        opts=ro,
       )
 
     self.internet_gateway = ec2.InternetGateway.get(
         f'{resource_prefix}vpc-gateway',
         id=internet_gateway_id,
-        opts=resource_options_aws,
+        opts=ro,
       )
 
     self.route_table = ec2.DefaultRouteTable.get(
         f'{resource_prefix}route-table',
         id=route_table_id,
-        opts=resource_options_aws,
+        opts=ro,
       )
 
     self.public_subnets = []
@@ -292,7 +378,7 @@ class VpcEnv:
       subnet = ec2.Subnet.get(
           f'{resource_prefix}public-subnet-{i}',
           id=id,
-          opts=resource_options_aws,
+          opts=ro,
         )
       self.public_subnets.append(subnet)
 
@@ -301,7 +387,7 @@ class VpcEnv:
       subnet = ec2.Subnet.get(
           f'{resource_prefix}private-subnet-{i}',
           id=id,
-          opts=resource_options_aws,
+          opts=ro,
         )
       self.private_subnets.append(subnet)
 
@@ -312,6 +398,6 @@ class VpcEnv:
       rta = ec2.RouteTableAssociation.get(
           f'{resource_prefix}default-route-table-association-{i}',
           id=id,
-          opts=resource_options_aws,
+          opts=ro,
         )
       self.route_table_associations.append(rta)

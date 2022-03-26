@@ -27,14 +27,19 @@ from .common import (
     pconfig,
     long_stack,
     stack_short_prefix,
-    global_region,
-    region,
-    paws,
-    resource_options_aws,
-    global_aws,
-    resource_options_global_aws,
+    aws_global_region,
+    aws_default_region,
+    aws_provider,
+    aws_resource_options,
+    aws_invoke_options,
+    AwsRegionData,
+    aws_global_provider,
+    aws_global_resource_options,
+    aws_global_invoke_options,
     owner_tag,
     default_tags,
     with_default_tags,
+    get_availability_zones,
   )
-  
+
+from .vpc import VpcEnv

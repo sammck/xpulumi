@@ -5,11 +5,12 @@
 
 """Common runtime values"""
 
-from typing import Optional
+from typing import Optional, Dict
 
 from .util import default_val
 import pulumi
-from pulumi import ( ResourceOptions )
+import threading
+from pulumi import ( InvokeOptions, ResourceOptions )
 import pulumi_aws
 from pulumi_aws import (
   ec2,
@@ -33,20 +34,48 @@ pconfig = pulumi.Config()
 long_stack = "%s-%s" % (pulumi.get_project(), pulumi.get_stack())
 stack_short_prefix = pulumi.get_stack()[:5] + '-'
 
-global_region = 'us-east-1'
-region = default_val('aws_region', pulumi_aws.get_region())
+aws_global_region = 'us-east-1'
+aws_default_region = default_val(pconfig.get('aws:region'), 'us-west-2')
+aws_region = aws_default_region
 
-paws = pulumi_aws.Provider('aws-%s' % region, region=region)
-resource_options_aws = ResourceOptions(provider=paws)
+class AwsRegionData:
+  aws_region: str
+  aws_provider: pulumi_aws.Provider
+  resource_options: ResourceOptions
+  invoke_options: InvokeOptions
 
-# We create a seperate AWS pulumi provider bound to us-east-1 because certain AWS resources must be provisioned in that region (e.g., cloudfront
-# certificates)
-if region == global_region:
-  global_aws = paws
-  resource_options_global_aws = resource_options_aws
-else:
-  global_aws = paws.Provider('aws-%s' % global_region, region=global_region)
-  resource_options_global_aws = ResourceOptions(provider=global_aws)
+  def __init__(self, aws_region: str):
+    self.aws_region = aws_region
+    self.aws_provider = pulumi_aws.Provider('aws-%s' % aws_region, region=aws_region)
+    self.resource_options = ResourceOptions(provider=self.aws_provider)
+    self.invoke_options = InvokeOptions(provider=self.aws_provider)
+
+_aws_regions: Dict[str, AwsRegionData] = {}
+_aws_regions_lock = threading.Lock()
+def get_aws_region_data(aws_region: Optional[str]=None) -> AwsRegionData:
+  if aws_region is None:
+    aws_region = aws_default_region
+  with _aws_regions_lock:
+    result = _aws_regions.get(aws_region, None)
+    if result is None:
+      result = AwsRegionData(aws_region)
+      _aws_regions[aws_region] = result
+  return result
+
+aws_region_data = get_aws_region_data(aws_region)
+aws_provider = aws_region_data.aws_provider
+aws_resource_options = aws_region_data.resource_options
+aws_invoke_options = aws_region_data.invoke_options
+
+aws_global_region_data = get_aws_region_data(aws_global_region)
+aws_global_provider = aws_global_region_data.aws_provider
+aws_global_resource_options = aws_global_region_data.resource_options
+aws_global_invoke_options = aws_global_region_data.invoke_options
+
+
+def get_availability_zones(aws_region: Optional[str]=None):
+  azs = sorted(pulumi_aws.get_availability_zones(opts=get_aws_region_data(aws_region).invoke_options).names)
+  return azs
 
 owner_tag: Optional[str] = default_val(pconfig.get('owner'), None)
 if owner_tag is None:
