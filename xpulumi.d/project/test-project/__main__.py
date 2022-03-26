@@ -52,7 +52,7 @@ server = aws.ec2.Instance(
     opts=aws_resource_options,
   )
 
-Output.all(server.public_ip).apply(lambda args: plog.info(f"made it {args[0]}"))
+Output.all(backend_outputs.get_outputs()).apply(lambda args: plog.info(f"made it {args[0]}"))
 
 
 pulumi.export('public_ip', server.public_ip)
@@ -60,4 +60,5 @@ pulumi.export('url', Output.concat("http://", server.public_ip))
 pulumi.export("secret_output", Output.secret("John is the Walrus"))
 pulumi.export("secret_input", secret_input)
 pulumi.export("exposed_input", Output.unsecret(secret_input))
-pulumi.export("backend_bucket", backend_outputs.get_output('bucket_name'))
+
+pulumi.export("backend_bucket", backend_outputs.get_output('backend_bucket'))

@@ -1,8 +1,0 @@
-{
-  "options": {
-    "includes_organization": true,
-    "includes_project": true
-  },
-  "name": "local",
-  "uri": "file:///home/sam/projects/cloud-dev-box/deployed/projects/be-bucket-492598163938-us-west-2/state"
-}
