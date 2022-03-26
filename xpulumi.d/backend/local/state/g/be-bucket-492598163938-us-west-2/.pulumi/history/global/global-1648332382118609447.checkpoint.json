@@ -1,0 +1,92 @@
+{
+    "version": 3,
+    "checkpoint": {
+        "stack": "global",
+        "latest": {
+            "manifest": {
+                "time": "2022-03-26T15:06:22.118255321-07:00",
+                "magic": "c7840e4e7de4e536b01a267aff8f88ec491999a401479fe260e1e6b7b3ce0ef0",
+                "version": "v3.27.0"
+            },
+            "secrets_providers": {
+                "type": "passphrase",
+                "state": {
+                    "salt": "v1:wXfjgewlDKk=:v1:Lc9rr0e5gwAYLytm:zKniEmezjarRbsknPtcWhdZBksNaoA=="
+                }
+            },
+            "resources": [
+                {
+                    "urn": "urn:pulumi:global::be-bucket-492598163938-us-west-2::pulumi:pulumi:Stack::be-bucket-492598163938-us-west-2-global",
+                    "custom": false,
+                    "type": "pulumi:pulumi:Stack",
+                    "outputs": {
+                        "backend_uri": "s3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj"
+                    },
+                    "sequenceNumber": 1
+                },
+                {
+                    "urn": "urn:pulumi:global::be-bucket-492598163938-us-west-2::pulumi:providers:aws::aws-us-west-2",
+                    "custom": true,
+                    "id": "6fb08d04-f62e-4551-a1aa-33996f893c97",
+                    "type": "pulumi:providers:aws",
+                    "inputs": {
+                        "region": "us-west-2",
+                        "skipCredentialsValidation": "true",
+                        "skipGetEc2Platforms": "true",
+                        "skipMetadataApiCheck": "true",
+                        "skipRegionValidation": "true",
+                        "version": "4.38.1"
+                    },
+                    "outputs": {
+                        "region": "us-west-2",
+                        "skipCredentialsValidation": "true",
+                        "skipGetEc2Platforms": "true",
+                        "skipMetadataApiCheck": "true",
+                        "skipRegionValidation": "true",
+                        "version": "4.38.1"
+                    },
+                    "parent": "urn:pulumi:global::be-bucket-492598163938-us-west-2::pulumi:pulumi:Stack::be-bucket-492598163938-us-west-2-global",
+                    "propertyDependencies": {
+                        "region": null,
+                        "skipCredentialsValidation": null,
+                        "skipGetEc2Platforms": null,
+                        "skipMetadataApiCheck": null,
+                        "skipRegionValidation": null
+                    },
+                    "sequenceNumber": 1
+                },
+                {
+                    "urn": "urn:pulumi:global::be-bucket-492598163938-us-west-2::pulumi:providers:aws::aws-us-east-1",
+                    "custom": true,
+                    "id": "ac1b3082-41e9-4ddc-ab07-9839fcded1f5",
+                    "type": "pulumi:providers:aws",
+                    "inputs": {
+                        "region": "us-east-1",
+                        "skipCredentialsValidation": "true",
+                        "skipGetEc2Platforms": "true",
+                        "skipMetadataApiCheck": "true",
+                        "skipRegionValidation": "true",
+                        "version": "4.38.1"
+                    },
+                    "outputs": {
+                        "region": "us-east-1",
+                        "skipCredentialsValidation": "true",
+                        "skipGetEc2Platforms": "true",
+                        "skipMetadataApiCheck": "true",
+                        "skipRegionValidation": "true",
+                        "version": "4.38.1"
+                    },
+                    "parent": "urn:pulumi:global::be-bucket-492598163938-us-west-2::pulumi:pulumi:Stack::be-bucket-492598163938-us-west-2-global",
+                    "propertyDependencies": {
+                        "region": null,
+                        "skipCredentialsValidation": null,
+                        "skipGetEc2Platforms": null,
+                        "skipMetadataApiCheck": null,
+                        "skipRegionValidation": null
+                    },
+                    "sequenceNumber": 1
+                }
+            ]
+        }
+    }
+}

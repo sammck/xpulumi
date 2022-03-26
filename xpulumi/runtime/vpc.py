@@ -80,6 +80,10 @@ class VpcEnv:
   route_table_associations: List[ec2.RouteTableAssociation]
   route_table_association_ids: List[Output[str]]
 
+  @property
+  def vpc_id(self) -> int:
+    return self.vpc.id
+
   @classmethod
   def load(
         cls,

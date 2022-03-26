@@ -1,16 +1,12 @@
-#!/usr/bin/env python3
-
 import pulumi
 from pulumi import Output, log as plog
 import pulumi_aws as aws
 import xpulumi
-from xpulumi.runtime import StackOutputs, VpcEnv, aws_resource_options
+from xpulumi.runtime import StackOutputs, VpcEnv, aws_resource_options, pconfig
 
-config = pulumi.Config()
+instance_type: str = pconfig.require('instance_type')
 
-instance_type: str = config.require('instance_type')
-
-secret_input = config.require_secret('secret_input')
+secret_input = pconfig.require_secret('secret_input')
 
 backend_outputs = StackOutputs('s3-backend-bucket:global')
 
@@ -36,7 +32,7 @@ sg = aws.ec2.SecurityGroup(
             cidr_blocks=['0.0.0.0/0'],
           ),
       ],
-    vpc_id=vpc.vpc.id,
+    vpc_id=vpc.vpc_id,
     opts=aws_resource_options,
   )
 

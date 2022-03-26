@@ -5,5 +5,5 @@ config:
   aws-env:vpc_cidr: 10.78.0.0/16
   aws:region: us-west-2
   pulumi:disable-default-providers:
-  - '*'
+    - '*'
   xpulumi:backend: s3
