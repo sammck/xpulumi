@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
 import pulumi
-from pulumi import Output
+from pulumi import Output, log as plog
 import pulumi_aws as aws
 import xpulumi
-from xpulumi.runtime import StackOutputs
+from xpulumi.runtime import StackOutputs, VpcEnv, aws_resource_options
 
 config = pulumi.Config()
 
@@ -12,7 +12,9 @@ instance_type: str = config.require('instance_type')
 
 secret_input = config.require_secret('secret_input')
 
-backend_outputs = StackOutputs('s3-backend-bucket', 'global')
+backend_outputs = StackOutputs('s3-backend-bucket:global')
+
+vpc = VpcEnv.load()
 
 ami = aws.ec2.get_ami(
     most_recent=True,
@@ -20,6 +22,7 @@ ami = aws.ec2.get_ami(
     filters=[
         aws.GetAmiFilterArgs(name="name", values=["amzn-ami-hvm-*"])
       ],
+    opts=aws_resource_options,
   )
 
 sg = aws.ec2.SecurityGroup(
@@ -33,6 +36,8 @@ sg = aws.ec2.SecurityGroup(
             cidr_blocks=['0.0.0.0/0'],
           ),
       ],
+    vpc_id=vpc.vpc.id,
+    opts=aws_resource_options,
   )
 
 user_data: str = """
@@ -47,7 +52,12 @@ server = aws.ec2.Instance(
     vpc_security_group_ids=[sg.id],
     user_data=user_data,
     ami=ami.id,
+    subnet_id=vpc.public_subnet_ids[0],
+    opts=aws_resource_options,
   )
+
+Output.all(server.public_ip).apply(lambda args: plog.info(f"made it {args[0]}"))
+
 
 pulumi.export('public_ip', server.public_ip)
 pulumi.export('url', Output.concat("http://", server.public_ip))

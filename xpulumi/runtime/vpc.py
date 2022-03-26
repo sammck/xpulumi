@@ -370,6 +370,7 @@ class VpcEnv:
     self.route_table = ec2.DefaultRouteTable.get(
         f'{resource_prefix}route-table',
         id=route_table_id,
+        vpc_id=vpc_id,
         opts=ro,
       )
 
@@ -398,6 +399,7 @@ class VpcEnv:
       rta = ec2.RouteTableAssociation.get(
           f'{resource_prefix}default-route-table-association-{i}',
           id=id,
+          route_table_id=route_table_id,
           opts=ro,
         )
       self.route_table_associations.append(rta)

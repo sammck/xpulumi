@@ -280,6 +280,7 @@ class PulumiWrapper:
   _project: Optional[XPulumiProject] = None
   _backend: Optional[XPulumiBackend] = None
   _base_env: Dict[str, str]
+  _debug: bool = False
 
   def __init__(
         self,
@@ -289,7 +290,9 @@ class PulumiWrapper:
         stack_name: Optional[str]=None,
         cwd: Optional[str]=None,
         env: Optional[Dict[str, str]] = None,
+        debug: bool = False
       ):
+    self._debug = debug
     if ctx is None:
       ctx = XPulumiContextBase(cwd=cwd)
     self._ctx = ctx
@@ -390,7 +393,8 @@ class PulumiWrapper:
     else:
       cwd = project.project_dir
     kwargs['cwd'] = cwd
-    print(f"Invoking raw pulumi: {arglist}", file=sys.stderr)
+    if self._debug:
+      print(f"Invoking raw pulumi: {arglist}", file=sys.stderr)
     return arglist
 
   def Popen(self, arglist: List[str], **kwargs) -> subprocess.Popen:
