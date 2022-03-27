@@ -7,7 +7,8 @@ import xpulumi
 import xpulumi.runtime
 from xpulumi.runtime import (
     VpcEnv,
-    DnsZone
+    DnsZone,
+    FrontEndSecurityGroup,
   )
 
 vpc = VpcEnv.load()
@@ -18,3 +19,9 @@ parent_dns_zone.stack_export(export_prefix='parent_')
 
 dns_zone = DnsZone(resource_prefix='main-', subzone_name='xhub', parent_zone=parent_dns_zone)
 dns_zone.stack_export(export_prefix='main_')
+
+frontend_sg = FrontEndSecurityGroup(
+    vpc,
+    open_ports=[ 22, 80, 443 ]
+  )
+frontend_sg.stack_export()
