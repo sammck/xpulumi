@@ -43,3 +43,4 @@ from .common import (
   )
 
 from .vpc import VpcEnv
+from .dns import DnsZone
