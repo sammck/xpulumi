@@ -1,0 +1,523 @@
+{
+    "version": 3,
+    "deployment": {
+        "manifest": {
+            "time": "2022-03-28T12:45:24.38860507-07:00",
+            "magic": "c7840e4e7de4e536b01a267aff8f88ec491999a401479fe260e1e6b7b3ce0ef0",
+            "version": "v3.27.0"
+        },
+        "secrets_providers": {
+            "type": "passphrase",
+            "state": {
+                "salt": "v1:hcosRBKT7Fw=:v1:f2mbeKtKj8HDYmgw:UIy7D1rGJkKzXXqyFiR1qVrZj5+33Q=="
+            }
+        },
+        "resources": [
+            {
+                "urn": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "custom": false,
+                "type": "pulumi:pulumi:Stack",
+                "outputs": {
+                    "internet_gateway_id": "igw-0358fcab8aaf111ad",
+                    "main_dns_zone": "xhub.mckelvie.org",
+                    "main_dns_zone_id": "Z0497520LLR6Q24JCR6B",
+                    "parent_dns_zone": "mckelvie.org",
+                    "parent_dns_zone_id": "Z1S4XE3NHBHE0O",
+                    "private_subnet_cidrs": [
+                        "10.78.128.0/20",
+                        "10.78.144.0/20",
+                        "10.78.160.0/20"
+                    ],
+                    "private_subnet_ids": [
+                        "subnet-0d3e881711681e481",
+                        "subnet-07c06097440e253b3",
+                        "subnet-07bb048831eef8b96"
+                    ],
+                    "public_subnet_cidrs": [
+                        "10.78.0.0/20",
+                        "10.78.16.0/20",
+                        "10.78.32.0/20"
+                    ],
+                    "public_subnet_ids": [
+                        "subnet-052de3b524f23e3b5",
+                        "subnet-021c134aeb46c30b6",
+                        "subnet-0fef6a7c400d4e6f5"
+                    ],
+                    "route_table_association_ids": [
+                        "rtbassoc-072969a8e0284162a",
+                        "rtbassoc-014af0b80c5ac5f38",
+                        "rtbassoc-036c40c353996a4e5",
+                        "rtbassoc-0ef4b8c07250cb056",
+                        "rtbassoc-0c5f8b90b6576b90a",
+                        "rtbassoc-09a23fb761cc331ba"
+                    ],
+                    "route_table_id": "rtb-0b9300a271d483dd9",
+                    "vpc_aws_region": "us-west-2",
+                    "vpc_azs": [
+                        "us-west-2a",
+                        "us-west-2b",
+                        "us-west-2c"
+                    ],
+                    "vpc_cidr": "10.78.0.0/16",
+                    "vpc_id": "vpc-0ff0c5a59e23a58e8"
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2",
+                "custom": true,
+                "id": "09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                "type": "pulumi:providers:aws",
+                "inputs": {
+                    "region": "us-west-2",
+                    "skipCredentialsValidation": "true",
+                    "skipGetEc2Platforms": "true",
+                    "skipMetadataApiCheck": "true",
+                    "skipRegionValidation": "true",
+                    "version": "4.38.1"
+                },
+                "outputs": {
+                    "region": "us-west-2",
+                    "skipCredentialsValidation": "true",
+                    "skipGetEc2Platforms": "true",
+                    "skipMetadataApiCheck": "true",
+                    "skipRegionValidation": "true",
+                    "version": "4.38.1"
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "propertyDependencies": {
+                    "region": null,
+                    "skipCredentialsValidation": null,
+                    "skipGetEc2Platforms": null,
+                    "skipMetadataApiCheck": null,
+                    "skipRegionValidation": null
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-east-1",
+                "custom": true,
+                "id": "cb858023-b65e-44c6-98b7-190d93a6b4d8",
+                "type": "pulumi:providers:aws",
+                "inputs": {
+                    "region": "us-east-1",
+                    "skipCredentialsValidation": "true",
+                    "skipGetEc2Platforms": "true",
+                    "skipMetadataApiCheck": "true",
+                    "skipRegionValidation": "true",
+                    "version": "4.38.1"
+                },
+                "outputs": {
+                    "region": "us-east-1",
+                    "skipCredentialsValidation": "true",
+                    "skipGetEc2Platforms": "true",
+                    "skipMetadataApiCheck": "true",
+                    "skipRegionValidation": "true",
+                    "version": "4.38.1"
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "propertyDependencies": {
+                    "region": null,
+                    "skipCredentialsValidation": null,
+                    "skipGetEc2Platforms": null,
+                    "skipMetadataApiCheck": null,
+                    "skipRegionValidation": null
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc",
+                "custom": true,
+                "id": "vpc-0ff0c5a59e23a58e8",
+                "type": "aws:ec2/vpc:Vpc",
+                "inputs": {
+                    "__defaults": [
+                        "instanceTenancy"
+                    ],
+                    "cidrBlock": "10.78.0.0/16",
+                    "enableDnsHostnames": true,
+                    "enableDnsSupport": true,
+                    "instanceTenancy": "default",
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env",
+                        "__defaults": []
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"schema_version\":\"1\"}",
+                    "arn": "arn:aws:ec2:us-west-2:492598163938:vpc/vpc-0ff0c5a59e23a58e8",
+                    "assignGeneratedIpv6CidrBlock": false,
+                    "cidrBlock": "10.78.0.0/16",
+                    "defaultNetworkAclId": "acl-00b4e3896d0455e5d",
+                    "defaultRouteTableId": "rtb-0b9300a271d483dd9",
+                    "defaultSecurityGroupId": "sg-0cc6d911808c7709b",
+                    "dhcpOptionsId": "dopt-4823e321",
+                    "enableClassiclink": false,
+                    "enableClassiclinkDnsSupport": false,
+                    "enableDnsHostnames": true,
+                    "enableDnsSupport": true,
+                    "id": "vpc-0ff0c5a59e23a58e8",
+                    "instanceTenancy": "default",
+                    "ipv6AssociationId": "",
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockNetworkBorderGroup": "",
+                    "ipv6IpamPoolId": "",
+                    "ipv6NetmaskLength": 0,
+                    "mainRouteTableId": "rtb-0b9300a271d483dd9",
+                    "ownerId": "492598163938",
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "tagsAll": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    }
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                "propertyDependencies": {
+                    "cidrBlock": null,
+                    "enableDnsHostnames": null,
+                    "enableDnsSupport": null,
+                    "tags": null
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::aws:ec2/subnet:Subnet::public-subnet-0",
+                "custom": true,
+                "id": "subnet-052de3b524f23e3b5",
+                "type": "aws:ec2/subnet:Subnet",
+                "inputs": {
+                    "__defaults": [
+                        "assignIpv6AddressOnCreation",
+                        "enableDns64",
+                        "enableResourceNameDnsARecordOnLaunch",
+                        "enableResourceNameDnsAaaaRecordOnLaunch",
+                        "ipv6Native"
+                    ],
+                    "assignIpv6AddressOnCreation": false,
+                    "availabilityZone": "us-west-2a",
+                    "cidrBlock": "10.78.0.0/20",
+                    "enableDns64": false,
+                    "enableResourceNameDnsARecordOnLaunch": false,
+                    "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                    "ipv6Native": false,
+                    "mapPublicIpOnLaunch": true,
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env",
+                        "__defaults": []
+                    },
+                    "vpcId": "vpc-0ff0c5a59e23a58e8"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":1200000000000},\"schema_version\":\"1\"}",
+                    "arn": "arn:aws:ec2:us-west-2:492598163938:subnet/subnet-052de3b524f23e3b5",
+                    "assignIpv6AddressOnCreation": false,
+                    "availabilityZone": "us-west-2a",
+                    "availabilityZoneId": "usw2-az1",
+                    "cidrBlock": "10.78.0.0/20",
+                    "customerOwnedIpv4Pool": "",
+                    "enableDns64": false,
+                    "enableResourceNameDnsARecordOnLaunch": false,
+                    "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                    "id": "subnet-052de3b524f23e3b5",
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockAssociationId": "",
+                    "ipv6Native": false,
+                    "mapCustomerOwnedIpOnLaunch": false,
+                    "mapPublicIpOnLaunch": true,
+                    "outpostArn": "",
+                    "ownerId": "492598163938",
+                    "privateDnsHostnameTypeOnLaunch": "ip-name",
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "tagsAll": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "vpcId": "vpc-0ff0c5a59e23a58e8"
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "dependencies": [
+                    "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                ],
+                "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                "propertyDependencies": {
+                    "availabilityZone": null,
+                    "cidrBlock": null,
+                    "mapPublicIpOnLaunch": null,
+                    "tags": null,
+                    "vpcId": [
+                        "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                    ]
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::aws:ec2/internetGateway:InternetGateway::vpc-gateway",
+                "custom": true,
+                "id": "igw-0358fcab8aaf111ad",
+                "type": "aws:ec2/internetGateway:InternetGateway",
+                "inputs": {
+                    "__defaults": [],
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env",
+                        "__defaults": []
+                    },
+                    "vpcId": "vpc-0ff0c5a59e23a58e8"
+                },
+                "outputs": {
+                    "arn": "arn:aws:ec2:us-west-2:492598163938:internet-gateway/igw-0358fcab8aaf111ad",
+                    "id": "igw-0358fcab8aaf111ad",
+                    "ownerId": "492598163938",
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "tagsAll": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "vpcId": "vpc-0ff0c5a59e23a58e8"
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "dependencies": [
+                    "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                ],
+                "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                "propertyDependencies": {
+                    "tags": null,
+                    "vpcId": [
+                        "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                    ]
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::aws:route53/zone:Zone::main-dns-zone",
+                "custom": true,
+                "id": "Z0497520LLR6Q24JCR6B",
+                "type": "aws:route53/zone:Zone",
+                "inputs": {
+                    "__defaults": [],
+                    "comment": "Public zone for pulumi stack aws-env-dev",
+                    "forceDestroy": true,
+                    "name": "xhub.mckelvie.org",
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env",
+                        "__defaults": []
+                    }
+                },
+                "outputs": {
+                    "arn": "arn:aws:route53:::hostedzone/Z0497520LLR6Q24JCR6B",
+                    "comment": "Public zone for pulumi stack aws-env-dev",
+                    "delegationSetId": "",
+                    "forceDestroy": true,
+                    "id": "Z0497520LLR6Q24JCR6B",
+                    "name": "xhub.mckelvie.org",
+                    "nameServers": [
+                        "ns-1485.awsdns-57.org",
+                        "ns-178.awsdns-22.com",
+                        "ns-1980.awsdns-55.co.uk",
+                        "ns-870.awsdns-44.net"
+                    ],
+                    "tags": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "tagsAll": {
+                        "Owner": "dev@mckelvie.org",
+                        "PulumiStack": "aws-env-dev",
+                        "XProject": "aws-env"
+                    },
+                    "vpcs": [],
+                    "zoneId": "Z0497520LLR6Q24JCR6B"
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                "propertyDependencies": {
+                    "comment": null,
+                    "forceDestroy": null,
+                    "name": null,
+                    "tags": null
+                },
+                "sequenceNumber": 1
+            },
+            {
+                "urn": "urn:pulumi:dev::aws-env::aws:route53/zone:Zone::parent-dns-zone",
+                "custom": true,
+                "id": "Z1S4XE3NHBHE0O",
+                "type": "aws:route53/zone:Zone",
+                "outputs": {
+                    "arn": "arn:aws:route53:::hostedzone/Z1S4XE3NHBHE0O",
+                    "comment": "McKelvie private domain",
+                    "delegationSetId": "",
+                    "id": "Z1S4XE3NHBHE0O",
+                    "name": "mckelvie.org",
+                    "nameServers": [
+                        "ns-1071.awsdns-05.org",
+                        "ns-139.awsdns-17.com",
+                        "ns-1843.awsdns-38.co.uk",
+                        "ns-710.awsdns-24.net"
+                    ],
+                    "tags": {},
+                    "tagsAll": {},
+                    "vpcs": [],
+                    "zoneId": "Z1S4XE3NHBHE0O"
+                },
+                "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                "external": true,
+                "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                "sequenceNumber": 1
+            }
+        ],
+        "pending_operations": [
+            {
+                "resource": {
+                    "urn": "urn:pulumi:dev::aws-env::aws:ec2/internetGateway:InternetGateway::vpc-gateway",
+                    "custom": true,
+                    "id": "igw-0358fcab8aaf111ad",
+                    "type": "aws:ec2/internetGateway:InternetGateway",
+                    "inputs": {
+                        "__defaults": [],
+                        "tags": {
+                            "Owner": "dev@mckelvie.org",
+                            "PulumiStack": "aws-env-dev",
+                            "XProject": "aws-env",
+                            "__defaults": []
+                        },
+                        "vpcId": "vpc-0ff0c5a59e23a58e8"
+                    },
+                    "outputs": {
+                        "arn": "arn:aws:ec2:us-west-2:492598163938:internet-gateway/igw-0358fcab8aaf111ad",
+                        "id": "igw-0358fcab8aaf111ad",
+                        "ownerId": "492598163938",
+                        "tags": {
+                            "Owner": "dev@mckelvie.org",
+                            "PulumiStack": "aws-env-dev",
+                            "XProject": "aws-env"
+                        },
+                        "tagsAll": {
+                            "Owner": "dev@mckelvie.org",
+                            "PulumiStack": "aws-env-dev",
+                            "XProject": "aws-env"
+                        },
+                        "vpcId": "vpc-0ff0c5a59e23a58e8"
+                    },
+                    "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                    "dependencies": [
+                        "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                    ],
+                    "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                    "propertyDependencies": {
+                        "tags": null,
+                        "vpcId": [
+                            "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                        ]
+                    },
+                    "sequenceNumber": 1
+                },
+                "type": "deleting"
+            },
+            {
+                "resource": {
+                    "urn": "urn:pulumi:dev::aws-env::aws:ec2/subnet:Subnet::public-subnet-0",
+                    "custom": true,
+                    "id": "subnet-052de3b524f23e3b5",
+                    "type": "aws:ec2/subnet:Subnet",
+                    "inputs": {
+                        "__defaults": [
+                            "assignIpv6AddressOnCreation",
+                            "enableDns64",
+                            "enableResourceNameDnsARecordOnLaunch",
+                            "enableResourceNameDnsAaaaRecordOnLaunch",
+                            "ipv6Native"
+                        ],
+                        "assignIpv6AddressOnCreation": false,
+                        "availabilityZone": "us-west-2a",
+                        "cidrBlock": "10.78.0.0/20",
+                        "enableDns64": false,
+                        "enableResourceNameDnsARecordOnLaunch": false,
+                        "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                        "ipv6Native": false,
+                        "mapPublicIpOnLaunch": true,
+                        "tags": {
+                            "Owner": "dev@mckelvie.org",
+                            "PulumiStack": "aws-env-dev",
+                            "XProject": "aws-env",
+                            "__defaults": []
+                        },
+                        "vpcId": "vpc-0ff0c5a59e23a58e8"
+                    },
+                    "outputs": {
+                        "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":1200000000000},\"schema_version\":\"1\"}",
+                        "arn": "arn:aws:ec2:us-west-2:492598163938:subnet/subnet-052de3b524f23e3b5",
+                        "assignIpv6AddressOnCreation": false,
+                        "availabilityZone": "us-west-2a",
+                        "availabilityZoneId": "usw2-az1",
+                        "cidrBlock": "10.78.0.0/20",
+                        "customerOwnedIpv4Pool": "",
+                        "enableDns64": false,
+                        "enableResourceNameDnsARecordOnLaunch": false,
+                        "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                        "id": "subnet-052de3b524f23e3b5",
+                        "ipv6CidrBlock": "",
+                        "ipv6CidrBlockAssociationId": "",
+                        "ipv6Native": false,
+                        "mapCustomerOwnedIpOnLaunch": false,
+                        "mapPublicIpOnLaunch": true,
+                        "outpostArn": "",
+                        "ownerId": "492598163938",
+                        "privateDnsHostnameTypeOnLaunch": "ip-name",
+                        "tags": {
+                            "Owner": "dev@mckelvie.org",
+                            "PulumiStack": "aws-env-dev",
+                            "XProject": "aws-env"
+                        },
+                        "tagsAll": {
+                            "Owner": "dev@mckelvie.org",
+                            "PulumiStack": "aws-env-dev",
+                            "XProject": "aws-env"
+                        },
+                        "vpcId": "vpc-0ff0c5a59e23a58e8"
+                    },
+                    "parent": "urn:pulumi:dev::aws-env::pulumi:pulumi:Stack::aws-env-dev",
+                    "dependencies": [
+                        "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                    ],
+                    "provider": "urn:pulumi:dev::aws-env::pulumi:providers:aws::aws-us-west-2::09c87e73-ef1a-4f89-9553-b13ee3dfc4e2",
+                    "propertyDependencies": {
+                        "availabilityZone": null,
+                        "cidrBlock": null,
+                        "mapPublicIpOnLaunch": null,
+                        "tags": null,
+                        "vpcId": [
+                            "urn:pulumi:dev::aws-env::aws:ec2/vpc:Vpc::vpc"
+                        ]
+                    },
+                    "sequenceNumber": 1
+                },
+                "type": "deleting"
+            }
+        ]
+    }
+}

@@ -50,6 +50,8 @@ from .common import (
     long_stack,
     aws_resource_options,
     aws_invoke_options,
+    with_default_tags,
+    long_xstack,
   )
 from .. import XPulumiError
 
@@ -109,7 +111,7 @@ class Ec2KeyPair:
           f'{resource_prefix}ssh-keypair',
           key_name_prefix=f'{long_stack}-',
           public_key=public_key,
-          tags=default_tags,
+          tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-keypair"),
           opts=aws_resource_options,
         )
     else:

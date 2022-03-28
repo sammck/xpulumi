@@ -11,6 +11,8 @@ import yaml
 import boto3.session
 import botocore.client
 import threading
+import debugpy
+import time
 
 import pulumi
 from pulumi import (
@@ -42,6 +44,26 @@ from ..util import ( run_once)
 
 
 initial_cwd = os.getcwd()
+
+
+def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=30) -> None:
+  if os.environ.get("XPULUMI_DEBUGGER", '') != '':
+    pulumi.log.info("Pulumi debugger activated; waiting for debugger to attach")
+    debugpy.listen((host, port))
+    max_wait_s = max_wait_secs
+    while max_wait_s >= 0:
+        if debugpy.is_client_connected():
+            pulumi.log.info("Pulumi debugger attached")
+            breakpoint()
+            break
+        time.sleep(1)
+        max_wait_s -= 1
+    else:
+      pulumi.log.info("Pulumi debugger did not attach; resuming")
+  else:
+    pulumi.log.info("Pulumi debugger not activated")
+    
+
 
 T = TypeVar('T')
 def future_func(func: Callable[..., T]) -> Callable[..., Output[T]]:

@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi stack configuration.
 
 """
 
-from typing import Optional, cast, Dict, Tuple
+from typing import Optional, cast, Dict, Tuple, Union
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -24,6 +24,7 @@ from boto3.session import Session as BotoAwsSession
 import tempfile
 import json
 import requests
+from threading import Lock
 
 from .util import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
 from .exceptions import XPulumiError
@@ -97,6 +98,8 @@ class XPulumiStack:
   _cfg_data: JsonableDict
   _pulumi_cfg_file: str
   _pulumi_cfg_data: JsonableDict
+  _cached_stack_outputs_lock: Lock
+  _cached_stack_outputs: Dict[Tuple[bool, bool], JsonableDict]
 
   def __init__(
         self,
@@ -108,6 +111,8 @@ class XPulumiStack:
         default_stack_name: Optional[str]=None,
         default_project_name: Optional[str]=None,
       ):
+    self._cached_stack_outputs_lock = Lock()
+    self._cached_stack_outputs = {}
     if stack_name == '':
       stack_name = None
     if project_name == '':
@@ -244,11 +249,16 @@ class XPulumiStack:
         decrypt_secrets: bool=False,
         bypass_pulumi: bool=True,
       ) -> JsonableDict:
-    return self.project.get_stack_outputs(
-        self.stack_name,
-        decrypt_secrets=decrypt_secrets,
-        bypass_pulumi=bypass_pulumi
-      )
+    with self._cached_stack_outputs_lock:
+      result = self._cached_stack_outputs.get((decrypt_secrets, bypass_pulumi))
+      if result is None:
+        result = self.project.get_stack_outputs(
+            self.stack_name,
+            decrypt_secrets=decrypt_secrets,
+            bypass_pulumi=bypass_pulumi
+          )
+        self._cached_stack_outputs[(decrypt_secrets, bypass_pulumi)] = result
+    return result
 
   def get_pulumi_config(self) -> JsonableDict:
     result = self._pulumi_cfg_data

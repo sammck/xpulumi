@@ -57,6 +57,7 @@ from .common import (
     aws_resource_options,
     aws_invoke_options,
     with_default_tags,
+    long_xstack,
   )
 from .. import XPulumiError
 from .vpc import VpcEnv
@@ -304,6 +305,7 @@ class Ec2Instance:
         path="/",
         description=f"Custom role policy for {description}",
         policy=json.dumps(self.role_policy_obj, sort_keys=True),
+        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
         opts=aws_resource_options,
       )
 
@@ -314,11 +316,11 @@ class Ec2Instance:
         description=f"Role for {description}",
         # force_detach_policies=None,
         max_session_duration=12*TTL_HOUR,
-        name=f'{long_stack}-{resource_prefix}ec2-instance-role',
+        name=f'{resource_prefix}{long_xstack.replace(":", "-")}-ec2-role',
         # name_prefix=None,
         path=f'/pstack={long_stack}/',
         # permissions_boundary=None,
-        tags=default_tags,
+        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
         opts=aws_resource_options,
       )
 
@@ -353,7 +355,7 @@ class Ec2Instance:
     self.instance_profile = iam.InstanceProfile(
         f"{resource_prefix}ec2-instance-profile",
         role=self.role.name,
-        tags=default_tags,
+        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-instance"),
         opts=aws_resource_options,
       )
 

@@ -2,6 +2,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Remote Attach",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "."
+                }
+            ],
+            "justMyCode": false
+        },
+        {
             "type": "bashdb",
             "request": "launch",
             "name": "Bash-Debug (select script from list of sh files)",
@@ -22,7 +38,10 @@
             "type": "python",
             "request": "launch",
             "module": "xpulumi",
-            "args": [ "--tb", "test" ],
+            "args": [
+                "--tb",
+                "test"
+            ],
             "justMyCode": false
         }
         {
@@ -30,7 +49,12 @@
             "type": "python",
             "request": "launch",
             "module": "xpulumi",
-            "args": [ "--tb", "backend", "create", "local"],
+            "args": [
+                "--tb",
+                "backend",
+                "create",
+                "local"
+            ],
             "justMyCode": false
         }
     ]

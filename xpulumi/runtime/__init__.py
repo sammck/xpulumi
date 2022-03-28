@@ -5,7 +5,7 @@
 
 """Runtime utilities directly usable from within pulumi project __main__.py code"""
 
-from .stack_outputs import StackOutputs, SyncStackOutputs
+from .stack_outputs import StackOutputs, SyncStackOutputs, get_stack_outputs, get_stack_output, require_stack_output
 from .util import (
     future_func,
     TTL_SECOND, TTL_MINUTE, TTL_HOUR, TTL_DAY,
@@ -21,11 +21,13 @@ from .util import (
     yamlify_promise,
     jsonify_promise,
     list_of_promises,
-    default_val,    
+    default_val,
+    enable_debugging,
   )
 from .common import (
     pconfig,
     long_stack,
+    long_xstack,
     stack_short_prefix,
     aws_global_region,
     aws_default_region,

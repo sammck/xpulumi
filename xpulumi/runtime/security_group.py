@@ -52,7 +52,9 @@ from .common import (
     default_tags,
     get_availability_zones,
     aws_resource_options,
-    long_stack
+    long_stack,
+    with_default_tags,
+    long_xstack,
   )
 
 port_descriptions: Dict[int, str] = {
@@ -126,7 +128,7 @@ class FrontEndSecurityGroup:
         # name=None,
         name_prefix=long_stack + '-',
         # revoke_rules_on_delete=None,
-        tags=default_tags,
+        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-front-end-sg"),
         vpc_id=vpc.vpc_id,
         opts=aws_resource_options,
       )

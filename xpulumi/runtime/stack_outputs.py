@@ -5,11 +5,14 @@
 
 """Promise-based fetching of external xpulumi stack outputs"""
 
-from typing import Optional, Any, List, Callable, Mapping, Iterator, Iterable, Tuple
+from typing import Optional, Any, List, Callable, Mapping, Iterator, Iterable, Tuple, Union
 
 import os
 
 from pulumi import Output, Input, get_stack
+from xpulumi.exceptions import XPulumiError
+
+from xpulumi.project import XPulumiProject
 from .. import JsonableDict, Jsonable
 from .. import XPulumiStack
 from .util import get_xpulumi_stack
@@ -25,12 +28,14 @@ class SyncStackOutputs:
   def __init__(
         self,
         stack_name: Optional[str]=None,
+        stack: Optional[XPulumiStack]=None,
         project_name: Optional[str]=None,
         default_stack_name: Optional[str]=None,
         default_project_name: Optional[str]=None,
         decrypt_secrets: bool=False
       ) -> None:
-    stack = get_xpulumi_stack(stack_name=stack_name, project_name=project_name)
+    if stack is None:
+      stack = get_xpulumi_stack(stack_name=stack_name, project_name=project_name)
     outputs = stack.get_stack_outputs(decrypt_secrets=decrypt_secrets)
     self._stack = stack
     self._outputs = outputs
@@ -69,7 +74,7 @@ class SyncStackOutputs:
   
   def items(self) -> Iterable[Tuple[str, Jsonable]]:
     return self.outputs.items()
-  
+
 class StackOutputs:
   """An encapsulation of a promise to fetch the outputs of an external deployed xpulunmi stack.
 
@@ -130,3 +135,57 @@ class StackOutputs:
   
   def items(self) -> Output[Iterable[Tuple[str, Jsonable]]]:
     return Output.all(self._future_outputs).apply(lambda args: args[0].items())
+
+def get_normalized_stack(
+      stack: Optional[Union[str, XPulumiStack]]=None,
+      project: Optional[Union[str, XPulumiProject]]=None,
+    ) -> XPulumiStack:
+  pstack: XPulumiStack
+  if isinstance(stack, XPulumiStack):
+    pstack = stack
+  else:
+    stack_name: Optional[str] = stack
+    project_name: Optional[str]
+    if isinstance(project, XPulumiProject):
+      project_name = project.name
+    else:
+      project_name = project
+    pstack = get_xpulumi_stack(stack_name, project_name)
+  return pstack
+
+def get_stack_outputs(
+      stack: Optional[Union[str, XPulumiStack]]=None,
+      project: Optional[Union[str, XPulumiProject]]=None,
+      decrypt_secrets: bool=False,
+      bypass_pulumi: bool=True
+    ) -> JsonableDict:
+  pstack = get_normalized_stack(stack, project)
+  result = pstack.get_stack_outputs(decrypt_secrets=decrypt_secrets, bypass_pulumi=bypass_pulumi)
+  return result
+
+def get_stack_output(
+      output_name: str,
+      default: Jsonable=None,
+      stack: Optional[Union[str, XPulumiStack]]=None,
+      project: Optional[Union[str, XPulumiProject]]=None,
+      decrypt_secrets: bool=False,
+      bypass_pulumi: bool=True
+    ) -> Jsonable:
+  outputs = get_stack_outputs(stack=stack, project=project, decrypt_secrets=decrypt_secrets, bypass_pulumi=bypass_pulumi)
+  result: Jsonable = outputs.get(output_name, default)
+  return result
+
+def require_stack_output(
+      output_name: str,
+      stack: Optional[Union[str, XPulumiStack]]=None,
+      project: Optional[Union[str, XPulumiProject]]=None,
+      decrypt_secrets: bool=False,
+      bypass_pulumi: bool=True
+    ) -> Jsonable:
+  
+  pstack = get_normalized_stack(stack, project)
+  outputs = pstack.get_stack_outputs(decrypt_secrets=decrypt_secrets, bypass_pulumi=bypass_pulumi)
+  if not output_name in outputs:
+    raise XPulumiError(f"Output \"{output_name}\" does not exist in stack \"{pstack.full_stack_name}\"")
+  result: Jsonable = outputs[output_name]
+  return result

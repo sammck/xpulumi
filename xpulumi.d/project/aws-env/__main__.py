@@ -21,17 +21,3 @@ parent_dns_zone.stack_export(export_prefix='parent_')
 
 dns_zone = DnsZone(resource_prefix='main-', subzone_name='xhub', parent_zone=parent_dns_zone)
 dns_zone.stack_export(export_prefix='main_')
-
-
-ec2_instance = Ec2Instance(
-    vpc=vpc,
-    resource_prefix="frontend-",
-    use_config=True,
-    cfg_prefix="fe-",
-    parent_dns_zone=dns_zone,
-    dns_subnames=[ '', 'www', 'api' ],
-    open_ports=[ 22, 80, 443 ],
-    public_key_file="~/.ssh/id_rsa.pub",
-    instance_type="t3.medium",
-  )
-ec2_instance.stack_export()

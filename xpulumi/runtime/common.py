@@ -9,7 +9,7 @@ from typing import Optional, Dict
 
 import pulumi
 import threading
-from pulumi import ( InvokeOptions, ResourceOptions )
+from pulumi import ( InvokeOptions, ResourceOptions, get_stack )
 import pulumi_aws
 from pulumi_aws import (
   ec2,
@@ -30,8 +30,9 @@ from ..util import get_git_user_email
 
 pconfig = pulumi.Config()
 
-long_stack = "%s-%s" % (pulumi.get_project(), pulumi.get_stack())
+long_stack = f"{pulumi.get_project()}-{pulumi.get_stack()}"
 stack_short_prefix = pulumi.get_stack()[:5] + '-'
+long_xstack = f"{get_current_xpulumi_project_name()}:{pulumi.get_stack()}"
 
 aws_global_region = 'us-east-1'
 aws_default_region = pconfig.get('aws:region')
@@ -82,7 +83,12 @@ owner_tag: Optional[str] = default_val(pconfig.get('owner'), None)
 if owner_tag is None:
   owner_tag = get_git_user_email()
 
-default_tags = dict(Owner=owner_tag, PulumiStack=long_stack, XProject=get_current_xpulumi_project_name())
+default_tags = dict(
+    Owner=owner_tag,
+    PulumiStack=long_stack,
+    XStack=f"{long_xstack}"
+  )
+
 def with_default_tags(*args, **kwargs):
   result = dict(default_tags)
   result.update(*args, **kwargs)

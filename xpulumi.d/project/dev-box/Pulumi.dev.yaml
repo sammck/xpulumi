@@ -1,0 +1,5 @@
+encryptionsalt: v1:hcosRBKT7Fw=:v1:f2mbeKtKj8HDYmgw:UIy7D1rGJkKzXXqyFiR1qVrZj5+33Q==
+config:
+  pulumi:disable-default-providers:
+    - '*'
+  xpulumi:backend: s3

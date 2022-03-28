@@ -46,7 +46,17 @@ from .common import (
     pconfig,
     default_tags,
     get_availability_zones,
+    with_default_tags,
+    long_xstack,
   )
+
+class SubnetInfo:
+  subnet: ec2.Subnet
+  is_public: bool
+  az: str
+  route_table_association: ec2.RouteTableAssociation
+
+
 
 class VpcEnv:
   DEFAULT_CIDR: str = '10.77.0.0/16'
@@ -58,6 +68,8 @@ class VpcEnv:
   #n_potential_subnets: int
   aws_region: str
   resource_prefix: str = ""
+
+  subnet_infos: List[SubnetInfo]
 
   azs: List[str]
   #vpc_ip_network: ipaddress.IPv4Network
@@ -136,7 +148,7 @@ class VpcEnv:
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
-    pass
+    self.subnet_infos = []
 
   def _load(
         self,
@@ -222,7 +234,7 @@ class VpcEnv:
       cidr_block=vpc_cidr,
       enable_dns_hostnames=True,
       enable_dns_support=True,
-      tags=default_tags,
+      tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}"),
       opts=ro,
     )
     self.vpc = vpc
@@ -230,17 +242,21 @@ class VpcEnv:
     # create public subnets in separate AZs
     public_subnets = []
     for i, cidr in enumerate(public_subnet_cidrs):
-      public_subnets.append(
-        ec2.Subnet(
+      subnet = ec2.Subnet(
           f'{resource_prefix}public-subnet-{i}',
           availability_zone=azs[i],
           vpc_id=vpc.id,
           cidr_block=cidr,
           map_public_ip_on_launch=True,
-          tags=default_tags,
+          tags=with_default_tags(Name=f"pub-{resource_prefix}{long_xstack}-{azs[i]}"),
           opts=ro,
         )
-      )
+      public_subnets.append(subnet)
+      subnet_info = SubnetInfo()
+      subnet_info.subnet = subnet
+      subnet_info.is_public = True
+      subnet_info.az = azs[i]
+      self.subnet_infos.append(subnet_info)
     self.public_subnets = public_subnets
 
     public_subnet_ids = [  x.id for x in public_subnets ]
@@ -258,10 +274,15 @@ class VpcEnv:
           vpc_id=vpc.id,
           cidr_block=cidr,
           map_public_ip_on_launch=True,   # review: probably want to use NAT gateway for private subnets...?
-          tags=default_tags,
+          tags=with_default_tags(Name=f"prv-{resource_prefix}{long_xstack}-{azs[i]}"),
           opts=ro,
         )
       )
+      subnet_info = SubnetInfo()
+      subnet_info.subnet = subnet
+      subnet_info.is_public = False
+      subnet_info.az = azs[i]
+      self.subnet_infos.append(subnet_info)
     self.private_subnets = private_subnets
     private_subnet_ids = [ x.id for x in private_subnets ]
     self.private_subnet_ids = private_subnet_ids
@@ -275,7 +296,7 @@ class VpcEnv:
     # Create an internet gateway to route internet traffic to/from public IPs attached to the VPC
     internet_gateway = ec2.InternetGateway(
         f'{resource_prefix}vpc-gateway',
-        tags=default_tags,
+        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}"),
         vpc_id=vpc.id,
         opts=ro
       )
@@ -290,7 +311,7 @@ class VpcEnv:
       routes=[
         dict(cidr_block="0.0.0.0/0", gateway_id=internet_gateway.id)
       ],
-      tags=default_tags,
+      tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}"),
       opts=ro,
     )
     self.route_table = route_table
@@ -298,14 +319,15 @@ class VpcEnv:
     # Attach all subnets to our default route table
     route_table_associations = []
     for i, subnet in enumerate(subnets):
-      route_table_associations.append(
-        ec2.RouteTableAssociation(
+      subnet_info = self.subnet_infos[i]
+      rta = ec2.RouteTableAssociation(
           f'{resource_prefix}default-route-table-association-{i}',
           route_table_id=route_table.id,
           subnet_id=subnet.id,
           opts=ro,
         )
-      )
+      route_table_associations.append(rta)
+      subnet_info.route_table_association = rta
     self.route_table_associations = route_table_associations
     route_table_association_ids = [  x.id for x in route_table_associations ]
     self.route_table_association_ids = route_table_association_ids

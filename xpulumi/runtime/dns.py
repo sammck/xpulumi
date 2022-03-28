@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Mapping
 
 import subprocess
 import os
 import json
 import ipaddress
+import asyncio
 
 import pulumi
 from pulumi import (
@@ -49,6 +50,7 @@ from .common import (
     long_stack,
     aws_resource_options,
     aws_invoke_options,
+    aws_provider,
   )
 from .. import XPulumiError
 
@@ -72,6 +74,29 @@ def prepend_subzone(zone: Optional[Union[str, 'DnsZone']]=None, subzone: Optiona
     raise XPulumiError("Empty DNS zone name")
   return new_zone
 
+def sync_get_zone(
+      name: Optional[str] = None,
+      private_zone: Optional[bool] = None,
+      resource_record_set_count: Optional[int] = None,
+      tags: Optional[Mapping[str, str]] = None,
+      vpc_id: Optional[str] = None,
+      zone_id: Optional[str] = None,
+      opts: Optional[pulumi.InvokeOptions] = None,
+    ) -> route53.GetZoneResult:
+  async def corout() -> route53.GetZoneResult:
+    return await route53.get_zone(
+        name=name,
+        private_zone=private_zone,
+        resource_record_set_count=resource_record_set_count,
+        tags=tags,
+        vpc_id=vpc_id,
+        zone_id=zone_id,
+        opts=opts,
+      )
+  loop = asyncio.get_event_loop()
+  result = loop.run_until_complete(corout())  
+  return result
+
 class DnsZone:
   resource_prefix: str = ''
   parent_zone: Optional['DnsZone'] = None
@@ -84,19 +109,25 @@ class DnsZone:
 
   def __init__(
         self,
-        subzone_name: str,
+        subzone_name: Optional[str]=None,
+        zone_name: Optional[str]=None,
+        zone_id: Optional[str]=None,
         resource_prefix: Optional[str] = None,
         parent_zone: Optional['DnsZone'] = None,
-        create: bool = True,
-        zone_id: Input[Optional[str]] = None,
+        create: Optional[bool] = None,
       ):
     if resource_prefix is None:
       resource_prefix = ''
+    if create is None:
+      create = zone_id is None
     self.resource_prefix = resource_prefix
     self.parent_zone = parent_zone
-    zone_name = prepend_subzone(parent_zone, subzone_name)
+    if zone_name is None and not subzone_name is None:
+      zone_name = prepend_subzone(parent_zone, subzone_name)
     self.zone_name = zone_name
     if create:
+      if zone_name is None:
+        raise XPulumiError("one of zone_name or parent_zone+subzone_name must be provided")
       zone = route53.Zone(
           f'{resource_prefix}dns-zone',
           # opts=,
@@ -131,8 +162,25 @@ class DnsZone:
 
     else:
       if zone_id is None:
-        zone_info = route53.get_zone(name=zone_name, private_zone=False, opts=aws_invoke_options)
+        if zone_name is None:
+          raise XPulumiError("Either zone_name or zone_id must be provided")
+        zone_info = route53.get_zone(
+            name=zone_name,
+            private_zone=False,
+            opts=aws_invoke_options
+          )
         zone_id = zone_info.id
+      else:
+        if zone_name is None:
+          zone_info = route53.get_zone(
+              zone_id=zone_id,
+              opts=aws_invoke_options
+            )
+          pulumi.log.warn(f"fetched zone name is {zone_name}")
+          zone_name = zone_info.name
+          self.zone_name = zone_name
+        
+
       zone = route53.Zone.get(
           f'{resource_prefix}dns-zone',
           id=zone_id,
