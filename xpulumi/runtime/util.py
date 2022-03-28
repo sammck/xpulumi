@@ -234,8 +234,6 @@ def get_ami_arch_from_instance_type(instance_type: Input[str], region_name: Inpu
   Returns:
       str: The AMI architecture associated with instance_type, as a promise
   """
-  if region_name is None:
-    region_name = aws.get_region().name
   result = Output.all(instance_type, region_name).apply(lambda args: sync_get_ami_arch_from_instance_type(*args))
   return result
 

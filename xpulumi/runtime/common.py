@@ -7,7 +7,6 @@
 
 from typing import Optional, Dict
 
-from .util import default_val
 import pulumi
 import threading
 from pulumi import ( InvokeOptions, ResourceOptions )
@@ -26,7 +25,7 @@ from pulumi_aws import (
   kms,
   secretsmanager,
 )
-from .util import get_current_xpulumi_project_name
+from .util import get_current_xpulumi_project_name, get_xpulumi_context, default_val
 from ..util import get_git_user_email
 
 pconfig = pulumi.Config()
@@ -35,7 +34,9 @@ long_stack = "%s-%s" % (pulumi.get_project(), pulumi.get_stack())
 stack_short_prefix = pulumi.get_stack()[:5] + '-'
 
 aws_global_region = 'us-east-1'
-aws_default_region = default_val(pconfig.get('aws:region'), 'us-west-2')
+aws_default_region = pconfig.get('aws:region')
+if aws_default_region is None:
+  aws_default_region = 'us-west-2'
 aws_region = aws_default_region
 
 class AwsRegionData:
