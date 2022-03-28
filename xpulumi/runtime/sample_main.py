@@ -1,3 +1,4 @@
+'''
 #!/usr/bin/env python3
 
 import subprocess
@@ -102,7 +103,7 @@ if zone_name is None:
 else:
   zone_prefix, parent_zone_name = zone_name.split('.', 1)
 
-'''
+
 auth_image_src_dir = os.path.abspath('web-app/app')
 
 db_password = default_val(config.get('db_password'), 'ikhGGZQ4f8scdA9TXfy6Uhj7')
@@ -173,7 +174,6 @@ cloudwatch_log_group = cloudwatch.LogGroup(
   retention_in_days=30, 
   tags=default_tags
 )
-'''
 
 # create a VPC that our whole stack and dependent services will run in
 vpc = ec2.Vpc(
@@ -250,6 +250,7 @@ for i, subnet in enumerate(subnets):
     )
   )
 
+
 # Get the parent DNS zone under which our subzone will be created. The parent zone is
 # not managed by this stack, but must be a Route53 zone.  E.g., "mckelvie.org". We will
 # create An NS record in this parent zone that points to our subzone.
@@ -288,6 +289,7 @@ public_parent_zone_ns_record = route53.Record(
   # weighted_routing_policies=None,
   zone_id=public_parent_zone.zone_id
 )
+
 
 # Create a security group for the front-end EC2 instance, that allows it to
 # listen on port 22 (SSH), 80 (HTTP), and 443 (HTTPS), and send anywhere.
@@ -333,6 +335,7 @@ front_end_security_group = ec2.SecurityGroup(
   tags=default_tags,
   vpc_id=vpc.id
 )
+
 
 # define a policy that allows EC2 to assume our roles for the purposes of creating EC2 instances
 ec2_assume_role_policy_obj = {
@@ -392,6 +395,7 @@ front_end_keypair = aws.ec2.KeyPair(
     tags=default_tags,
   )
 
+
 AMI_OWNER_CANONICAL = "099720109477"
 
 # Find the most recent AMI for Ubuntu 20.04
@@ -417,6 +421,8 @@ front_end_eip = aws.ec2.Eip(
     vpc=True,
     tags=with_default_tags(Name=zone_name),
   )
+
+'''
 
 # Create an EC2 instance for our front-end
 front_end_ec2_instance = aws.ec2.Instance(

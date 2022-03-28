@@ -53,6 +53,7 @@ from .common import (
     default_tags,
     get_availability_zones,
     long_stack,
+    aws_provider,
     aws_resource_options,
     aws_invoke_options,
     with_default_tags,
@@ -141,6 +142,8 @@ class Ec2Instance:
   dns_records: List[route53.Record]
   vpc: VpcEnv
   sg: FrontEndSecurityGroup
+  ec2_instance: ec2.Instance
+  eip_association: Optional[ec2.EipAssociation] = None
 
   def __init__(
         self,
@@ -449,6 +452,30 @@ class Ec2Instance:
       resource_prefix=resource_prefix,
     )
 
+    # Create an EC2 instance
+    self.ec2_instance = ec2.Instance(
+        f'{resource_prefix}ec2-instance',
+        ami=self.ami.id,
+        instance_type=self.instance_type,
+        iam_instance_profile=self.instance_profile.name,
+        key_name=self.keypair.keypair.key_name,
+        associate_public_ip_address=self.eip is None,   # deferred until EIP is assigned. Sadly no way to do this atomically
+        subnet_id=self.vpc.public_subnet_ids[0],  # Place in the first AZ
+        vpc_security_group_ids=[ self.sg.sg.id ],
+        root_block_device=dict(volume_size=self.sys_volume_size_gb),
+        tags=with_default_tags(Name=self.instance_name),
+        volume_tags=with_default_tags(Name=self.instance_name),
+        opts=ResourceOptions(provider=aws_provider, depends_on=self.instance_dependencies)
+      )
+
+    # associate the EIP with the instance
+    if not self.eip is None:
+      self.eip_association = ec2.EipAssociation(
+          f"{resource_prefix}ec2-eip-assoc",
+          instance_id=self.ec2_instance.id,
+          allocation_id=self.eip.id,
+          opts=aws_resource_options,
+        )
 
   def stack_export(self, export_prefix: Optional[str]=None) -> None:
     if export_prefix is None:

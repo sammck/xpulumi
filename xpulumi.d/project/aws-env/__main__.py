@@ -32,5 +32,6 @@ ec2_instance = Ec2Instance(
     dns_subnames=[ '', 'www', 'api' ],
     open_ports=[ 22, 80, 443 ],
     public_key_file="~/.ssh/id_rsa.pub",
+    instance_type="t3.medium",
   )
 ec2_instance.stack_export()
