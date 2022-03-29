@@ -422,7 +422,6 @@ front_end_eip = aws.ec2.Eip(
     tags=with_default_tags(Name=zone_name),
   )
 
-'''
 
 # Create an EC2 instance for our front-end
 front_end_ec2_instance = aws.ec2.Instance(
@@ -439,6 +438,7 @@ front_end_ec2_instance = aws.ec2.Instance(
     volume_tags=with_default_tags(Name=zone_name),
   )
 
+
 # associate the EIP with the instance
 
 front_end_eip_assoc = aws.ec2.EipAssociation(
@@ -447,6 +447,7 @@ front_end_eip_assoc = aws.ec2.EipAssociation(
     allocation_id=front_end_eip.id
   )
 
+'''
 
 '''
 # Create a wildcard SSL certificate for "*.<zone-name>" as well as bare "<zone-name";

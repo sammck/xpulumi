@@ -48,4 +48,11 @@ from .vpc import VpcEnv
 from .dns import DnsZone
 from .security_group import FrontEndSecurityGroup
 from .ec2_keypair import Ec2KeyPair
-from .ec2_instance import Ec2Instance
+from .ec2_instance import (
+    Ec2Instance,
+    MIMEMultipart,
+    MIMEText,
+    b64_encode_user_data,
+    MIMEBase,
+  )
+from .cloudwatch import CloudWatch

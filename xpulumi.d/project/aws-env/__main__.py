@@ -11,7 +11,13 @@ from xpulumi.runtime import (
     FrontEndSecurityGroup,
     Ec2KeyPair,
     Ec2Instance,
+    CloudWatch
   )
+
+
+# create a CloudWatch log group for all our logging needs
+cw = CloudWatch()
+cw.stack_export()
 
 vpc = VpcEnv.load()
 vpc.stack_export()

@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 
+from base64 import b64encode
 from copy import deepcopy
-from typing import Optional, List, Union, Set
+from typing import Optional, List, Union, Set, Tuple
 
 import subprocess
 import os
 import json
 import ipaddress
+import yaml
+import io
+from io import BytesIO
+import gzip
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import pulumi
 from pulumi import (
@@ -20,6 +28,7 @@ from pulumi_aws import (
   route53,
   acm,
   cognito,
+  ebs,
   ecs,
   ecr,
   elasticloadbalancingv2 as elbv2,
@@ -43,6 +52,7 @@ from .util import (
   default_val,
   get_ami_arch_from_instance_type,
   future_func,
+  yamlify_promise,
 )
 
 from .stack_outputs import SyncStackOutputs
@@ -69,6 +79,141 @@ from .dns import DnsZone
 def get_ami_name_filter(ami_arch: str, ami_distro: str, ami_os_version: str) -> str:
   return f"ubuntu/images/hvm-ssd/ubuntu-{ami_distro}-{ami_os_version}-{ami_arch}-server-*"
 
+@future_func
+def _internal_b64_encode_user_data(
+      user_data: Input[Optional[Union[str, bytes, MIMEBase, JsonableDict]]],
+      yaml_prefix_text: Input[Optional[str]]
+    ) -> Optional[str]:
+  result_str: Optional[str] = None
+  result_bytes: Optional[bytes] = None
+  result_base64: Optional[str] = None
+  if user_data is None:
+    pass
+  elif isinstance(user_data, MIMEBase):
+    result_bytes = user_data.as_bytes()
+  elif isinstance(user_data, bytes):
+    result_bytes = user_data
+  elif isinstance(user_data, str):
+    result_str = user_data
+  else:
+    if yaml_prefix_text is None:
+      yaml_prefix_text = "#cloud-config\n"
+    result_str = yaml_prefix_text + yaml.dump(
+        user_data,
+        sort_keys=True,
+        indent=1,
+        default_flow_style=None,
+        width=10000,
+      )
+  if not result_str is None or not result_bytes is None:
+    if result_bytes is None:
+      result_bytes = result_str.encode('utf-8')
+    if len(result_bytes) >= 16383:
+      buff = BytesIO()
+      with gzip.GzipFile(None, 'wb', compresslevel=9, fileobj=buff) as g:
+        g.write(result_bytes)
+      compressed = buff.getvalue()
+      if len(compressed) > 16383:
+        raise XPulumiError(f"EC2 user_data too big: {len(result_bytes)} before compression, {len(compressed)} after")
+      result_bytes = compressed
+    result_base64 = b64encode(result_bytes).decode('utf-8')
+    pulumi.log.info(f"userdata: {result_base64}")
+  return result_base64
+
+def b64_encode_user_data(
+      user_data: Input[Optional[Union[str, bytes, MIMEBase, JsonableDict]]],
+      yaml_prefix_text: Input[Optional[str]]=None
+    ) -> Optional[str]:
+  return _internal_b64_encode_user_data(user_data, yaml_prefix_text)
+
+'''
+# create a cloud-config document to attach as user-data to the new ec2 instance.
+# we create a sync function to generate the document when all needed outputs have values, and wrap it as a future that can consume outputs. 
+def gen_frontend_cloud_config_obj(
+      zone_name: str,
+      region: str,
+      ecr_domain: str,
+      bootstrap_repo_name: str,
+      bootstrap_repo_tag: str
+    ) -> JsonableDict:
+  docker_config_obj = {
+      "credHelpers": {
+          "public.ecr.aws": "ecr-login",
+          ecr_domain: "ecr-login"
+        }
+    }
+  full_repo_and_tag = f"{ecr_domain}/{bootstrap_repo_name}:{bootstrap_repo_tag}"
+  docker_config = json.dumps(docker_config_obj, indent=1, sort_keys=True)
+  config_obj = dict(
+      repo_update = True,
+      repo_upgrade = "all",
+      fqdn = f"fe.{zone_name}",
+      apt = dict(
+          sources = {
+            "docker.list": dict(
+                source = "deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable",
+                keyid = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+              ),
+            },
+        ),
+
+      packages = [
+          "jq",
+          "awscli",
+          "collectd",
+          "ca-certificates",
+          "curl",
+          "gnupg",
+          "lsb-release",
+          "docker-ce",
+          "docker-ce-cli",
+          "amazon-ecr-credential-helper",
+        ],
+
+      runcmd = [
+          [ "bash", "-c", f"mkdir -p /root/.docker && chmod 700 /root/.docker && echo '{docker_config}' > /root/.docker/config.json && chmod 600 /root/.docker/config.json" ],
+          [ "docker", "pull", full_repo_and_tag ],
+          [ "docker", "run", "--rm", "-v", "/:/host-rootfs", "--privileged", "--net=host", full_repo_and_tag ],
+          [ "bash", "-c", 'echo "it works!"' ],
+        ],
+    )
+  return config_obj
+
+def gen_future_frontend_cloud_config_obj(
+    zone_name: Union[str, Output[str]],
+    region: Union[str, Output[str]],
+    ecr_domain: Union[str, Output[str]],
+    bootstrap_repo_name: Union[str, Output[str]],
+    bootstrap_repo_tag: Union[str, Output[str]],
+  ) -> Output[dict]:
+  # "pulumi.Output.all(*future_args).apply(lambda args: sync_func(*args))"" is a pattern
+  # provided by pulumi. It waits until all promises in future_args have been satisfied,
+  # then invokes sync_func with the realized values of all the future_args as *args. Finally
+  # it wraps the synchronous function as a promise and returns the new promise as the result.
+  # this allows you to write synchronous code in pulumi that depends on future values, and
+  # turn it into asynchronous code
+  future_obj = Output.all(
+        zone_name, region, ecr_domain, bootstrap_repo_name, bootstrap_repo_tag
+    ).apply(lambda args: gen_frontend_cloud_config_obj(*args))
+  return future_obj
+
+future_frontend_cloud_config_obj = gen_future_frontend_cloud_config_obj(
+    zone_name=zone_name,
+    region=region,
+    ecr_domain=ecr_domain,
+    bootstrap_repo_name=front_end_bootstrap_repo_name,
+    bootstrap_repo_tag=front_end_bootstrap_repo_tag,
+  )
+
+frontend_cloud_config = yamlify_promise(
+    future_frontend_cloud_config_obj,
+    indent=1,
+    default_flow_style=None,
+    width=10000,
+    prefix_text="#cloud-config\n",
+  )
+
+'''
 
 class Ec2Instance:
   # define a policy that allows EC2 to assume our roles for the purposes of creating EC2 instances
@@ -110,6 +255,7 @@ class Ec2Instance:
     }
   DEFAULT_INSTANCE_TYPE = "t3.medium"
   DEFAULT_SYS_VOLUME_SIZE_GB = 40
+  DEFAULT_DATA_VOLUME_SIZE_GB = 40
   AMI_OWNER_CANONICAL: str = "099720109477"  # The publisher of Ubunti AMI's
   DEFAULT_AMI_DISTRO = "focal"
   DEFAULT_AMI_OS_VERSION = "20.04"
@@ -120,6 +266,7 @@ class Ec2Instance:
   instance_profile: iam.InstanceProfile
   instance_type: str
   sys_volume_size_gb: int
+  data_volume_size_gb: int
   keypair: Ec2KeyPair
   instance_dependencies: List[Output]
   cloudwatch_agent_attached_policy: iam.RolePolicyAttachment
@@ -143,8 +290,13 @@ class Ec2Instance:
   dns_records: List[route53.Record]
   vpc: VpcEnv
   sg: FrontEndSecurityGroup
+  ebs_data_volume: Optional[ebs.Volume] = None
   ec2_instance: ec2.Instance
   eip_association: Optional[ec2.EipAssociation] = None
+  data_volume_attachment: Optional[ec2.VolumeAttachment] = None
+  user_data_text: Input[Optional[str]] = None
+  user_data: Input[Optional[Union[str, JsonableDict]]] = None
+  user_data_yaml_prefix_text: Optional[str] = None
 
   def __init__(
         self,
@@ -156,6 +308,7 @@ class Ec2Instance:
         description: Optional[str]=None,
         instance_type: Optional[str]=None,
         sys_volume_size_gb: Optional[int]=None,
+        data_volume_size_gb: Optional[int]=None,
         public_key: Optional[str]=None,
         public_key_file: Optional[str]=None,
         role_policy_obj: Optional[JsonableDict]=None,
@@ -167,6 +320,8 @@ class Ec2Instance:
         register_dns: Optional[bool] = None,
         instance_name: Optional[str] = None,
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
+        user_data: Input[Optional[Union[str, JsonableDict]]] = None,
+        user_data_yaml_prefix_text: Optional[str] = None
       ):
     if resource_prefix is None:
       resource_prefix = ''
@@ -184,6 +339,8 @@ class Ec2Instance:
         instance_type = pconfig.get(f'{cfg_prefix}ec2_instance_type')
       if sys_volume_size_gb is None:
         sys_volume_size_gb = pconfig.get_int(f'{cfg_prefix}ec2_sys_volume_size')
+      if data_volume_size_gb is None:
+        data_volume_size_gb = pconfig.get_int(f'{cfg_prefix}ec2_data_volume_size')
       if ami_os_version is None:
         ami_os_version = pconfig.get(f'{cfg_prefix}ec2_ami_os_version')
       if use_elastic_ip is None:
@@ -201,12 +358,21 @@ class Ec2Instance:
         open_ports = pconfig.get(f'{cfg_prefix}ec2_open_ports')
         if isinstance(open_ports, str):
           open_ports = json.loads(open_ports)
+      if user_data is None:
+        user_data = pconfig.get(f'{cfg_prefix}ec2_user_data')
+        if user_data_yaml_prefix_text is None:
+          user_data_yaml_prefix_text = pconfig.get(f'{cfg_prefix}ec2_user_data_yaml_prefix_text')
 
     if instance_type is None:
       instance_type = self.DEFAULT_INSTANCE_TYPE
 
     if sys_volume_size_gb is None:
       sys_volume_size_gb = self.DEFAULT_SYS_VOLUME_SIZE_GB
+
+    if data_volume_size_gb is None:
+      data_volume_size_gb = self.DEFAULT_DATA_VOLUME_SIZE_GB
+      if data_volume_size_gb is None:
+        data_volume_size_gb = 0
 
     if ami_os_version is None:
       ami_os_version = self.DEFAULT_AMI_OS_VERSION
@@ -275,6 +441,7 @@ class Ec2Instance:
 
     self.instance_type = instance_type
     self.sys_volume_size_gb = sys_volume_size_gb
+    self.data_volume_size_gb = data_volume_size_gb
     self.ami_os_version = ami_os_version
     self.ami_owner = ami_owner
     self.ami_distro = ami_distro
@@ -284,7 +451,7 @@ class Ec2Instance:
     self.description = description
     self.instance_name = instance_name
     self.parent_dns_zone = parent_dns_zone
-
+    self.user_data = user_data
 
     # define an assume role policy that allows EC2 to assume a role for our instance
     if assume_role_policy_obj is None:
@@ -454,6 +621,18 @@ class Ec2Instance:
       resource_prefix=resource_prefix,
     )
 
+    if self.data_volume_size_gb > 0:
+      # Create a data volume as a separate resource so it can remain stable while EC2 instance
+      # is replaced.
+      self.ebs_data_volume = ebs.Volume(
+          f'{resource_prefix}ec2-instance-data-volume',
+          availability_zone=self.vpc.azs[0],  # place in the first AZ
+          size=self.data_volume_size_gb,
+          tags=with_default_tags(Name=f"{self.instance_name}-data"),
+          opts=aws_resource_options,
+        )
+      self.instance_dependencies.append(self.ebs_data_volume)
+
     # Create an EC2 instance
     self.ec2_instance = ec2.Instance(
         f'{resource_prefix}ec2-instance',
@@ -465,9 +644,10 @@ class Ec2Instance:
         subnet_id=self.vpc.public_subnet_ids[0],  # Place in the first AZ
         vpc_security_group_ids=[ self.sg.sg.id ],
         root_block_device=dict(volume_size=self.sys_volume_size_gb),
+        user_data_base64=b64_encode_user_data(self.user_data, yaml_prefix_text=user_data_yaml_prefix_text),
         tags=with_default_tags(Name=self.instance_name),
-        volume_tags=with_default_tags(Name=self.instance_name),
-        opts=ResourceOptions(provider=aws_provider, depends_on=self.instance_dependencies)
+        volume_tags=with_default_tags(Name=f"{self.instance_name}-sys"),
+        opts=ResourceOptions(provider=aws_provider, depends_on=self.instance_dependencies, delete_before_replace=True)
       )
 
     # associate the EIP with the instance
@@ -478,6 +658,19 @@ class Ec2Instance:
           allocation_id=self.eip.id,
           opts=aws_resource_options,
         )
+
+    if not self.ebs_data_volume is None:
+      # attach the ebs data volume volume to the instance. Unfortunately no way to do this at launch time
+      data_volume_attachment = ec2.VolumeAttachment(
+          f"{resource_prefix}ec2-data-volume-attachment",
+          device_name="/dev/sdf",
+          volume_id = self.ebs_data_volume.id,
+          instance_id = self.ec2_instance.id,
+          stop_instance_before_detaching=True,
+          opts=ResourceOptions(provider=aws_provider, delete_before_replace=True)
+        )
+      self.data_volume_attachment = data_volume_attachment
+
 
   def stack_export(self, export_prefix: Optional[str]=None) -> None:
     if export_prefix is None:
