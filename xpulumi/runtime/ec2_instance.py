@@ -238,9 +238,11 @@ class Ec2Instance:
   use_elastic_ip: bool
   parent_dns_zone: Optional[DnsZone] = None
   dns_names: List[str]
+  register_dns: Optional[bool] = None
   primary_dns_name: Optional[str] = None
   description: str
   instance_name: str
+  open_ports: Optional[List[Union[int, JsonableDict]]] = None
   dns_records: List[route53.Record]
   vpc: VpcEnv
   sg: FrontEndSecurityGroup
@@ -274,6 +276,7 @@ class Ec2Instance:
         instance_name: Optional[str] = None,
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
         user_data: UserDataConvertible = None,
+        commit: bool=True,
       ):
     if resource_prefix is None:
       resource_prefix = ''
@@ -398,8 +401,10 @@ class Ec2Instance:
     self.use_elastic_ip = use_elastic_ip
     self.dns_names = ordered_dns_names
     self.primary_dns_name = primary_dns_name
+    self.register_dns = register_dns
     self.description = description
     self.instance_name = instance_name
+    self.open_ports = open_ports
     self.parent_dns_zone = parent_dns_zone
     self.user_data = user_data
 
@@ -415,12 +420,25 @@ class Ec2Instance:
     role_policy_obj = deepcopy(role_policy_obj)
     self.role_policy_obj = role_policy_obj
 
-    # ---- start creating resources
+    self.keypair = Ec2KeyPair(
+      resource_prefix=resource_prefix,
+      use_config=use_config,
+      cfg_prefix=cfg_prefix,
+      public_key=public_key,
+      public_key_file=public_key_file,
+      commit=False
+    )
 
+    # ---- start creating resources
+    if commit:
+      self.commit()
+
+  def commit(self):
+    resource_prefix = self.resource_prefix
     self.role_policy = iam.Policy(
         f"{resource_prefix}ec2-role-policy",
         path="/",
-        description=f"Custom role policy for {description}",
+        description=f"Custom role policy for {self.description}",
         policy=json.dumps(self.role_policy_obj, sort_keys=True),
         tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
         opts=aws_resource_options,
@@ -430,7 +448,7 @@ class Ec2Instance:
     self.role = iam.Role(
         f'{resource_prefix}ec2-instance-role',
         assume_role_policy=json.dumps(self.assume_role_policy_obj, sort_keys=True),
-        description=f"Role for {description}",
+        description=f"Role for {self.description}",
         # force_detach_policies=None,
         max_session_duration=12*TTL_HOUR,
         name=f'{resource_prefix}{long_xstack.replace(":", "-")}-ec2-role',
@@ -476,13 +494,7 @@ class Ec2Instance:
         opts=aws_resource_options,
       )
 
-    self.keypair = Ec2KeyPair(
-      resource_prefix=resource_prefix,
-      use_config=use_config,
-      cfg_prefix=cfg_prefix,
-      public_key=public_key,
-      public_key_file=public_key_file,
-    )
+    self.keypair.commit()
 
     self.ami_arch = get_ami_arch_from_instance_type(self.instance_type)
     self.ami_name_filter = get_ami_name_filter(self.ami_arch, self.ami_distro, self.ami_os_version)
@@ -504,19 +516,19 @@ class Ec2Instance:
         opts=aws_invoke_options,
       )
 
-    if use_elastic_ip:
+    if self.use_elastic_ip:
       # Create an elastic IP address for the instance. This allows the IP address to remain stable even if the instance is
       # shut down and restarted, or even destroyed and recreated. Prevents DNS entries and caches from becoming invalid.
       self.eip = ec2.Eip(
           f'{resource_prefix}ec2-instance-eip',
           vpc=True,
-          tags=with_default_tags(Name=instance_name),
+          tags=with_default_tags(Name=self.instance_name),
           opts=aws_resource_options,
         )
       self.instance_dependencies.append(self.eip)
 
     dns_records: List[route53.Record] = []
-    if register_dns and len(self.dns_names) > 0:
+    if self.register_dns and len(self.dns_names) > 0:
       cname_target: Optional[str] = None
       for i, dn in enumerate(self.dns_names):
         if cname_target is None or dn == self.parent_dns_zone.zone_name:
@@ -567,7 +579,7 @@ class Ec2Instance:
     # create a security group for the new instance
     self.sg = FrontEndSecurityGroup(
       vpc = self.vpc,
-      open_ports=open_ports,
+      open_ports=self.open_ports,
       resource_prefix=resource_prefix,
     )
 
@@ -583,7 +595,8 @@ class Ec2Instance:
         )
       self.instance_dependencies.append(self.ebs_data_volume)
 
-    rendered_user_data = render_user_data_base64(user_data)
+    rendered_user_data = render_user_data_base64(self.user_data)
+    
     # Create an EC2 instance
     self.ec2_instance = ec2.Instance(
         f'{resource_prefix}ec2-instance',

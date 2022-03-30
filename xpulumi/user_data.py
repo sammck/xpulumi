@@ -1,7 +1,7 @@
 from base64 import b64encode
 import base64
 from copy import deepcopy
-from typing import Optional, List, Union, Set, Tuple, Dict, OrderedDict, Iterable, Callable
+from typing import Optional, List, Union, Set, Tuple, Dict, OrderedDict, Iterable
 
 import subprocess
 import os
@@ -18,65 +18,9 @@ import email.parser
 import time
 from collections import OrderedDict as ordereddict
 
-import pulumi
-from pulumi import (
-  ResourceOptions,
-  Output,
-  Input,
-)
+from .internal_types import JsonableDict
 
-from pulumi_aws import (
-  ec2,
-  route53,
-  acm,
-  cognito,
-  ebs,
-  ecs,
-  ecr,
-  elasticloadbalancingv2 as elbv2,
-  iam,
-  cloudwatch,
-  rds,
-  kms,
-  secretsmanager,
-  AwaitableGetAmiResult,
-)
-
-from ..internal_types import JsonableDict
-
-from .util import (
-  TTL_SECOND,
-  TTL_MINUTE,
-  TTL_HOUR,
-  TTL_DAY,
-  jsonify_promise,
-  list_of_promises,
-  default_val,
-  get_ami_arch_from_instance_type,
-  future_func,
-  yamlify_promise,
-)
-
-from .stack_outputs import SyncStackOutputs
-from .common import (
-    aws_default_region,
-    get_aws_region_data,
-    pconfig,
-    default_tags,
-    get_availability_zones,
-    long_stack,
-    aws_provider,
-    aws_resource_options,
-    aws_invoke_options,
-    with_default_tags,
-    long_xstack,
-  )
-from .. import XPulumiError
-from .vpc import VpcEnv
-from .security_group import FrontEndSecurityGroup
-from .ec2_keypair import Ec2KeyPair
-from .dns import DnsZone
-from ..util import multiline_indent
+from .exceptions import XPulumiError
 
 GZIP_FIXED_MTIME: float = 0.0
 
@@ -237,95 +181,6 @@ class SyncUserDataPart:
         result += '\n'
     return result
 
-class SyncUserData:
-  parts: List[SyncUserDataPart]
-  raw_binary: Optional[bytes]=None
-
-  def __init__(
-        self,
-        content: Optional[Union[str, bytes, JsonableDict, SyncUserDataPart]],
-        mime_type: Optional[str]=None,
-        headers: Optional[Union[Dict[str, str], Iterable[Tuple[str, str]], OrderedDict[str, str]]]=None):
-    self.parts = []
-    if not content is None:
-      if isinstance(content, bytes):
-        if len(content) > 16383:
-          raise XPulumiError(f"raw binary user data too big: {len(content)}")
-        self.raw_binary = content
-      else:
-        self.add(content, mime_type=mime_type, headers=headers)
-
-  def add(self,
-        content: Optional[Union[SyncUserDataPart, str, JsonableDict]],
-        mime_type: Optional[str]=None,
-        headers: Optional[Union[Dict[str, str], Iterable[Tuple[str, str]], OrderedDict[str, str]]]=None):
-    if not content is None:
-      if not self.raw_binary is None:
-        raise XPulumiError(f"Cannot add parts to UserData initialized with raw binary payload")
-      if not isinstance(content, SyncUserDataPart):
-        content = SyncUserDataPart(content, mime_type=mime_type, headers=headers)
-      if not content.content is None:
-        self.parts.append(content)
-
-  def render(self, include_mime_version: bool=False) -> Optional[str]:
-    #breakpoint()
-    result: Optional[str]
-    if self.raw_binary is None:
-      if len(self.parts) == 0:
-        result = None
-      elif len(self.parts) == 1:
-        result = self.parts[0].render(include_mime_version=True)
-      else:
-        rendered_parts = [ part.render(force_mime=True) for part in self.parts ]
-
-        # Find a unique boundary string that is not in any of the rendered parts
-        unique = 0
-        while True:
-          boundary = f"@@{unique}@@"
-          for rp in rendered_parts:
-            assert not rp is None
-            if boundary in rp:
-              break
-          else:
-            break
-          unique += 1
-        
-        result = f'Content-Type: multipart/mixed; boundary="{boundary}"\n'
-        if include_mime_version:
-          result += 'MIME-Version: 1.0\n'
-        result += '\n'
-        for rp in rendered_parts:
-          result += f"--{boundary}\n{rp}"
-        result += f"--{boundary}--\n"
-    else:
-      result = self.raw_binary.decode('utf-8')
-
-    return result
-
-  def render_binary(self, include_mime_version: bool=False) -> Optional[bytes]:
-    if self.raw_binary is None:
-      content = self.render(include_mime_version=include_mime_version)
-      bcontent = content.encode('utf-8')
-      if len(bcontent) >= 16383:
-        buff = BytesIO()
-        # NOTE: we use a fixed modification time when zipping so that the resulting compressed data is
-        # always the same for a given input. This prevents Pulumi from unnecessarily replacing EC2 instances
-        # because it looks like user_data changed when it really did not.
-        with gzip.GzipFile(None, 'wb', compresslevel=9, fileobj=buff, mtime=GZIP_FIXED_MTIME) as g:
-          g.write(bcontent)
-        compressed = buff.getvalue()
-        if len(compressed) > 16383:
-          raise XPulumiError(f"EC2 user_data too big: {len(bcontent)} before compression, {len(compressed)} after")
-        bcontent = compressed
-    else:
-      bcontent = self.raw_binary
-    return bcontent
-
-  def render_base64(self, include_mime_version: bool=False) -> Optional[str]:
-    bcontent = self.render_binary(include_mime_version=include_mime_version)
-    b64 = b64encode(bcontent).decode('utf-8')
-    return b64
-
 class UserDataPart:
   content: Input[Optional[Union[str, JsonableDict, SyncUserDataPart]]]
   mime_type: Input[Optional[str]]
@@ -369,104 +224,134 @@ class UserDataPart:
     return result
 
 
+class SyncUserData:
+  parts: List[SyncUserDataPart]
+
+  def __init__(self):
+    self.parts = []
+
+  def add(self, part: Optional[Union[SyncUserDataPart, str, JsonableDict]]):
+    if not part is None:
+      if not isinstance(part, SyncUserDataPart):
+        part = SyncUserDataPart(part)
+      if not part.content is None:
+        self.parts.append(part)
+
+  def render(self, include_mime_version: bool=False) -> Optional[str]:
+    result: Optional[str]
+    if len(self.parts) == 0:
+      result = None
+    elif len(self.parts) == 1:
+      result = self.parts[0].render(include_mime_version=True)
+    else:
+      rendered_parts = [ part.render(force_mime=True) for part in self.parts ]
+
+      # Find a unique boundary string that is not in any of the rendered parts
+      unique = 0
+      while True:
+        boundary = f"@@{unique}@@"
+        for rp in rendered_parts:
+          assert not rp is None
+          if boundary in rp:
+            break
+        else:
+          break
+        unique += 1
+      
+      result = f'Content-Type: multipart/mixed; boundary="{boundary}"\n'
+      if include_mime_version:
+        result += 'MIME-Version: 1.0\n'
+      result += '\n'
+      for rp in rendered_parts:
+        result += f"--{boundary}\n{rp}"
+      result += f"--{boundary}--\n"
+
+    return result
+
+  def render_binary(self, include_mime_version: bool=False) -> Optional[bytes]:
+    content = self.render(include_mime_version=include_mime_version)
+    bcontent = content.encode('utf-8')
+    if len(bcontent) >= 16383:
+      buff = BytesIO()
+      # NOTE: we use a fixed modification time when zipping so that the resulting compressed data is
+      # always the same for a given input. This prevents Pulumi from unnecessarily replacing EC2 instances
+      # because it looks like user_data changed when it really did not.
+      with gzip.GzipFile(None, 'wb', compresslevel=9, fileobj=buff, mtime=GZIP_FIXED_MTIME) as g:
+        g.write(bcontent)
+      compressed = buff.getvalue()
+      if len(compressed) > 16383:
+        raise XPulumiError(f"EC2 user_data too big: {len(bcontent)} before compression, {len(compressed)} after")
+      bcontent = compressed
+    return bcontent
+
+  def render_base64(self, include_mime_version: bool=False) -> Optional[str]:
+    bcontent = self.render_binary(include_mime_version=include_mime_version)
+    b64 = b64encode(bcontent).decode('utf-8')
+    return b64
+
 class UserData:
-  init_content: Input[Optional[Union[str, bytes, JsonableDict, SyncUserDataPart, SyncUserData]]]
-  init_mime_type: Input[Optional[str]] = None
-  init_headers: Input[Optional[Union[Dict[str, str], List[Tuple[Input[str], Input[str]]], OrderedDict[str, str]]]] = None
   parts: List[UserDataPart]
 
-  def __init__(
-        self,
-        content: Union['UserData', UserDataPart, Input[Optional[Union[str, bytes, JsonableDict, SyncUserDataPart, SyncUserData]]]]=None,
-        mime_type: Input[Optional[str]]=None,
-        headers: Input[Optional[Union[Dict[str, str], List[Tuple[Input[str], Input[str]]], OrderedDict[str, str]]]]=None):
-    if isinstance(content, UserData):
-      self.init_content = content.init_content
-      self.init_mime_type = content.init_mime_type
-      self.init_headers = content.init_headers
-      self.parts = content.parts[:]
-    elif isinstance(content, UserDataPart):
-      self.parts = [ content ]
-    else:
-      self.parts = []
-      self.init_mime_type = mime_type
-      self.init_headers = headers
-      self.init_content = content
+  def __init__(self):
+    parts = []
 
   def add(
         self,
-        content: Union[UserDataPart, Input[Optional[Union[str, JsonableDict, SyncUserDataPart]]]],
-        mime_type: Input[Optional[str]]=None,
-        headers: Input[Optional[Union[Dict[str, str], List[Tuple[Input[str], Input[str]]], OrderedDict[str, str]]]]=None
+        part: Union[UserDataPart, Input[Optional[Union[str, JsonableDict, SyncUserDataPart]]]]
       ) -> None:
-    if not content is None:
-      if not isinstance(content, UserDataPart):
-        content = UserDataPart(content, mime_type=mime_type, headers=headers)
-      self.parts.append(content)
+    self.parts = []
+    if not part is None:
+      if not isinstance(part, UserDataPart):
+        part = UserDataPart(part)
+      self.parts.append(part)
 
-  def _sync_render_var(
-        self,
-        content: Optional[Union[str, bytes, JsonableDict, SyncUserDataPart, SyncUserData]],
-        mime_type: Optional[str],
-        headers: Optional[Union[Dict[str, str], List[Tuple[str, str]], OrderedDict[str, str]]],
-        sync_render: Callable[[SyncUserData], Optional[Union[str, bytes]]],
-        include_mime_version: bool,
-        parts: List[SyncUserDataPart]
-      ) -> Optional[Union[str, bytes]]:
-    #breakpoint()
-    sync_user_data = SyncUserData(content, mime_type=mime_type, headers=headers)
+  def render(self, include_mime_version: Input[bool]=False) -> Optional[str]:
+    sync_parts = [x.sync_part for x in self.parts]
+    result: Output[Optional[str]] = Output.all(include_mime_version, *sync_parts).apply(
+        lambda args: self._sync_render(args[0], args[1:])
+      )
+    return result
+
+  def render_binary(self, include_mime_version: Input[bool]=False) -> Optional[bytes]:
+    sync_parts = [x.sync_part for x in self.parts]
+    result: Output[Optional[bytes]] = Output.all(include_mime_version, *sync_parts).apply(
+        lambda args: self._sync_render_binary(args[0], args[1:])
+      )
+    return result
+
+  def render_base64(self, include_mime_version: Input[bool]=False) -> Optional[str]:
+    sync_parts = [x.sync_part for x in self.parts]
+    result: Output[Optional[str]] = Output.all(include_mime_version, *sync_parts).apply(
+        lambda args: self._sync_render_base64(args[0], args[1:])
+      )
+    return result
+
+  def _sync_render(self, include_mime_version: bool, parts: List[SyncUserDataPart]) -> Optional[str]:
+    sync_user_data = SyncUserData()
     for part in parts:
       sync_user_data.add(part)
-    result = sync_render([sync_user_data, include_mime_version])
+    result = sync_user_data.render(include_mime_version=include_mime_version)
     return result
 
-  def _render_var(
-        self,
-        sync_render: Callable[[SyncUserData], Optional[Union[str, bytes]]],
-        include_mime_version: Input[bool]=False
-      ) -> Output[Optional[Union[str, bytes]]]:
-    sync_parts = [x.sync_part for x in self.parts]
-
-    result: Output[Optional[Union[str, bytes]]] = Output.all(
-        self.init_content,
-        self.init_mime_type,
-        self.init_headers,
-        sync_render,
-        include_mime_version,
-        *sync_parts
-      ).apply(
-        lambda args: self._sync_render_var(args[0], args[1], args[2], args[3], args[4], args[5:])
-      )
+  def _sync_render_binary(self, include_mime_version: bool, parts: List[SyncUserDataPart]) -> Optional[bytes]:
+    sync_user_data = SyncUserData()
+    for part in parts:
+      sync_user_data.add(part)
+    result = sync_user_data.render_binary(include_mime_version=include_mime_version)
     return result
 
-
-  def render(self, include_mime_version: Input[bool]=False) -> Output[Optional[str]]:
-    result: Output[Optional[str]] = self._render_var(
-        lambda args: args[0].render(include_mime_version=args[1]),
-        include_mime_version=include_mime_version
-      )
-    return result
-
-  def render_binary(self, include_mime_version: Input[bool]=False) -> Output[Optional[bytes]]:
-    result: Output[Optional[bytes]] = self._render_var(
-        lambda args: args[0].render_binary(include_mime_version=args[1]),
-        include_mime_version=include_mime_version
-      )
-    return result
-
-  def render_base64(self, include_mime_version: Input[bool]=False) -> Output[Optional[str]]:
-    result: Output[Optional[str]] = self._render_var(
-        lambda args: args[0].render_base64(include_mime_version=args[1]),
-        include_mime_version=include_mime_version
-      )
+  def _sync_render_base64(self, include_mime_version: bool, parts: List[SyncUserDataPart]) -> Optional[str]:
+    sync_user_data = SyncUserData()
+    for part in parts:
+      sync_user_data.add(part)
+    result = sync_user_data.render_base64(include_mime_version=include_mime_version)
     return result
 
 SyncUserDataConvertible = Optional[
           Union[
               SyncUserData,
               SyncUserDataPart,
-              str,
-              bytes,
+              str, 
               JsonableDict,
             ]
         ]
@@ -475,7 +360,7 @@ UserDataConvertible = Optional[
     Union[
         UserData,
         UserDataPart,
-        Input[Optional[Union[str, bytes, JsonableDict, SyncUserData, SyncUserDataPart]]]
+        Input[Optional[Union[str, JsonableDict, SyncUserData, SyncUserDataPart]]]
       ]
   ]
 
@@ -483,23 +368,25 @@ def sync_render_user_data_base64(
       content: SyncUserDataConvertible,
       include_mime_version: bool=False,
     ) -> Optional[str]:
-  user_data = SyncUserData(content)
+  user_data: SyncUserData
+  if isinstance(content, SyncUserData):
+    user_data = content
+  else:
+    user_data = SyncUserData()
+    if not content is None:
+      user_data.add(content)
   result = user_data.render_base64(include_mime_version=include_mime_version)
   return result
 
 def render_user_data_base64(
       content: UserDataConvertible,
       include_mime_version: Input[bool]=False,
-      debug_log: bool=True,
     ) -> Output[Optional[str]]:
-  user_data = UserData(content)
-  if debug_log:
-    text = user_data.render(include_mime_version=include_mime_version)
-    def report(text: str):
-      if text is None:
-        pulumi.log.info(f"Rendered user_data is: None")
-      else:
-        pulumi.log.info(f"Rendered user_data is:\n{multiline_indent(text, 4)}")
-    Output.all(text).apply(lambda args: report(*args))
+  user_data: UserData
+  if isinstance(content, UserData):
+    user_data = content
+  else:
+    user_data = UserData()
+    user_data.add(content)
   result = user_data.render_base64(include_mime_version=include_mime_version)
   return result
