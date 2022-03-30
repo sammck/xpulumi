@@ -11,10 +11,6 @@ import ipaddress
 import yaml
 import io
 from io import BytesIO
-import gzip
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
 import pulumi
 from pulumi import (
@@ -74,57 +70,15 @@ from .vpc import VpcEnv
 from .security_group import FrontEndSecurityGroup
 from .ec2_keypair import Ec2KeyPair
 from .dns import DnsZone
+from .user_data import (
+    render_user_data_base64,
+    UserDataConvertible
+  )
 
 @future_func
 def get_ami_name_filter(ami_arch: str, ami_distro: str, ami_os_version: str) -> str:
   return f"ubuntu/images/hvm-ssd/ubuntu-{ami_distro}-{ami_os_version}-{ami_arch}-server-*"
 
-@future_func
-def _internal_b64_encode_user_data(
-      user_data: Input[Optional[Union[str, bytes, MIMEBase, JsonableDict]]],
-      yaml_prefix_text: Input[Optional[str]]
-    ) -> Optional[str]:
-  result_str: Optional[str] = None
-  result_bytes: Optional[bytes] = None
-  result_base64: Optional[str] = None
-  if user_data is None:
-    pass
-  elif isinstance(user_data, MIMEBase):
-    result_bytes = user_data.as_bytes()
-  elif isinstance(user_data, bytes):
-    result_bytes = user_data
-  elif isinstance(user_data, str):
-    result_str = user_data
-  else:
-    if yaml_prefix_text is None:
-      yaml_prefix_text = "#cloud-config\n"
-    result_str = yaml_prefix_text + yaml.dump(
-        user_data,
-        sort_keys=True,
-        indent=1,
-        default_flow_style=None,
-        width=10000,
-      )
-  if not result_str is None or not result_bytes is None:
-    if result_bytes is None:
-      result_bytes = result_str.encode('utf-8')
-    if len(result_bytes) >= 16383:
-      buff = BytesIO()
-      with gzip.GzipFile(None, 'wb', compresslevel=9, fileobj=buff) as g:
-        g.write(result_bytes)
-      compressed = buff.getvalue()
-      if len(compressed) > 16383:
-        raise XPulumiError(f"EC2 user_data too big: {len(result_bytes)} before compression, {len(compressed)} after")
-      result_bytes = compressed
-    result_base64 = b64encode(result_bytes).decode('utf-8')
-    pulumi.log.info(f"userdata: {result_base64}")
-  return result_base64
-
-def b64_encode_user_data(
-      user_data: Input[Optional[Union[str, bytes, MIMEBase, JsonableDict]]],
-      yaml_prefix_text: Input[Optional[str]]=None
-    ) -> Optional[str]:
-  return _internal_b64_encode_user_data(user_data, yaml_prefix_text)
 
 '''
 # create a cloud-config document to attach as user-data to the new ec2 instance.
@@ -295,8 +249,7 @@ class Ec2Instance:
   eip_association: Optional[ec2.EipAssociation] = None
   data_volume_attachment: Optional[ec2.VolumeAttachment] = None
   user_data_text: Input[Optional[str]] = None
-  user_data: Input[Optional[Union[str, JsonableDict]]] = None
-  user_data_yaml_prefix_text: Optional[str] = None
+  user_data: UserDataConvertible = None
 
   def __init__(
         self,
@@ -320,8 +273,7 @@ class Ec2Instance:
         register_dns: Optional[bool] = None,
         instance_name: Optional[str] = None,
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
-        user_data: Input[Optional[Union[str, JsonableDict]]] = None,
-        user_data_yaml_prefix_text: Optional[str] = None
+        user_data: UserDataConvertible = None,
       ):
     if resource_prefix is None:
       resource_prefix = ''
@@ -360,8 +312,6 @@ class Ec2Instance:
           open_ports = json.loads(open_ports)
       if user_data is None:
         user_data = pconfig.get(f'{cfg_prefix}ec2_user_data')
-        if user_data_yaml_prefix_text is None:
-          user_data_yaml_prefix_text = pconfig.get(f'{cfg_prefix}ec2_user_data_yaml_prefix_text')
 
     if instance_type is None:
       instance_type = self.DEFAULT_INSTANCE_TYPE
@@ -633,6 +583,7 @@ class Ec2Instance:
         )
       self.instance_dependencies.append(self.ebs_data_volume)
 
+    rendered_user_data = render_user_data_base64(user_data)
     # Create an EC2 instance
     self.ec2_instance = ec2.Instance(
         f'{resource_prefix}ec2-instance',
@@ -644,7 +595,7 @@ class Ec2Instance:
         subnet_id=self.vpc.public_subnet_ids[0],  # Place in the first AZ
         vpc_security_group_ids=[ self.sg.sg.id ],
         root_block_device=dict(volume_size=self.sys_volume_size_gb),
-        user_data_base64=b64_encode_user_data(self.user_data, yaml_prefix_text=user_data_yaml_prefix_text),
+        user_data_base64=rendered_user_data,
         tags=with_default_tags(Name=self.instance_name),
         volume_tags=with_default_tags(Name=f"{self.instance_name}-sys"),
         opts=ResourceOptions(provider=aws_provider, depends_on=self.instance_dependencies, delete_before_replace=True)

@@ -194,3 +194,16 @@ def append_lines_to_file_if_missing(pathname: str, lines: Union[str, List[str]],
           f.write(line + "\n")
           result = True
   return result
+
+def multiline_indent(s: str, n: int, trim: bool=True) -> str:
+  if n <= 0 or s == '':
+    return s
+  lines = s.split('\n')
+  result: List[str] = []
+  for line in lines:
+    if line != '':
+      line = ' '*n + line
+      if trim:
+        line = line.rstrip()
+    result.append(line)
+  return '\n'.join(result)

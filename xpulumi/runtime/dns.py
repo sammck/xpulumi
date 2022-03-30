@@ -176,8 +176,8 @@ class DnsZone:
               zone_id=zone_id,
               opts=aws_invoke_options
             )
-          pulumi.log.warn(f"fetched zone name is {zone_name}")
           zone_name = zone_info.name
+          pulumi.log.info(f"fetched zone name is {zone_name}")
           self.zone_name = zone_name
         
 

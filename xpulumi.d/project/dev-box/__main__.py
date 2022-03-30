@@ -13,8 +13,7 @@ from xpulumi.runtime import (
     Ec2Instance,
     require_stack_output,
     CloudWatch,
-    MIMEMultipart,
-    MIMEText,
+    UserData, UserDataPart
   )
 
 xpulumi.runtime.enable_debugging()
@@ -32,10 +31,12 @@ dns_zone_id = require_stack_output('main_dns_zone_id', stack=aws_env_stack_name)
 dns_zone = DnsZone(resource_prefix='main-', zone_id=dns_zone_id)
 dns_zone.stack_export(export_prefix='main_')
 
-ud = MIMEMultipart(boundary='@@==@@')
+ud = UserData()
 
-boothook_text = '''echo "It works, instance ID = $INSTANCE_ID!!!"'''
-ud.attach(MIMEText(boothook_text, _subtype='cloud-boothook'))
+boothook_text = '''#!/bin/bash
+echo "It works, instance ID = $INSTANCE_ID!!!" > /var/log/my-boothook.log
+'''
+ud.add(UserDataPart(boothook_text, mime_type='text/cloud-boothook'))
 
 ec2_instance = Ec2Instance(
     vpc=vpc,
