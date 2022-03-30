@@ -176,22 +176,24 @@ class SyncUserDataPart:
           mime_type = embedded_headers.pop('Content-Type')
           if mime_type is None:
             raise XPulumiError(f"UserDataPart has Content-Type header: {embedded_headers}")
-          if mime_type in [
-                'x-shellscript',
-                'x-shellscript-per-boot',
-                'x-shellscript-per-instance',
-                'x-shellscript-per-once' ]:
-            comment_type = "#!"
-            comment_line = content.split('\n', 1)[0]
-            if not comment_line.startswith('#!'):
-              raise XPulumiError(f"Content-Type \"{mime_type}\" requires shebang on first line of content: {comment_line}")
-            comment_line_included = True
-          else:
-            part_type = mime_to_user_data_part_type.get(mime_type, None)
-          if not part_type is None:
-            comment_type = part_type.comment_line
-            comment_line = comment_type
           merged_headers.update(embedded_headers)
+          
+      if mime_type in [
+            'x-shellscript',
+            'x-shellscript-per-boot',
+            'x-shellscript-per-instance',
+            'x-shellscript-per-once' ]:
+        comment_type = "#!"
+        if comment_line is None:
+          comment_line = content.split('\n', 1)[0]
+        if not comment_line.startswith('#!'):
+          raise XPulumiError(f"Content-Type \"{mime_type}\" requires shebang on first line of content: {comment_line}")
+        comment_line_included = True
+      else:
+        part_type = mime_to_user_data_part_type.get(mime_type, None)
+        if not part_type is None:
+          comment_type = part_type.comment_line
+          comment_line = comment_type
 
       mime_version: Optional[str] = merged_headers.pop('MIME-Version', None)
       self.content = content
@@ -215,7 +217,7 @@ class SyncUserDataPart:
 
   def render(
         self,
-        include_mime_version: bool=False,
+        include_mime_version: bool=True,
         force_mime: bool=False,
         include_from: bool=False,
       ) -> Optional[str]:
@@ -224,10 +226,10 @@ class SyncUserDataPart:
       if not force_mime and not self.comment_line is None:
         result = ("" if self.comment_line_included else self.comment_line + '\n') + self.content
       else:
-        result: str = f"Content-type: {self.mime_type}\n"
+        result: str = f"Content-Type: {self.mime_type}\n"
         if include_mime_version:
           mime_version = "1.0" if self.mime_version is None else self.mime_version
-          result += f"Content-type: {self.mime_type}\n"
+          result += f"MIME-Version: {mime_version}\n"
         for k,v in self.headers:
           if include_from or k != 'From':
             result += f"{k}: {v}\n"
@@ -267,21 +269,22 @@ class SyncUserData:
       if not content.content is None:
         self.parts.append(content)
 
-  def render(self, include_mime_version: bool=False) -> Optional[str]:
-    #breakpoint()
+  def render(self, include_mime_version: bool=True) -> Optional[str]:
     result: Optional[str]
     if self.raw_binary is None:
+      if not len(self.parts) > 0 and not include_mime_version:
+        raise XPulumiError("include_mime_version MUST be True for the outermost user_data part")
       if len(self.parts) == 0:
         result = None
       elif len(self.parts) == 1:
-        result = self.parts[0].render(include_mime_version=True)
+        result = self.parts[0].render(include_mime_version=include_mime_version)
       else:
-        rendered_parts = [ part.render(force_mime=True) for part in self.parts ]
+        rendered_parts = [ part.render(force_mime=True, include_mime_version=False) for part in self.parts ]
 
         # Find a unique boundary string that is not in any of the rendered parts
         unique = 0
         while True:
-          boundary = f"@@{unique}@@"
+          boundary = f'::{unique}::'
           for rp in rendered_parts:
             assert not rp is None
             if boundary in rp:
@@ -302,7 +305,7 @@ class SyncUserData:
 
     return result
 
-  def render_binary(self, include_mime_version: bool=False) -> Optional[bytes]:
+  def render_binary(self, include_mime_version: bool=True) -> Optional[bytes]:
     if self.raw_binary is None:
       content = self.render(include_mime_version=include_mime_version)
       bcontent = content.encode('utf-8')
@@ -321,7 +324,7 @@ class SyncUserData:
       bcontent = self.raw_binary
     return bcontent
 
-  def render_base64(self, include_mime_version: bool=False) -> Optional[str]:
+  def render_base64(self, include_mime_version: bool=True) -> Optional[str]:
     bcontent = self.render_binary(include_mime_version=include_mime_version)
     b64 = b64encode(bcontent).decode('utf-8')
     return b64
@@ -359,7 +362,7 @@ class UserDataPart:
 
   def render(
         self,
-        include_mime_version: Input[bool]=False,
+        include_mime_version: Input[bool]=True,
         force_mime: Input[bool]=False,
         include_from: Input[bool]=False,
       ) -> Output[Optional[str]]:
@@ -413,7 +416,6 @@ class UserData:
         include_mime_version: bool,
         parts: List[SyncUserDataPart]
       ) -> Optional[Union[str, bytes]]:
-    #breakpoint()
     sync_user_data = SyncUserData(content, mime_type=mime_type, headers=headers)
     for part in parts:
       sync_user_data.add(part)
@@ -440,21 +442,21 @@ class UserData:
     return result
 
 
-  def render(self, include_mime_version: Input[bool]=False) -> Output[Optional[str]]:
+  def render(self, include_mime_version: Input[bool]=True) -> Output[Optional[str]]:
     result: Output[Optional[str]] = self._render_var(
         lambda args: args[0].render(include_mime_version=args[1]),
         include_mime_version=include_mime_version
       )
     return result
 
-  def render_binary(self, include_mime_version: Input[bool]=False) -> Output[Optional[bytes]]:
+  def render_binary(self, include_mime_version: Input[bool]=True) -> Output[Optional[bytes]]:
     result: Output[Optional[bytes]] = self._render_var(
         lambda args: args[0].render_binary(include_mime_version=args[1]),
         include_mime_version=include_mime_version
       )
     return result
 
-  def render_base64(self, include_mime_version: Input[bool]=False) -> Output[Optional[str]]:
+  def render_base64(self, include_mime_version: Input[bool]=True) -> Output[Optional[str]]:
     result: Output[Optional[str]] = self._render_var(
         lambda args: args[0].render_base64(include_mime_version=args[1]),
         include_mime_version=include_mime_version
@@ -481,25 +483,27 @@ UserDataConvertible = Optional[
 
 def sync_render_user_data_base64(
       content: SyncUserDataConvertible,
-      include_mime_version: bool=False,
     ) -> Optional[str]:
   user_data = SyncUserData(content)
-  result = user_data.render_base64(include_mime_version=include_mime_version)
+  # Note: include_mime_version is required by cloud-init for the top-level part,
+  # so we don't even allow setting it to False.
+  result = user_data.render_base64(include_mime_version=True)
   return result
 
 def render_user_data_base64(
       content: UserDataConvertible,
-      include_mime_version: Input[bool]=False,
       debug_log: bool=True,
     ) -> Output[Optional[str]]:
   user_data = UserData(content)
   if debug_log:
-    text = user_data.render(include_mime_version=include_mime_version)
+    text = user_data.render(include_mime_version=True)
     def report(text: str):
       if text is None:
         pulumi.log.info(f"Rendered user_data is: None")
       else:
         pulumi.log.info(f"Rendered user_data is:\n{multiline_indent(text, 4)}")
     Output.all(text).apply(lambda args: report(*args))
-  result = user_data.render_base64(include_mime_version=include_mime_version)
+  # Note: include_mime_version is required by cloud-init for the top-level part,
+  # so we don't even allow setting it to False.
+  result = user_data.render_base64(include_mime_version=True)
   return result

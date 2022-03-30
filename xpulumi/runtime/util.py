@@ -45,14 +45,21 @@ from ..util import ( run_once)
 
 initial_cwd = os.getcwd()
 
+_debugger_attached: bool = False
+
+def xbreakpoint() -> None:
+  if _debugger_attached:
+    breakpoint()
 
 def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=30) -> None:
+  global _debugger_attached
   if os.environ.get("XPULUMI_DEBUGGER", '') != '':
     pulumi.log.info("Pulumi debugger activated; waiting for debugger to attach")
     debugpy.listen((host, port))
     max_wait_s = max_wait_secs
     while max_wait_s >= 0:
         if debugpy.is_client_connected():
+            _debugger_attached = True
             pulumi.log.info("Pulumi debugger attached")
             breakpoint()
             break

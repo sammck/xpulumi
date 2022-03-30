@@ -23,6 +23,7 @@ from .util import (
     list_of_promises,
     default_val,
     enable_debugging,
+    xbreakpoint,
   )
 from .common import (
     pconfig,
@@ -31,6 +32,8 @@ from .common import (
     stack_short_prefix,
     aws_global_region,
     aws_default_region,
+    aws_account_id,
+    aws_global_account_id,
     aws_provider,
     aws_resource_options,
     aws_invoke_options,

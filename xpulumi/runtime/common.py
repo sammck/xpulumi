@@ -45,12 +45,19 @@ class AwsRegionData:
   aws_provider: pulumi_aws.Provider
   resource_options: ResourceOptions
   invoke_options: InvokeOptions
+  caller_identity: pulumi_aws.GetCallerIdentityResult
+
 
   def __init__(self, aws_region: str):
     self.aws_region = aws_region
     self.aws_provider = pulumi_aws.Provider('aws-%s' % aws_region, region=aws_region)
     self.resource_options = ResourceOptions(provider=self.aws_provider)
     self.invoke_options = InvokeOptions(provider=self.aws_provider)
+    self.caller_identity = pulumi_aws.get_caller_identity(opts=self.invoke_options)
+
+  @property
+  def account_id(self) -> str:
+    return self.caller_identity.account_id
 
 _aws_regions: Dict[str, AwsRegionData] = {}
 _aws_regions_lock = threading.Lock()
@@ -68,11 +75,13 @@ aws_region_data = get_aws_region_data(aws_region)
 aws_provider = aws_region_data.aws_provider
 aws_resource_options = aws_region_data.resource_options
 aws_invoke_options = aws_region_data.invoke_options
+aws_account_id = aws_region_data.account_id
 
 aws_global_region_data = get_aws_region_data(aws_global_region)
 aws_global_provider = aws_global_region_data.aws_provider
 aws_global_resource_options = aws_global_region_data.resource_options
 aws_global_invoke_options = aws_global_region_data.invoke_options
+aws_global_account_id = aws_global_region_data.account_id
 
 
 def get_availability_zones(aws_region: Optional[str]=None):
