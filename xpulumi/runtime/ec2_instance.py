@@ -595,7 +595,7 @@ class Ec2Instance:
         )
       self.instance_dependencies.append(self.ebs_data_volume)
 
-    rendered_user_data = render_user_data_base64(self.user_data)
+    rendered_user_data = render_user_data_base64(self.user_data, debug_log=True)
     
     # Create an EC2 instance
     self.ec2_instance = ec2.Instance(

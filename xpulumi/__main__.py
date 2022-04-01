@@ -397,7 +397,7 @@ class CommandHandler:
   def cmd_be_create(self) -> int:
     args = self._args
     new_s3_bucket_project: Optional[str] = args.new_s3_bucket_project,
-    new_s3_bucket_backend: optional[str] = args.backend
+    new_s3_bucket_backend: Optional[str] = args.backend
     new_backend: str = args.new_backend
     new_backend_uri: Optional[str] = args.new_backend_uri
     if new_backend_uri is None or new_backend_uri == "file" or new_backend_uri == "file:" or new_backend_uri == "file://":

@@ -468,6 +468,17 @@ python-versions = "*"
 click = "*"
 
 [[package]]
+name = "cloud-init-gen"
+version = "1.1.0"
+description = "Simplified generation of cloud-init user-data content"
+category = "main"
+optional = false
+python-versions = ">=3.8,<4.0"
+
+[package.dependencies]
+PyYAML = ">=6.0,<7.0"
+
+[[package]]
 name = "colorama"
 version = "0.4.4"
 description = "Cross-platform colored terminal text."
@@ -1207,7 +1218,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "db7ac27352aaa000f8c2cd0147d93f1fafd95c46bc7a5f0371d45e1ceb5a86a0"
+content-hash = "e663688f56d79eb68c176e6a89ae2a6f4287c1d1ee72f81e0c1e0e9b47a5e274"
 
 [metadata.files]
 argcomplete = [
@@ -1313,6 +1324,10 @@ click = [
 click-log = [
     {file = "click-log-0.4.0.tar.gz", hash = "sha256:3970f8570ac54491237bcdb3d8ab5e3eef6c057df29f8c3d1151a51a9c23b975"},
     {file = "click_log-0.4.0-py2.py3-none-any.whl", hash = "sha256:a43e394b528d52112af599f2fc9e4b7cf3c15f94e53581f74fa6867e68c91756"},
+]
+cloud-init-gen = [
+    {file = "cloud-init-gen-1.1.0.tar.gz", hash = "sha256:84bd8cc551dd9d807a780053aa5fe9b120da345b7b9f6567793a293473ade5ac"},
+    {file = "cloud_init_gen-1.1.0-py3-none-any.whl", hash = "sha256:31c20d2272e4913ff14c6cfcb62347929f6cc739f74ab969b9e9e627ce3338c4"},
 ]
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
