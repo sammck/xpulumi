@@ -11,19 +11,13 @@
             },
             "pathMappings": [
                 {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "${workspaceFolder}",
                     ".": "${workspaceFolder}",
                     "~": "${env:HOME}",
                 }
             ],
             "justMyCode": false
-        },
-        {
-            "type": "bashdb",
-            "request": "launch",
-            "name": "Bash-Debug (select script from list of sh files)",
-            "cwd": "${workspaceFolder}/tools",
-            "program": "${command:SelectScriptName}",
-            "args": []
         },
         {
             "name": "Python: Current File",
@@ -43,7 +37,7 @@
                 "test"
             ],
             "justMyCode": false
-        }
+        },
         {
             "name": "backend create local",
             "type": "python",

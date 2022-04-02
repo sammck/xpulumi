@@ -2,7 +2,7 @@
 
 from base64 import b64encode
 from copy import deepcopy
-from typing import Optional, List, Union, Set, Tuple
+from typing import Optional, List, Union, Set, Tuple, cast
 
 import subprocess
 import os
@@ -74,6 +74,7 @@ from .user_data import (
     render_user_data_base64,
     UserDataConvertible
   )
+from .ebs_volume import EbsVolume
 
 @future_func
 def get_ami_name_filter(ami_arch: str, ami_distro: str, ami_os_version: str) -> str:
@@ -169,6 +170,100 @@ frontend_cloud_config = yamlify_promise(
 
 '''
 
+class Ec2Volume:
+  """
+  Metadata about a single mounted data volume on an EC2 instance.
+
+  Keeps track of the EBS volume, as well as which device name it is
+  associated with on the EC2 instance.
+
+  For non-HVM/non-nitro instances, the chosen device name, e.g., '/dev/sdf'
+  will be the same device name seen inside the instance.
+
+  For nitro-based instances (most HVM instances, and the default), the
+  device names seen inside the instance will be different, and will
+  be potentially reordered, as:
+    $ lsblk -o +serial
+    NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT                  SERIAL
+    nvme0n1     259:0    0   40G  0 disk                             vol0c14668ff49981879
+    └─nvme0n1p1 259:1    0   40G  0 part /                           
+    nvme1n1     259:2    0   40G  0 disk                             vol019ea9659aaae62e2
+
+  In this case nvme0n1 is the standard boot drive, forked from the instance AMI, with
+  its partition nvme0n1p1 becoming the root of the filesystem. nvme1n1 is the additional
+  data volume which was specified as '/dev/sdf' at instance launch time. The serial
+  number for attached EBS volumes is set to the EBS volume id.
+
+  In nitro instances, one way to reliably determine which internal device corresponds
+  to which attached EBS volume is to extract the serial number from the local device
+  and correlate it with the attached volume.
+
+  Another way is to use the nvme tool (requires root):
+
+    $ sudo apt-get install -y nvme-cli
+    $ sudo nvme id-ctrl -v /dev/nvme1n1 | grep 0000: | cut -c 56-71 | sed 's/\.//g'
+    /dev/sdf
+
+  Another way is to install ebsnvme-id from https://github.com/amazonlinux/amazon-ec2-utils
+  (also requires sudo). It is a simple python app, no dependencies, 7056 bytes long:
+
+    sudo ./ebsnvme-id -b /dev/nvme1n1
+    /dev/sdf
+
+  Another way is to refer to the device with the symlink:
+
+    /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol019ea9659aaae62e2
+
+  substituting the correct EBS volume ID as needed
+
+  See https://docs.aws.amazon.com/efs/latest/ug/installing-amazon-efs-utils.html#installing-other-distro
+
+
+
+  """
+
+  vol: EbsVolume
+  unit_name: str
+  """The device name visible to AWS EBS API, without the '/dev/' prefix; e.g., 'sdf', 'sdg', ..."""
+  attachment: Optional[ec2.VolumeAttachment] = None
+
+
+  _volume_id: Optional[Output[str]] = None
+  _shortened_volume_id: Optional[Output[str]] = None
+  _internal_device_name: Optional[Output[str]] = None
+
+
+  def __init__(self, vol: EbsVolume, unit_name: str):
+    self.vol = vol
+    self.unit_name = unit_name
+
+  def commit(self):
+    self.vol.commit()
+
+  def get_volume_id(self) -> Output[str]:
+    if self._volume_id is None:
+      self.commit()
+      self._volume_id = self.vol.ebs_volume.id
+      assert not self._volume_id is None
+    return self._volume_id
+
+  def get_shortened_volume_id(self) -> Output[str]:
+    if self._shortened_volume_id is None:
+      vol_id = self.get_volume_id()
+      self._shortened_volume_id = cast(Output[str], Output.all(vol_id).apply(lambda args: args[0].replace('vol-', '')))
+    return self._shortened_volume_id
+
+  def get_internal_device_name(self) -> Output[str]:
+    if self._internal_device_name is None:
+      s_vol_id = self.get_shortened_volume_id()
+      self._internal_device_name = cast(Output[str], Output.all(s_vol_id).apply(lambda args: f"/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{args[0]}"))
+    return self._internal_device_name
+
+  @property
+  def external_dev_name(self) -> str:
+    return f'/dev/{self.unit_name}'
+  
+
 class Ec2Instance:
   # define a policy that allows EC2 to assume our roles for the purposes of creating EC2 instances
   DEFAULT_ASSUME_ROLE_POLICY_OBJ: JsonableDict = {
@@ -220,7 +315,7 @@ class Ec2Instance:
   instance_profile: iam.InstanceProfile
   instance_type: str
   sys_volume_size_gb: int
-  data_volume_size_gb: int
+  #data_volume_size_gb: int
   keypair: Ec2KeyPair
   instance_dependencies: List[Output]
   cloudwatch_agent_attached_policy: iam.RolePolicyAttachment
@@ -245,13 +340,17 @@ class Ec2Instance:
   open_ports: Optional[List[Union[int, JsonableDict]]] = None
   dns_records: List[route53.Record]
   vpc: VpcEnv
+  az: str
+  subnet_id: Input[str]
   sg: FrontEndSecurityGroup
-  ebs_data_volume: Optional[ebs.Volume] = None
+  #ebs_data_volume: Optional[ebs.Volume] = None
+  data_volumes: List[Ec2Volume]
   ec2_instance: ec2.Instance
   eip_association: Optional[ec2.EipAssociation] = None
-  data_volume_attachment: Optional[ec2.VolumeAttachment] = None
-  user_data_text: Input[Optional[str]] = None
+  # data_volume_attachment: Optional[ec2.VolumeAttachment] = None
   user_data: UserDataConvertible = None
+  _volumes_committed: bool = False
+  _committed: bool = False
 
   def __init__(
         self,
@@ -263,7 +362,8 @@ class Ec2Instance:
         description: Optional[str]=None,
         instance_type: Optional[str]=None,
         sys_volume_size_gb: Optional[int]=None,
-        data_volume_size_gb: Optional[int]=None,
+        #data_volume_size_gb: Optional[int]=None,
+        data_volumes: Optional[List[Union[int, EbsVolume]]]=None,
         public_key: Optional[str]=None,
         public_key_file: Optional[str]=None,
         role_policy_obj: Optional[JsonableDict]=None,
@@ -278,11 +378,14 @@ class Ec2Instance:
         user_data: UserDataConvertible = None,
         commit: bool=True,
       ):
+    self.data_volumes = []
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
 
     self.vpc = vpc
+    self.az = vpc.azs[0]
+    self.subnet_id = vpc.subnet_ids[0]
 
     ami_distro = self.DEFAULT_AMI_DISTRO
     ami_owner = self.AMI_OWNER_CANONICAL
@@ -294,8 +397,11 @@ class Ec2Instance:
         instance_type = pconfig.get(f'{cfg_prefix}ec2_instance_type')
       if sys_volume_size_gb is None:
         sys_volume_size_gb = pconfig.get_int(f'{cfg_prefix}ec2_sys_volume_size')
-      if data_volume_size_gb is None:
-        data_volume_size_gb = pconfig.get_int(f'{cfg_prefix}ec2_data_volume_size')
+      if data_volumes is None:
+        data_volumes = pconfig.get(f'{cfg_prefix}ec2_data_volume_sizes')
+        if not data_volumes is None:
+          if isinstance(data_volumes, str):
+            data_volumes = [ int(data_volumes) ]
       if ami_os_version is None:
         ami_os_version = pconfig.get(f'{cfg_prefix}ec2_ami_os_version')
       if use_elastic_ip is None:
@@ -321,11 +427,6 @@ class Ec2Instance:
 
     if sys_volume_size_gb is None:
       sys_volume_size_gb = self.DEFAULT_SYS_VOLUME_SIZE_GB
-
-    if data_volume_size_gb is None:
-      data_volume_size_gb = self.DEFAULT_DATA_VOLUME_SIZE_GB
-      if data_volume_size_gb is None:
-        data_volume_size_gb = 0
 
     if ami_os_version is None:
       ami_os_version = self.DEFAULT_AMI_OS_VERSION
@@ -394,7 +495,6 @@ class Ec2Instance:
 
     self.instance_type = instance_type
     self.sys_volume_size_gb = sys_volume_size_gb
-    self.data_volume_size_gb = data_volume_size_gb
     self.ami_os_version = ami_os_version
     self.ami_owner = ami_owner
     self.ami_distro = ami_distro
@@ -407,6 +507,13 @@ class Ec2Instance:
     self.open_ports = open_ports
     self.parent_dns_zone = parent_dns_zone
     self.user_data = user_data
+
+    if not data_volumes is None:
+      for dv in data_volumes:
+        if isinstance(dv, int):
+          self.add_data_volume(volume_size_gb=dv)
+        else:
+          self.add_data_volume(vol=dv)
 
     # define an assume role policy that allows EC2 to assume a role for our instance
     if assume_role_policy_obj is None:
@@ -433,7 +540,45 @@ class Ec2Instance:
     if commit:
       self.commit()
 
+  def add_data_volume(
+        self,
+        vol: Optional[EbsVolume]=None,
+        volume_size_gb: Optional[int]=None,
+        name: Input[Optional[str]]=None,
+        use_config: bool=True,
+        cfg_prefix: Optional[str]=None,
+        id: Input[Optional[str]]=None,
+      ) -> Ec2Volume:
+    resource_prefix = self.resource_prefix
+    unit_name = 'sd' + chr(ord('f') + len(self.data_volumes))
+
+    if vol is None:
+      vol = EbsVolume(
+          f'{resource_prefix}ec2-instance-',
+          unit_name=unit_name,
+          az=self.az,
+          volume_size_gb=volume_size_gb,
+          name=name,
+          use_config=use_config,
+          cfg_prefix=cfg_prefix,
+          id=id,
+          commit=False   # We will commit at self.commit_volumes() time
+        )
+    assert isinstance(vol, EbsVolume)
+    ec2_vol = Ec2Volume(vol, unit_name)
+    self.data_volumes.append(ec2_vol)
+    return ec2_vol
+
+  def commit_volumes(self):
+    if not self._volumes_committed:
+      for ec2_vol in self.data_volumes:
+        ec2_vol.commit()
+      self._volumes_committed = True
+
   def commit(self):
+    if self._committed:
+      return
+
     resource_prefix = self.resource_prefix
     self.role_policy = iam.Policy(
         f"{resource_prefix}ec2-role-policy",
@@ -583,20 +728,10 @@ class Ec2Instance:
       resource_prefix=resource_prefix,
     )
 
-    if self.data_volume_size_gb > 0:
-      # Create a data volume as a separate resource so it can remain stable while EC2 instance
-      # is replaced.
-      self.ebs_data_volume = ebs.Volume(
-          f'{resource_prefix}ec2-instance-data-volume',
-          availability_zone=self.vpc.azs[0],  # place in the first AZ
-          size=self.data_volume_size_gb,
-          tags=with_default_tags(Name=f"{self.instance_name}-data"),
-          opts=aws_resource_options,
-        )
-      self.instance_dependencies.append(self.ebs_data_volume)
+    self.commit_volumes()
 
     rendered_user_data = render_user_data_base64(self.user_data, debug_log=True)
-    
+
     # Create an EC2 instance
     self.ec2_instance = ec2.Instance(
         f'{resource_prefix}ec2-instance',
@@ -605,7 +740,7 @@ class Ec2Instance:
         iam_instance_profile=self.instance_profile.name,
         key_name=self.keypair.keypair.key_name,
         associate_public_ip_address=self.eip is None,   # deferred until EIP is assigned. Sadly no way to do this atomically
-        subnet_id=self.vpc.public_subnet_ids[0],  # Place in the first AZ
+        subnet_id=self.subnet_id,
         vpc_security_group_ids=[ self.sg.sg.id ],
         root_block_device=dict(volume_size=self.sys_volume_size_gb),
         user_data_base64=rendered_user_data,
@@ -623,18 +758,17 @@ class Ec2Instance:
           opts=aws_resource_options,
         )
 
-    if not self.ebs_data_volume is None:
+    for ec2_vol in self.data_volumes:
       # attach the ebs data volume volume to the instance. Unfortunately no way to do this at launch time
-      data_volume_attachment = ec2.VolumeAttachment(
-          f"{resource_prefix}ec2-data-volume-attachment",
-          device_name="/dev/sdf",
-          volume_id = self.ebs_data_volume.id,
+      ec2_vol.attachment = ec2.VolumeAttachment(
+          f"{resource_prefix}ec2-volume-attachment-{ec2_vol.unit_name}",
+          device_name=f"/dev/{ec2_vol.unit_name}",
+          volume_id = ec2_vol.get_volume_id(),
           instance_id = self.ec2_instance.id,
           stop_instance_before_detaching=True,
           opts=ResourceOptions(provider=aws_provider, delete_before_replace=True)
         )
-      self.data_volume_attachment = data_volume_attachment
-
+    self._committed = True
 
   def stack_export(self, export_prefix: Optional[str]=None) -> None:
     if export_prefix is None:
