@@ -47,43 +47,16 @@ ec2_instance = Ec2Instance(
     commit=False
   )
 
-ec2_instance.add_data_volume(volume_size_gb=40)
-ec2_instance.commit_volumes()
-
-
-data_device_names = [ x.get_internal_device_name() for x in ec2_instance.data_volumes ]
-
-user_data = UserData()
-
-if len(data_device_names) > 0:
-  # Add a boothook to wait for all data volumes to be attached before
-  # proceeding with cloud-init. This is necessary because EC2 in its wisdom
-  # does not let you create an EC2 instance without starting it, and
-  # there is no way to attach a volume to an EC2 instance until after the
-  # instance is created.
-
-  boothook_dev_names = Output.all(*data_device_names).apply(lambda args: '["' + '","'.join(args) + '"]')
-  boothook_text = Output.concat('''#boothook
-#!/usr/bin/env python3
-import os,time
-os.close(1)
-os.dup2(os.open("/var/log/ec2-boothook.log",flags=os.O_WRONLY|os.O_CREAT|os.O_TRUNC,mode=0o640), 1)
-os.close(2)
-os.dup2(1,2)
-dl=''', boothook_dev_names, '''
-nt=0
-while len(dl) > 0:
- if nt>0:
-  if nt>24:
-   raise RuntimeError(f"Timeout waiting for {dl}")
-  print(f"{dl} nonexistent; sleeping")
-  time.sleep(5)
- nt+=1
- for d in dl[:]:
-  if os.path.exists(d):
-   dl.remove(d)
+# A little hacky, we need to create a dir very early so that
+# our data volume bind mount for the docker volumes directory will work
+# before docker is installed.
+ec2_instance.add_user_data('''#boothook
+#!/bin/bash
+mkdir -p -m 710 /var/lib/docker
+mkdir -p -m 755 /var/lib/docker/volumes
 ''')
-  user_data.add(boothook_text)
+
+data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
 
 ecr_domain: str = f"{aws_account_id}.dkr.ecr.{aws_default_region}.amazonaws.com"
 #front_end_bootstrap_full_repo_name: str = f"{ecr_domain}/{front_end_bootstrap_repo_name}:{front_end_bootstrap_repo_tag}"
@@ -99,7 +72,7 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 
 cloud_config_obj = dict(
     device_aliases = {
-        'datavol': data_device_names[0],
+        'datavol': data_vol.get_internal_device_name(),
       },
     disk_setup = {
         'datavol': dict(
@@ -118,6 +91,8 @@ cloud_config_obj = dict(
       ],
     mounts = [
         [ 'datavol', '/data', 'auto', 'defaults,discard', '0', '0' ],
+        [ '/data/docker-volumes', '/var/lib/docker/volumes', 'none', 'x-systemd.requires=/data,x-systemd.automount,bind', '0', '0' ],
+        [ '/data/home', '/home', 'none', 'x-systemd.requires=/data,x-systemd.automount,bind', '0', '0' ],
       ],
     repo_update = True,
     repo_upgrade = "all",
@@ -152,9 +127,7 @@ cloud_config_obj = dict(
       ],
   )
 
-user_data.add(cloud_config_obj)
+ec2_instance.add_user_data(cloud_config_obj)
 
-
-ec2_instance.user_data = user_data
 ec2_instance.commit()
 ec2_instance.stack_export()

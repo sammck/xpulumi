@@ -142,50 +142,91 @@ class UserDataPart:
 UserDataConvertible = Union['UserData', UserDataPart, Input[CloudInitDocConvertible]]
 
 class UserData:
-  init_content: Input[CloudInitDocConvertible]
+  init_content: Input[CloudInitDocConvertible] = None
   init_mime_type: Input[Optional[str]] = None
   init_headers: Input[MimeHeadersConvertible] = None
-  parts: List[UserDataPart]
+  init_priority: int
+
+  _priority_parts: List[Tuple[int, UserDataPart]]
+  """List of (priority, document-part) tuples, in priority order (lower values first)"""
+  _parts: List[UserDataPart]
+  """List of document parts in priority order"""
 
   def __init__(
         self,
         content: UserDataConvertible=None,
         mime_type: Input[Optional[str]]=None,
-        headers: Input[MimeHeadersConvertible]=None):
+        headers: Input[MimeHeadersConvertible]=None,
+        priority: int=500,
+      ):
     if isinstance(content, UserData):
       self.init_content = content.init_content
       self.init_mime_type = content.init_mime_type
       self.init_headers = content.init_headers
-      self.parts = content.parts[:]
+      self.init_priority = content.init_priority
+      self._priority_parts = content._priority_parts[:]
     elif isinstance(content, UserDataPart):
-      self.parts = [ content ]
+      self._priority_parts = [ (priority, content) ]
     else:
-      self.parts = []
+      self._priority_parts = []
       self.init_mime_type = mime_type
       self.init_headers = headers
       self.init_content = content
+      self.init_priority = priority
+    self._parts = [ x[1] for x in self._priority_parts ]
+
+  @property
+  def parts(self) -> List[UserDataPart]:
+    return self._parts
 
   def add(
         self,
         content: Union[UserDataPart, Input[CloudInitPartConvertible]],
         mime_type: Input[Optional[str]]=None,
-        headers: Input[MimeHeadersConvertible]=None
+        headers: Input[MimeHeadersConvertible]=None,
+        priority: int=500,
       ) -> None:
     if not content is None:
       if not isinstance(content, UserDataPart):
         content = UserDataPart(content, mime_type=mime_type, headers=headers)
-      self.parts.append(content)
+      i = len(self._priority_parts)
+      while i > 0 and self._priority_parts[i-1][0] > priority:
+        i -= 1
+      self._priority_parts.insert(i, (priority, content))
+      self._parts = [ x[1] for x in self._priority_parts ]
+
+  def add_boothook(self, script: Input[str], priority: int=500) -> None:
+    content = Output.concat('#boothook\n', script)
+    self.add(content, priority=priority)
 
   def _sync_render_var(
         self,
         content: CloudInitDocConvertible,
         mime_type: Optional[str],
         headers: MimeHeadersConvertible,
+        priority: int,
         sync_render: Callable[[CloudInitDoc], Optional[Union[str, bytes]]],
         include_mime_version: bool,
         parts: List[CloudInitPart]
       ) -> Optional[Union[str, bytes]]:
-    sync_user_data = CloudInitDoc(content, mime_type=mime_type, headers=headers)
+    assert len(parts) == len(self._priority_parts)
+    #sync_user_data = CloudInitDoc(content, mime_type=mime_type, headers=headers)
+    if isinstance(content, CloudInitDoc):
+      sync_user_data = CloudInitDoc(content)
+    else:
+      sync_user_data = CloudInitDoc()
+      if not content is None:
+        # insert the init part in the correct priority position, but
+        # at the earliest point possible (before others with equal priority)
+        init_part = CloudInitPart(content=content, mime_type=mime_type, headers=headers)
+        priorities = [ x[0] for x in self._priority_parts ]
+        parts = parts[:]
+        i = 0
+        while i < len(priorities) and priorities[i] < priority:
+          i += 1
+        parts.insert(i, init_part)
+        priorities.insert(i, priority)
+
     for part in parts:
       sync_user_data.add(part)
     result = sync_render([sync_user_data, include_mime_version])
@@ -202,11 +243,12 @@ class UserData:
         self.init_content,
         self.init_mime_type,
         self.init_headers,
+        self.init_priority,
         sync_render,
         include_mime_version,
         *sync_parts
       ).apply(
-        lambda args: self._sync_render_var(args[0], args[1], args[2], args[3], args[4], args[5:])
+        lambda args: self._sync_render_var(args[0], args[1], args[2], args[3], args[4], args[5], args[6:])
       )
     return result
 

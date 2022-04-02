@@ -71,8 +71,12 @@ from .security_group import FrontEndSecurityGroup
 from .ec2_keypair import Ec2KeyPair
 from .dns import DnsZone
 from .user_data import (
+    UserData,
     render_user_data_base64,
-    UserDataConvertible
+    UserDataConvertible,
+    UserDataPart,
+    CloudInitPartConvertible,
+    MimeHeadersConvertible,
   )
 from .ebs_volume import EbsVolume
 
@@ -263,6 +267,78 @@ class Ec2Volume:
   def external_dev_name(self) -> str:
     return f'/dev/{self.unit_name}'
   
+def sync_gen_wait_for_volumes_script(
+      internal_device_names: List[str],
+      max_wait_seconds: int = 120,
+      redirect_output_filename: Optional[str] = "/var/log/vol-wait.log"
+    ) -> str:
+  script = '''#!/usr/bin/env python3
+import os,time'''
+  if not redirect_output_filename is None:
+    script += """
+os.close(1)
+os.dup2(os.open('""" + redirect_output_filename + """',flags=os.O_WRONLY|os.O_CREAT|os.O_TRUNC,mode=0o644), 1)
+os.close(2)
+os.dup2(1,2)"""
+
+  if len(internal_device_names) == 0:
+    script += '''
+print("No vols to wait for. All vols up.")'''
+  else:
+    quoted_dev_names = '"' + '","'.join(internal_device_names) + '"'
+    script += '''
+dl=[''' + quoted_dev_names + ''']
+nt=0
+print(f"Waiting for vols {dl}")
+pdl=[]
+while len(dl) > 0:
+ if nt>0:'''
+    if max_wait_seconds > 0:
+      script += '''
+  if nt>''' + str(max_wait_seconds) + ''':
+   raise RuntimeError(f"Timeout waiting for {dl}")'''
+    script += '''
+  if dl != pdl:
+    print(f"{dl} nonexistent; sleeping")
+    pdl=dl
+  time.sleep(1)
+ nt+=1
+ for d in dl[:]:
+  if os.path.exists(d):
+   dl.remove(d)
+print("All vols up")
+'''
+  script += '\n'
+  return script
+
+def gen_wait_for_volumes_script(
+      internal_device_names: Input[List[str]],
+      max_wait_seconds: int = 120,
+      redirect_output_filename: Optional[str] = "/var/log/vol-wait.log"
+    ) -> Output[str]:
+  """Given a list of device names (e.g., "/dev/sda1"), generates a short python script that will
+     wait until all of the devices exist before exiting. This is useful to delay cloud-init
+     processing until required EBS volumes have been attached to a newly started EC2 instance.
+
+  Args:
+      internal_device_names (Input[List[str]]): Future list of linus device names to wait for
+      max_wait_seconds (int):
+                The maximum number of seconds to wait before giving up and failing.
+                If 0, will wait forever.  Default 120.
+      redirect_output_filename:
+                The filename to write logging output to. If None, will write to stdout/stderr.
+                Default is "/var/log/vol-wait.log".
+
+  Returns:
+      Output[str]: A future python script with "#!/usr/bin/env python3" header that will wait for the devices.
+                   NOTE: Does *not* include a "#boothook" cloud-init header.
+  """
+  result: Output[str] = Output.all(
+      max_wait_seconds, redirect_output_filename, *internal_device_names
+    ).apply(
+        lambda args: sync_gen_wait_for_volumes_script(args[2:], max_wait_seconds=args[0], redirect_output_filename=args[1])
+      )
+  return result
 
 class Ec2Instance:
   # define a policy that allows EC2 to assume our roles for the purposes of creating EC2 instances
@@ -348,7 +424,9 @@ class Ec2Instance:
   ec2_instance: ec2.Instance
   eip_association: Optional[ec2.EipAssociation] = None
   # data_volume_attachment: Optional[ec2.VolumeAttachment] = None
-  user_data: UserDataConvertible = None
+  user_data: UserData
+  wait_for_volumes_at_boot: bool = True
+  _wait_for_volumes_added: bool = False
   _volumes_committed: bool = False
   _committed: bool = False
 
@@ -376,6 +454,7 @@ class Ec2Instance:
         instance_name: Optional[str] = None,
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
         user_data: UserDataConvertible = None,
+        wait_for_volumes_at_boot: bool = True,
         commit: bool=True,
       ):
     self.data_volumes = []
@@ -506,7 +585,8 @@ class Ec2Instance:
     self.instance_name = instance_name
     self.open_ports = open_ports
     self.parent_dns_zone = parent_dns_zone
-    self.user_data = user_data
+    self.user_data = UserData(user_data)
+    self.wait_for_volumes_at_boot = wait_for_volumes_at_boot
 
     if not data_volumes is None:
       for dv in data_volumes:
@@ -539,6 +619,44 @@ class Ec2Instance:
     # ---- start creating resources
     if commit:
       self.commit()
+
+  def add_user_data(
+        self,
+        content: Union[UserDataPart, Input[CloudInitPartConvertible]],
+        mime_type: Input[Optional[str]]=None,
+        headers: Input[MimeHeadersConvertible]=None,
+        priority: int=500,
+      ) -> None:
+    self.user_data.add(
+        content,
+        mime_type=mime_type,
+        headers=headers,
+        priority=priority,
+      )
+
+  def add_wait_for_volumes_boothook(
+        self,
+        max_wait_seconds: int=120,
+        redirect_output_filename: Optional[str]="/var/log/vol-wait.log",
+        priority: int=0
+      ) -> None:
+    if not self._wait_for_volumes_added:
+      self.commit_volumes()
+      data_device_names = [ x.get_internal_device_name() for x in self.data_volumes ]
+
+      if len(data_device_names) > 0:
+        # Add a boothook to wait for all data volumes to be attached before
+        # proceeding with cloud-init. This is necessary because EC2 in its wisdom
+        # does not let you create an EC2 instance without starting it, and
+        # there is no way to attach a volume to an EC2 instance until after the
+        # instance is created.
+        script = gen_wait_for_volumes_script(
+            data_device_names,
+            max_wait_seconds=max_wait_seconds,
+            redirect_output_filename=redirect_output_filename
+          )
+        self.user_data.add_boothook(script, priority=priority)
+      self._wait_for_volumes_added = True
 
   def add_data_volume(
         self,
@@ -729,6 +847,8 @@ class Ec2Instance:
     )
 
     self.commit_volumes()
+    if self.wait_for_volumes_at_boot:
+      self.add_wait_for_volumes_boothook()
 
     rendered_user_data = render_user_data_base64(self.user_data, debug_log=True)
 
