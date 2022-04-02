@@ -16,7 +16,7 @@ from xpulumi.runtime import (
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
 # will cause the program to stall waiting for vscode to
-# attack to port 5678 for debugging. Useful if Pulumi logging isn't
+# connect to port 5678 for debugging. Useful if Pulumi logging isn't
 # cutting it.
 enable_debugging()
 
