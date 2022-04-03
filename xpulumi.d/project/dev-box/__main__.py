@@ -1,6 +1,7 @@
 import json
 import shlex
 
+import pulumi
 from xpulumi.runtime import (
     VpcEnv,
     DnsZone,
@@ -9,6 +10,8 @@ from xpulumi.runtime import (
     CloudWatch,
     enable_debugging,
     aws_account_id,
+    pulumi_project_name,
+    stack_name,
   )
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
@@ -33,6 +36,11 @@ aws_region = vpc.aws_region
 cw_log_group_id = require_stack_output('cloudwatch_log_group', stack=aws_env_stack_name)
 cw = CloudWatch(log_group_id=cw_log_group_id)
 cw.stack_export()
+
+# import our shared S3 bucket/root key from the shared stack
+shared_s3_uri = require_stack_output('shared_s3_uri', stack=aws_env_stack_name)
+stack_s3_uri = shared_s3_uri + f"/g/{pulumi_project_name}/{stack_name}"
+pulumi.export("stack_s3_uri", stack_s3_uri)
 
 # Import our main DNS zone from the shared stack. This may be a
 # Route53 subzone created by the shared stack, or a top-level

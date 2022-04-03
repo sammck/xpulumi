@@ -27,8 +27,11 @@ from .util import (
   )
 from .common import (
     pconfig,
+    stack_name,
     long_stack,
     long_xstack,
+    pulumi_project_name,
+    xpulumi_project_name,
     stack_short_prefix,
     aws_global_region,
     aws_default_region,

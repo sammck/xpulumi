@@ -30,9 +30,12 @@ from ..util import get_git_user_email
 
 pconfig = pulumi.Config()
 
-long_stack = f"{pulumi.get_project()}-{pulumi.get_stack()}"
+stack_name = pulumi.get_stack()
+pulumi_project_name = pulumi.get_project()
+xpulumi_project_name = get_current_xpulumi_project_name()
+long_stack = f"{pulumi_project_name}-{stack_name}"
 stack_short_prefix = pulumi.get_stack()[:5] + '-'
-long_xstack = f"{get_current_xpulumi_project_name()}:{pulumi.get_stack()}"
+long_xstack = f"{xpulumi_project_name}:{stack_name}"
 
 aws_global_region = 'us-east-1'
 aws_default_region = pconfig.get('aws:region')
