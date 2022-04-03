@@ -1,7 +1,6 @@
 import json
 import shlex
 
-from pulumi import Output
 from xpulumi.runtime import (
     VpcEnv,
     DnsZone,
@@ -9,9 +8,7 @@ from xpulumi.runtime import (
     require_stack_output,
     CloudWatch,
     enable_debugging,
-    xbreakpoint,
     aws_account_id,
-    aws_default_region,
   )
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
@@ -25,14 +22,17 @@ enable_debugging()
 # main DNS zone, and other shared resources that can be used by multiple projects
 aws_env_stack_name = 'aws-env:dev'
 
+# Import our network configuration from the shared stack
+vpc = VpcEnv.stack_import(stack_name=aws_env_stack_name)
+vpc.stack_export()
+
+# Create our resources in the same region as the inherited VPC
+aws_region = vpc.aws_region
+
 # import our cloudwatch group from the shared stack
 cw_log_group_id = require_stack_output('cloudwatch_log_group', stack=aws_env_stack_name)
 cw = CloudWatch(log_group_id=cw_log_group_id)
 cw.stack_export()
-
-# Import our network configuration from the shared stack
-vpc = VpcEnv.stack_import(stack_name=aws_env_stack_name)
-vpc.stack_export()
 
 # Import our main DNS zone from the shared stack. This may be a
 # Route53 subzone created by the shared stack, or a top-level
@@ -100,19 +100,19 @@ ec2_instance = Ec2Instance(
 # some time after boot).
 #
 # Furthermore, on modern "nitro" EC2 instance types, the volume's device name specified
-# at instance launch time (e.g., "/dev/sdf") is different than the device name seen
+# at instance launch or volume attach time (e.g., "/dev/sdf") is different than the device name seen
 # inside the instance (e.g., "/dev/nvme1p1"), and there is no deterministic mapping
 # between the names.
 #
-# Thankfully, The elaborate dance that is required to make cloud-init just work with these dynamic
+# Thankfully, the elaborate dance that is required to make cloud-init work with these dynamic
 # volumes is automatically handled for us by the xpulumi Ec2Instance class. It adds a high-priority
 # boothook to the cloud-init user-data that waits for all the expected volumes to appear
-# before booting proceeds. And the object returned here from add_data_volume() provides
+# before booting proceeds. And, the Ec2Volume object returned here from add_data_volume() provides
 # a get_internal_device_name() method we can use to build our mountpoints in the cloud-config
 # docuument below...
 data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
 
-# For bind mounts, the cloud-init "mounts" module requires that mountpoints preexist
+# For bind mounts, the cloud-init "mounts" module requires that mountpoints pre-exist
 # before mounting. So we create the docker volumes mountpoint in a boothook, long
 # before docker is installed.
 ec2_instance.add_user_data('''#boothook
@@ -125,7 +125,7 @@ mkdir -p -m 755 /var/lib/docker/volumes
 # region, and for each AWS account. Also, there is a customized authentication
 # plugin for docker that allows you to access the repository using your AWS
 # credentials.
-ecr_domain: str = f"{aws_account_id}.dkr.ecr.{aws_default_region}.amazonaws.com"
+ecr_domain: str = f"{aws_account_id}.dkr.ecr.{aws_region}.amazonaws.com"
 
 docker_config_obj = {
     "credHelpers": {

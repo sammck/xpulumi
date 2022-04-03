@@ -234,6 +234,13 @@ class CommandHandler:
     self.pretty_print(pkg_version)
     return 0
 
+  def cmd_update_pulumi(self) -> int:
+    from xpulumi.installer import install_pulumi
+    cfg = self.get_config()
+    xpulumi_dir = os.path.join(cfg.xpulumi_dir, '.pulumi')
+    install_pulumi(xpulumi_dir, min_version='latest')
+    return 0
+
   def cmd_run(self) -> int:
     from xpulumi.installer.util import sudo_call
     args = self._args
@@ -499,6 +506,11 @@ class CommandHandler:
     parser_run.add_argument('cmd_and_args', nargs=argparse.REMAINDER,
                         help='Command and arguments as would be provided to sudo.')
     parser_run.set_defaults(func=self.cmd_run)
+
+    # ======================= update-pulumi
+
+    parser_update_pulumi = subparsers.add_parser('update-pulumi', description="Update the Pulumi CLI to the latest version.")
+    parser_update_pulumi.set_defaults(func=self.cmd_update_pulumi)
 
     # ======================= test
 

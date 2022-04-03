@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from importlib.abc import ResourceReader
+from re import I
 from typing import Optional, List
 
 import subprocess
@@ -28,6 +29,8 @@ from pulumi_aws import (
   kms,
   secretsmanager
 )
+
+from xpulumi.exceptions import XPulumiError
 
 from .util import (
   TTL_SECOND,
@@ -95,6 +98,30 @@ class VpcEnv:
   @property
   def vpc_id(self) -> int:
     return self.vpc.id
+
+  def get_default_az(self) -> str:
+    return self.azs[0]
+
+  def get_index_of_az(self, az: str) -> int:
+    for i, x in enumerate(self.azs):
+      if az == x:
+        return i
+    raise XPulumiError(f"Availability Zone \"{az}\" is not included in VPC AZs {self.azs}")
+
+  def get_az_index_of_subnet(self, subnet: ec2.Subnet) -> int:
+    for i in range(len(self.public_subnets)):
+      if subnet == self.public_subnets[i] or subnet == self.private_subnets[i]:
+        return i
+    raise XPulumiError(f"Subnet \"{subnet}\" is not included in VPC subnetss {self.public_subnets+self.private_subnets}")
+
+  def get_az_of_subnet(self, subnet: ec2.Subnet) -> str:
+    return self.azs[self.get_az_index_of_subnet(subnet)]
+
+  def get_private_subnet_for_az(self, az: str) -> ec2.Subnet:
+    return self.private_subnets[self.get_index_of_az(az)]
+
+  def get_public_subnet_for_az(self, az: str) -> ec2.Subnet:
+    return self.public_subnets[self.get_index_of_az(az)]
 
   @classmethod
   def load(

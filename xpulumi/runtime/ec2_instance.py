@@ -455,6 +455,7 @@ class Ec2Instance:
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
         user_data: UserDataConvertible = None,
         wait_for_volumes_at_boot: bool = True,
+        az: Optional[str] = None,
         commit: bool=True,
       ):
     self.data_volumes = []
@@ -463,8 +464,6 @@ class Ec2Instance:
     self.resource_prefix = resource_prefix
 
     self.vpc = vpc
-    self.az = vpc.azs[0]
-    self.subnet_id = vpc.subnet_ids[0]
 
     ami_distro = self.DEFAULT_AMI_DISTRO
     ami_owner = self.AMI_OWNER_CANONICAL
@@ -498,8 +497,14 @@ class Ec2Instance:
         open_ports = pconfig.get(f'{cfg_prefix}ec2_open_ports')
         if isinstance(open_ports, str):
           open_ports = json.loads(open_ports)
+      if az is None:
+        az = pconfig.get(f'{cfg_prefix}ec2_instance_az')
       if user_data is None:
         user_data = pconfig.get(f'{cfg_prefix}ec2_user_data')
+
+    if az is None:
+      az = vpc.get_default_az()
+    subnet_id = vpc.subnet_ids[vpc.get_index_of_az(az)]
 
     if instance_type is None:
       instance_type = self.DEFAULT_INSTANCE_TYPE
@@ -587,6 +592,9 @@ class Ec2Instance:
     self.parent_dns_zone = parent_dns_zone
     self.user_data = UserData(user_data)
     self.wait_for_volumes_at_boot = wait_for_volumes_at_boot
+    self.az = az
+    self.subnet_id = subnet_id
+
 
     if not data_volumes is None:
       for dv in data_volumes:
