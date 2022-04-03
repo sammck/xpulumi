@@ -148,6 +148,7 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
 #
 cloud_config_obj = dict(
+    docversion=1,    # for debugging, a way to force redeployment
     device_aliases = dict(
         # an alias for the /dev/... device name as seen inside the instance
         datavol = data_vol.get_internal_device_name(),
@@ -169,6 +170,10 @@ cloud_config_obj = dict(
             partition="auto",
         ),
       ],
+    # Automatically grow partitions if EBS volumes are resized
+    growpart = dict(
+        devices = ['/', '/data'],
+      ),
 
     # Mount entries correspond exactly to entries in /etc/fstab:
     mounts = [
@@ -193,8 +198,11 @@ cloud_config_obj = dict(
         [ '/data/home', '/home', 'none', 'x-systemd.requires=/data,x-systemd.automount,bind', '0', '0' ],
       ],
     fqdn = dns_zone.zone_name,  # Our host's fully qualified name
-    repo_update = True,         # start with apt-get update
-    repo_upgrade = "all",       # apt-get upgrade
+    repo_update = True,
+    repo_upgrade = "all",
+    package_update = True,
+    package_upgrade = True,
+    package_reboot_if_required = True,
     apt = dict(
         sources = {
           # Add docker's dpkg repository to apt-get search list, so we can install latest stable docker
