@@ -355,7 +355,7 @@ class CommandHandler:
     return self.get_config().project_root_dir
 
   def get_xpulumi_data_dir(self) -> str:
-    return os.path.join(self.get_project_root_dir(), 'xpulumi.d')
+    return os.path.join(self.get_project_root_dir(), 'xp')
 
   def get_project_dir(self, project_name: Optional[str]=None) -> str:
     if project_name is None:

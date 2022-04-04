@@ -67,7 +67,7 @@ def get_aws_account(s: BotoAwsSession) -> str:
 
 class XPulumiContextBase(XPulumiContext):
 
-  XPULUMI_INFRA_DIRNAME = 'xpulumi.d'
+  XPULUMI_INFRA_DIRNAME = 'xp'
 
   _aws_account_region_map: Dict[Tuple[Optional[str], Optional[str]], BotoAwsSession]
   """Maps an aws account name and region to an AWS session"""
