@@ -76,7 +76,7 @@ pulumi.export("stack_s3_uri", stack_s3_uri)
 
 # Import our main DNS zone from the shared stack. This may be a
 # Route53 subzone created by the shared stack, or a top-level
-# Route53 zone for a registered, paid public domain such as "mycompany.com".
+# Route53 zone for a registered, paid public domain such fas "mycompany.com".
 # In the latter case, DNS services for the domain must be provided by
 # AWS Route53, so this stack can create DNS records in the zone.
 dns_zone_id = require_stack_output('main_dns_zone_id', stack=aws_env_stack_name)
@@ -154,11 +154,13 @@ data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
 
 # For bind mounts, the cloud-init "mounts" module requires that mountpoints pre-exist
 # before mounting. So we create the docker volumes mountpoint in a boothook, long
-# before docker is installed.
+# before docker is installed. We also take this opportunity to create the docker group
+# (we do it here instead of in cloud-config so we can set the GID to a stabnle value).
 ec2_instance.add_user_data('''#boothook
 #!/bin/bash
 mkdir -p -m 710 /var/lib/docker
 mkdir -p -m 755 /var/lib/docker/volumes
+groupadd -g 998 docker
 ''')
 
 # ECR is AWS's equivalent of Dockerhub. There is a distinct endpoint in each
@@ -183,7 +185,10 @@ cloud_config_obj = dict(
     docversion=3,    # for debugging, a way to force redeployment
 
     # Define linux user accounts. Note that having ANY entries in this list will
-    # disable implicit creation of the default "ubuntu" account.
+    # disable implicit creation of the default "ubuntu" account. Note that
+    # we do not use cloud-config to create groups, because it does not support
+    # setting GID which is important for consistency with mounted volume. We add the
+    # docker group in a boothook above...
     users = [
         {
             'name': ec2_instance_username,
@@ -192,7 +197,7 @@ cloud_config_obj = dict(
             'gid': 1001,
             'shell': '/bin/bash',
             # 'sudo': 'ALL=(ALL) NOPASSWD:ALL',
-            'groups': [ 'sudo', 'adm', ],
+            'groups': [ 'sudo', 'adm', 'docker', ],
             'hashed_passwd': hashed_password_str,
             'lock_passwd': False,
           },
