@@ -13,6 +13,7 @@ import botocore.client
 import threading
 import debugpy
 import time
+import shlex
 
 import pulumi
 from pulumi import (
@@ -250,7 +251,7 @@ def sync_get_ami_arch_from_instance_type(instance_type: str, region_name: Option
   result = sync_get_ami_arch_from_processor_arches(processor_arches)
   return result
 
-def get_ami_arch_from_instance_type(instance_type: Input[str], region_name: Input[Optional[str]]=None) -> Output[str]:
+def get_ami_arch_from_instance_type(instance_type: Input[str], region_name: Input[Optional[str]]=None) -> Input[str]:
   """For a given EC2 instance type (as a promise), returns the AMI architecture associated with the instance type as a promise
 
   Args:
@@ -260,9 +261,13 @@ def get_ami_arch_from_instance_type(instance_type: Input[str], region_name: Inpu
                                   or None to use the default region. Defaults to None.
 
   Returns:
-      str: The AMI architecture associated with instance_type, as a promise
+      Input[str]: The AMI architecture associated with instance_type. If parameters are concrete,
+                  result is concrete; otherwise it is a promise
   """
-  result = Output.all(instance_type, region_name).apply(lambda args: sync_get_ami_arch_from_instance_type(*args))
+  if isinstance(instance_type, str) and (region_name is None or isinstance(region_name, str)):
+    result: Output[str] = sync_get_ami_arch_from_instance_type(instance_type, region_name=region_name)
+  else:
+    result = Output.all(instance_type, region_name).apply(lambda args: sync_get_ami_arch_from_instance_type(*args))
   return result
 
 
@@ -360,4 +365,13 @@ def gen_etc_shadow_password_hash(password: Input[str], keep_hash_secret: bool=Tr
   result: Output[str] = Output.all(password).apply(lambda args: sync_gen_etc_shadow_password_hash(*args))
   if not keep_hash_secret:
     result = Output.unsecret(result)
+  return result
+
+def shell_quote_promise(
+      future_str: Input[str],
+    ) -> Input[str]:
+  if isinstance(future_str, str):
+    result: Input[str] = shlex.quote(future_str)
+  else:
+    result = Output.all(future_str).apply(lambda args: shlex.quote(*args))
   return result

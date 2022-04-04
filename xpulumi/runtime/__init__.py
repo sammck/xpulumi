@@ -20,6 +20,7 @@ from .util import (
     sync_get_processor_arches_from_instance_type,
     yamlify_promise,
     jsonify_promise,
+    shell_quote_promise,
     list_of_promises,
     default_val,
     enable_debugging,

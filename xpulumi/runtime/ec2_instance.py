@@ -399,7 +399,7 @@ class Ec2Instance:
   role_policy_obj: Optional[JsonableDict] = None
   role_policy: iam.Policy
   attached_policy: iam.RolePolicyAttachment
-  ami_arch: str
+  _ami_arch: Optional[str]=None
   ami_owner: str
   ami_distro: str
   ami_os_version: str
@@ -628,6 +628,12 @@ class Ec2Instance:
     if commit:
       self.commit()
 
+  @property
+  def ami_arch(self) -> str:
+    if self._ami_arch is None:
+      self._ami_arch = get_ami_arch_from_instance_type(self.instance_type)
+    return self._ami_arch
+
   def add_user_data(
         self,
         content: Union[UserDataPart, Input[CloudInitPartConvertible]],
@@ -767,7 +773,6 @@ class Ec2Instance:
 
     self.keypair.commit()
 
-    self.ami_arch = get_ami_arch_from_instance_type(self.instance_type)
     self.ami_name_filter = get_ami_name_filter(self.ami_arch, self.ami_distro, self.ami_os_version)
 
     # Find the most recent AMI that matches

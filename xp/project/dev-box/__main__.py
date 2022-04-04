@@ -4,9 +4,9 @@ import shlex
 import os
 
 import pulumi
-from pulumi import Output
+from pulumi import Output, Input
 from xpulumi.exceptions import XPulumiError
-from xpulumi.internal_types import JsonableDict
+from xpulumi.internal_types import Jsonable, JsonableDict
 from xpulumi.runtime import (
     VpcEnv,
     DnsZone,
@@ -20,6 +20,8 @@ from xpulumi.runtime import (
     pconfig,
     default_val,
     HashedPassword,
+    jsonify_promise,
+    long_stack,
   )
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
@@ -121,7 +123,7 @@ ec2_instance = Ec2Instance(
     public_key_file="~/.ssh/id_rsa.pub",
 
     # The EC2 instance type. May be either x86_64 or Arm64 architecture.
-    instance_type="t3.micro",
+    instance_type="t3.medium",
 
     # Number of gigabytes to allot for the system boot volume. Note that
     # we will be mounting a separate volume for home directories and to
@@ -134,6 +136,7 @@ ec2_instance = Ec2Instance(
     # further programmating configuration.
     commit=False
   )
+
 
 # Add a separate data EBS volume to the instance. Unlike the built-in boot volume,
 # this volume is *NOT* destroyed when the EC2 instance is terminated/recreated due
@@ -162,16 +165,101 @@ ec2_instance = Ec2Instance(
 # docuument below...
 data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
 
+
+# Configuration document for the EC2 instance's cloudwatch agent
+cloudwatch_cfg: Input[Jsonable] = dict(
+  agent = dict(
+    metrics_collection_interval = 60,
+    run_as_user = "root"
+  ),
+  logs = dict(
+    logs_collected = dict(
+      files = dict(
+        collect_list = [
+          dict(
+            file_path = "/var/log/cloud-init-output.log",
+            log_group_name = cw.log_group.name,
+            log_stream_name = f"{long_stack}-cloud-init-output",
+            retention_in_days = 30
+          ),
+          dict(
+            file_path = "/var/log/cloud-init.log",
+            log_group_name = cw.log_group.name,
+            log_stream_name = f"{long_stack}-cloud-init",
+            retention_in_days = 30
+          )
+        ]
+      )
+    )
+  ),
+  metrics = dict(
+    aggregation_dimensions = [
+      [
+        "InstanceId"
+      ]
+    ],
+    append_dimensions = dict(
+      AutoScalingGroupName = "${aws:AutoScalingGroupName}",
+      ImageId = "${aws:ImageId}",
+      InstanceId = "${env:INSTANCE_ID}",
+      InstanceType = ec2_instance.instance_type,
+    ),
+    metrics_collected = dict(
+      collectd = dict(
+        metrics_aggregation_interval = 60
+      ),
+      disk = dict(
+        measurement = [
+          "used_percent"
+        ],
+        metrics_collection_interval = 60,
+        resources = [
+          "*"
+        ]
+      ),
+      mem = dict(
+        measurement = [
+          "mem_used_percent"
+        ],
+        metrics_collection_interval = 60
+      ),
+      statsd = dict(
+        metrics_aggregation_interval = 60,
+        metrics_collection_interval = 10,
+        service_address = ":8125"
+      )
+    )
+  )
+)
+
+
 # For bind mounts, the cloud-init "mounts" module requires that mountpoints pre-exist
 # before mounting. So we create the docker volumes mountpoint in a boothook, long
-# before docker is installed. We also take this opportunity to create the docker group
-# (we do it here instead of in cloud-config so we can set the GID to a stable value).
-ec2_instance.add_user_data('''#boothook
+# before docker is installed. We also take this opportunity to:
+#   - Create the docker group (we do it here instead of in cloud-config
+#     so we can set the GID to a stable value).
+#   - Install, and configure the AWS cloudwatch agent
+#   - On every boot, start the AWS cloudwatch agent
+#
+# NOTE: The single quotes around 'CWCFGEOF' are essential, since they suppres "${var}"
+#       expansion in the HERE document, which would mess up ${aws:...} in
+#       the cloudwatch config file...
+ec2_instance.add_user_data(Output.concat('''#boothook
 #!/bin/bash
 mkdir -p -m 710 /var/lib/docker
 mkdir -p -m 755 /var/lib/docker/volumes
 groupadd -g 998 docker
-''')
+CWA=/opt/aws/amazon-cloudwatch-agent
+CWC=$CWA/etc/config.json
+if [ ! -f $CWC ]; then
+wget https://s3.''', aws_region, '''.amazonaws.com/amazoncloudwatch-agent-''', aws_region, '''/ubuntu/''', ec2_instance.ami_arch, '''/latest/amazon-cloudwatch-agent.deb
+dpkg -i -E ./amazon-cloudwatch-agent.deb
+cat >$CWC <<'CWCFGEOF'
+''', jsonify_promise(cloudwatch_cfg, separators=(',', ':')), '''
+CWCFGEOF
+fi
+$CWA/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:$CWC -s
+'''))
 
 # ECR is AWS's equivalent of Dockerhub. There is a distinct endpoint in each
 # region, and for each AWS account. Also, there is a customized authentication
@@ -288,10 +376,15 @@ cloud_config_obj = dict(
         "docker-ce",
         "docker-ce-cli",
         "amazon-ecr-credential-helper",
+        "python3-pip",
       ],
 
     # After all packages are installed, the following commands are run in order
     runcmd = [
+        # Install a recent version of aws-cli/boto3/botocore systemwide that supports configuration of
+        # EC2 metadata endpoint (the version provided by Ubuntu is quite old).
+        [ "pip3", "install", "--upgrade", "boto3", "botocore", "awscli" ],
+
         # This command sets up docker on the root user to authenticate against ECR using AWS
         # credentials inherited by this EC2 instance through its associated IAM Role (created for
         # us by EC2 instance above). A similar thing could be done for any user.
@@ -299,9 +392,10 @@ cloud_config_obj = dict(
 
         # This command adds an iptables rule that will block all docker containers (unless they are on the host network) from
         # accessing the EC2 instance's metadata service. This is an important secuurity precaution, since
-        # access to that sercice allows the caller to impoersonate the EC2 instance's Role on AWS, and
+        # access to the metadata service allows the caller to impersonate the EC2 instance's IAM Role on AWS, and
         # read any secrets passed to the instance through UserData (e.g., the hashed sudo password).
         # If there are trusted containers, we can create special rules for them...
+        # TODO: This must be done on every boot, not just the first boot
         [ "iptables", "--insert", "DOCKER-USER", "--destination", "169.254.169.254", "--jump", "REJECT" ],
 
         # All done
