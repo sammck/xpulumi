@@ -30,6 +30,7 @@ from ..util import get_git_user_email
 
 pconfig = pulumi.Config()
 
+xpulumi_ctx = get_xpulumi_context()
 stack_name = pulumi.get_stack()
 pulumi_project_name = pulumi.get_project()
 xpulumi_project_name = get_current_xpulumi_project_name()

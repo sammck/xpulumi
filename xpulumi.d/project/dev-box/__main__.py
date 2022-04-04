@@ -1,7 +1,12 @@
+
 import json
 import shlex
+import os
 
 import pulumi
+from pulumi import Output
+from xpulumi.exceptions import XPulumiError
+from xpulumi.internal_types import JsonableDict
 from xpulumi.runtime import (
     VpcEnv,
     DnsZone,
@@ -12,6 +17,9 @@ from xpulumi.runtime import (
     aws_account_id,
     pulumi_project_name,
     stack_name,
+    pconfig,
+    default_val,
+    HashedPassword,
   )
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
@@ -20,10 +28,34 @@ from xpulumi.runtime import (
 # cutting it.
 enable_debugging()
 
+# The name of the user account to create in the EC2 instance. By default
+# we will use our own username (this is risky if multiple people manage
+# this stack, since they will cause the EC2 instance to be recreated). If
+# the username is changed, the old home directory will remain, since the /home
+# is mounted on a reusable EBS volume, but the new account will have the
+# same UID/GID as the old account and will have access to both home directories.
+ec2_instance_username: str = default_val(pconfig.get("ec2_instance_username"), os.getlogin())
+pulumi.export("ec2_username", ec2_instance_username)
+
+# The sudo password for our EC2 user. This must be set as a secret config value on this stack with
+#       pulumi -s dev config set --secret ec2_user_password <password>
+try:
+  ec2_user_password: Output[str] = pconfig.require_secret('ec2_user_password')
+except Exception as e:
+  raise XPulumiError(
+      "You must set an EC2 User sudo password with \"pulumi -s dev config set --secret ec2_user_password <password>\""
+    ) from e
+
+hashed_password = HashedPassword('ec2_user_hashed_password', ec2_user_password)
+hashed_password_str = hashed_password.hashed_password
+
+#Output.all(hashed_password_str).apply(lambda args: pulumi.log.info(f"hashed_password={args[0]}"))
+
 # The xpulumi project name and stack name from which we will
 # import our AWS VPC network, subnets, availability zones, cloudwatch group,
 # main DNS zone, and other shared resources that can be used by multiple projects
-aws_env_stack_name = 'aws-env:dev'
+# We will use our own stack name, so that dev will pick up from dev, prod from prod etc.
+aws_env_stack_name = f"aws-env:{stack_name}"
 
 # Import our network configuration from the shared stack
 vpc = VpcEnv.stack_import(stack_name=aws_env_stack_name)
@@ -79,7 +111,7 @@ ec2_instance = Ec2Instance(
     public_key_file="~/.ssh/id_rsa.pub",
 
     # The EC2 instance type. May be either x86_64 or Arm64 architecture.
-    instance_type="t3.medium",
+    instance_type="t3.micro",
 
     # Number of gigabytes to allot for the system boot volume. Note that
     # we will be mounting a separate volume for home directories and to
@@ -148,7 +180,23 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
 #
 cloud_config_obj = dict(
-    docversion=1,    # for debugging, a way to force redeployment
+    docversion=3,    # for debugging, a way to force redeployment
+
+    # Define linux user accounts. Note that having ANY entries in this list will
+    # disable implicit creation of the default "ubuntu" account.
+    users = [
+        {
+            'name': ec2_instance_username,
+            'ssh-authorized-keys': ec2_instance.keypair.public_key,
+            'uid': 1001,
+            'gid': 1001,
+            'shell': '/bin/bash',
+            # 'sudo': 'ALL=(ALL) NOPASSWD:ALL',
+            'groups': [ 'sudo', 'adm', ],
+            'hashed_passwd': hashed_password_str,
+            'lock_passwd': False,
+          },
+      ],
     device_aliases = dict(
         # an alias for the /dev/... device name as seen inside the instance
         datavol = data_vol.get_internal_device_name(),
@@ -235,7 +283,7 @@ cloud_config_obj = dict(
         [ "bash", "-c", f"mkdir -p /root/.docker && chmod 700 /root/.docker && echo {shlex.quote(docker_config)} > /root/.docker/config.json && chmod 600 /root/.docker/config.json" ],
 
         # All done
-        [ "bash", "-c", 'echo "it works!"' ],
+        [ "bash", "-c", 'cat /etc/shadow' ],
       ],
   )
 

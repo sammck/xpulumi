@@ -207,3 +207,9 @@ def multiline_indent(s: str, n: int, trim: bool=True) -> str:
         line = line.rstrip()
     result.append(line)
   return '\n'.join(result)
+
+def gen_etc_shadow_password_hash(password: str) -> str:
+  import secrets
+  salt = secrets.token_urlsafe(16)
+  result = subprocess.check_output(['openssl', 'passwd', '-6', '-salt', salt, password]).decode('utf-8').rstrip()
+  return result

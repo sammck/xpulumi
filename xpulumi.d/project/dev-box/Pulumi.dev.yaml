@@ -1,5 +1,7 @@
 encryptionsalt: v1:hcosRBKT7Fw=:v1:f2mbeKtKj8HDYmgw:UIy7D1rGJkKzXXqyFiR1qVrZj5+33Q==
 config:
-  pulumi:disable-default-providers:
-    - '*'
+  dev-box:ec2_user_password:
+    secure: v1:LrTSrAEBia2XV/En:MjnUeCtATNEbDa6OIBF2fZ8DpskOzZWcMRDUNeQ=
+  #pulumi:disable-default-providers:
+  #- '*'
   xpulumi:backend: s3

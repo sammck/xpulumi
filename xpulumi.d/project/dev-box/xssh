@@ -8,7 +8,13 @@ def remove_entry(name):
   subprocess.check_call(["ssh-keygen", "-f", known_hosts, "-R", name])
 
 known_hosts = os.path.expanduser("~/.ssh/known_hosts")
-user_and_hostname = sys.argv[1]
+if len(sys.argv) == 1:
+  user_and_hostname = subprocess.check_output("""pulumi stack output -j | jq -r '.ec2_username + "@" + .main_dns_zone'""", shell=True).decode('utf-8').rstrip()
+  remargs = []
+else:
+  user_and_hostname = sys.argv[1]
+  remargs = sys.argv[2:]
+print(f"Target={user_and_hostname}", file=sys.stderr)
 hostname = user_and_hostname.split('@', 1)[-1]
 ip_address = subprocess.check_output(["dig", "+short", hostname]).decode('utf-8').rstrip()
 remove_entry(hostname)
@@ -18,5 +24,5 @@ new_hosts = subprocess.check_output(["ssh-keyscan", "-H", hostname]).decode('utf
 with open(known_hosts, 'a') as f:
   f.write(new_hosts)
 
-exit_code = subprocess.call(['ssh'] + sys.argv[1:])
+exit_code = subprocess.call(['ssh', user_and_hostname] + remargs)
 sys.exit(exit_code)

@@ -40,8 +40,7 @@ from pulumi_aws import (
 from ..base_context import XPulumiContextBase
 from ..project import XPulumiProject
 from ..stack import XPulumiStack, parse_stack_name
-from ..util import ( run_once)
-
+from ..util import ( run_once, gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash)
 
 initial_cwd = os.getcwd()
 
@@ -51,9 +50,9 @@ def xbreakpoint() -> None:
   if _debugger_attached:
     breakpoint()
 
-def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=30) -> None:
+def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=30, force: bool=False) -> None:
   global _debugger_attached
-  if os.environ.get("XPULUMI_DEBUGGER", '') != '':
+  if force or os.environ.get("XPULUMI_DEBUGGER", '') != '':
     pulumi.log.info("Pulumi debugger activated; waiting for debugger to attach")
     debugpy.listen((host, port))
     max_wait_s = max_wait_secs
@@ -357,3 +356,8 @@ def default_val(x: Optional[T], default: Optional[T]) -> Optional[T]:
     x = default
   return x
 
+def gen_etc_shadow_password_hash(password: Input[str], keep_hash_secret: bool=True) -> Output[str]:
+  result: Output[str] = Output.all(password).apply(lambda args: sync_gen_etc_shadow_password_hash(*args))
+  if not keep_hash_secret:
+    result = Output.unsecret(result)
+  return result

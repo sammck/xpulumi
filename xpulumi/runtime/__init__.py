@@ -24,9 +24,12 @@ from .util import (
     default_val,
     enable_debugging,
     xbreakpoint,
+    sync_gen_etc_shadow_password_hash,
+    gen_etc_shadow_password_hash,
   )
 from .common import (
     pconfig,
+    xpulumi_ctx,
     stack_name,
     long_stack,
     long_xstack,
@@ -76,3 +79,4 @@ from .ec2_instance import (
     Ec2Instance,
   )
 from .cloudwatch import CloudWatch
+from ..runtime_support import HashedPasswordProvider, HashedPassword
