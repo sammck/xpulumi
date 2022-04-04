@@ -39,6 +39,10 @@ pulumi.export("ec2_username", ec2_instance_username)
 
 # The sudo password for our EC2 user. This must be set as a secret config value on this stack with
 #       pulumi -s dev config set --secret ec2_user_password <password>
+# NOTE: A strong password should be used because the /etc/shadow SHA512 hash of the password
+#       will appear in the EC2 instance's UserData, which is readable by anyone with EC2
+#       metadata query privileges on this AWS account, and IF leaked could be used in a
+#       dictionary attack.
 try:
   ec2_user_password: Output[str] = pconfig.require_secret('ec2_user_password')
 except Exception as e:
@@ -46,6 +50,12 @@ except Exception as e:
       "You must set an EC2 User sudo password with \"pulumi -s dev config set --secret ec2_user_password <password>\""
     ) from e
 
+# HashedPassword is a dynamic pulumi provider that computes an SHA512 hash
+# of the EC2 user password as it will appear in the instances /etc/shadow file.
+# THis allows us to set a sudo password for the EC2 user without passing the
+# password in the clear (the hashed password will appear in the EC2 instance's
+# UserData, which is readable by anyone with AWS EC2 privileges on this AWS
+# account. This is not ideal but much better than passing a password in the clear.)
 hashed_password = HashedPassword('ec2_user_hashed_password', ec2_user_password)
 hashed_password_str = hashed_password.hashed_password
 
@@ -287,8 +297,15 @@ cloud_config_obj = dict(
         # us by EC2 instance above). A similar thing could be done for any user.
         [ "bash", "-c", f"mkdir -p /root/.docker && chmod 700 /root/.docker && echo {shlex.quote(docker_config)} > /root/.docker/config.json && chmod 600 /root/.docker/config.json" ],
 
+        # This command adds an iptables rule that will block all docker containers (unless they are on the host network) from
+        # accessing the EC2 instance's metadata service. This is an important secuurity precaution, since
+        # access to that sercice allows the caller to impoersonate the EC2 instance's Role on AWS, and
+        # read any secrets passed to the instance through UserData (e.g., the hashed sudo password).
+        # If there are trusted containers, we can create special rules for them...
+        [ "iptables", "--insert", "DOCKER-USER", "--destination", "169.254.169.254", "--jump", "REJECT" ],
+
         # All done
-        [ "bash", "-c", 'cat /etc/shadow' ],
+        [ "bash", "-c", 'echo "All Done!"' ],
       ],
   )
 
