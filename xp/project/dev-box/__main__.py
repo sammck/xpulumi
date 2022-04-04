@@ -155,7 +155,7 @@ data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
 # For bind mounts, the cloud-init "mounts" module requires that mountpoints pre-exist
 # before mounting. So we create the docker volumes mountpoint in a boothook, long
 # before docker is installed. We also take this opportunity to create the docker group
-# (we do it here instead of in cloud-config so we can set the GID to a stabnle value).
+# (we do it here instead of in cloud-config so we can set the GID to a stable value).
 ec2_instance.add_user_data('''#boothook
 #!/bin/bash
 mkdir -p -m 710 /var/lib/docker
