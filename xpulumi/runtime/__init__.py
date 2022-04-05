@@ -27,7 +27,19 @@ from .util import (
     xbreakpoint,
     sync_gen_etc_shadow_password_hash,
     gen_etc_shadow_password_hash,
+    split_s3_uri,
   )
+from .s3_object_waiter import (
+    sync_wait_and_get_s3_object,
+    sync_wait_s3_object,
+    async_wait_and_get_s3_object,
+    async_wait_s3_object,
+    wait_s3_object,
+    wait_and_get_s3_object,
+    wait_and_get_s3_object_str,
+    wait_and_get_s3_json_object,
+  )
+
 from .common import (
     pconfig,
     xpulumi_ctx,

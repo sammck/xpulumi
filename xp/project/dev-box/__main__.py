@@ -22,7 +22,9 @@ from xpulumi.runtime import (
     HashedPassword,
     jsonify_promise,
     long_stack,
+    wait_and_get_s3_object_str,
   )
+from xpulumi.runtime.s3_object_waiter import wait_and_get_s3_json_object
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
 # will cause the program to stall waiting for vscode to
@@ -83,8 +85,13 @@ cw.stack_export()
 
 # import our shared S3 bucket/root key from the shared stack
 shared_s3_uri = require_stack_output('shared_s3_uri', stack=aws_env_stack_name)
+
+# Create a subkey in the shared bucket dedicated just for our stack.
 stack_s3_uri = shared_s3_uri + f"/g/{pulumi_project_name}/{stack_name}"
 pulumi.export("stack_s3_uri", stack_s3_uri)
+
+# The ARN for an s3 resource has the "s3://" prefix stripped
+stack_s3_arn = Output.all(stack_s3_uri).apply(lambda args: f"arn:aws:s3:::{args[0][5:]}")
 
 # Import our main DNS zone from the shared stack. This may be a
 # Route53 subzone created by the shared stack, or a top-level
@@ -94,6 +101,63 @@ pulumi.export("stack_s3_uri", stack_s3_uri)
 dns_zone_id = require_stack_output('main_dns_zone_id', stack=aws_env_stack_name)
 dns_zone = DnsZone(resource_prefix='main-', zone_id=dns_zone_id)
 dns_zone.stack_export(export_prefix='main_')
+
+# Define asecurity policy for our EC2 instance's IAM role.
+# We will let it read and write to our stack's dedicated subkey
+# of the shared S3 bucket
+role_policy: JsonableDict = {
+  "Version": "2012-10-17",
+  "Statement": [
+    # Nondestructive EC2 queries
+    {
+      "Action": ["ec2:Describe*"],
+      "Effect": "Allow",
+      "Resource": "*",
+    },
+    # Read-only access to ECR, to fetch docker images
+    {
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:DescribeRepositories",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+      ],
+      "Effect": "Allow",
+      "Resource": "*",
+    },
+    # Read/write access to our dedicated S3 subkey
+    {
+      "Action": [
+        "s3:ListBucket",
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionAcl",
+        "s3:PutObjectVersionTagging",
+        "s3:GetObject",
+        "s3:GetObjectAcl",
+        "s3:GetObjectRetention",
+        "s3:GetObjectVersion",
+        "s3:GetObjectVersionTagging",
+        "s3:GetObjectVersionForReplication",
+        "s3:GetObjectVersionAcl",
+        "s3:DeleteObject",
+        "s3:DeleteObjectTagging",
+        "s3:DeleteObjectVersion",
+        "s3:DeleteObjectVersionTagging",
+        "s3:ListMultipartUploadParts",
+        "s3:ReplicateDelete",
+        "s3:ReplicateObject",
+        "s3:ReplicateTags",
+        "s3:RestoreObject",
+      ],
+      "Effect": "Allow",
+      "Resource": Output.concat(stack_s3_arn, "/*"),
+    },
+  ],
+}
 
 # Begin configuring an EC2 instance along with all of its associated
 # resources (security group, role, role policy, attached volumes, elastic IP,
@@ -124,6 +188,9 @@ ec2_instance = Ec2Instance(
 
     # The EC2 instance type. May be either x86_64 or Arm64 architecture.
     instance_type="t3.medium",
+
+    # Security policy to grant to this instance's IAM role
+    role_policy_obj=role_policy,
 
     # Number of gigabytes to allot for the system boot volume. Note that
     # we will be mounting a separate volume for home directories and to
@@ -180,18 +247,30 @@ cloudwatch_cfg: Input[Jsonable] = dict(
             file_path = "/var/log/cloud-init-output.log",
             log_group_name = cw.log_group.name,
             log_stream_name = f"{long_stack}-cloud-init-output",
-            retention_in_days = 30
+            retention_in_days = 7
+          ),
+          dict(
+            file_path = "/var/lib/cloud/data/result.json",
+            log_group_name = cw.log_group.name,
+            # The instance ID is not known until boot time. So,
+            # "{{INSTANCE_ID}}" will get replaced with sed by our boot script
+            log_stream_name = f"{long_stack}-cloud-init-result-" + "{{INSTANCE_ID}}",
+            multi_line_start_pattern = "^\\{",
+            retention_in_days = 7
           ),
           dict(
             file_path = "/var/log/cloud-init.log",
             log_group_name = cw.log_group.name,
             log_stream_name = f"{long_stack}-cloud-init",
-            retention_in_days = 30
+            retention_in_days = 7
           )
         ]
       )
     )
   ),
+)
+
+'''
   metrics = dict(
     aggregation_dimensions = [
       [
@@ -201,7 +280,7 @@ cloudwatch_cfg: Input[Jsonable] = dict(
     append_dimensions = dict(
       AutoScalingGroupName = "${aws:AutoScalingGroupName}",
       ImageId = "${aws:ImageId}",
-      InstanceId = "${env:INSTANCE_ID}",
+      InstanceId = "${aws:InstanceId}",
       InstanceType = ec2_instance.instance_type,
     ),
     metrics_collected = dict(
@@ -230,36 +309,86 @@ cloudwatch_cfg: Input[Jsonable] = dict(
       )
     )
   )
-)
+'''
 
+cloud_init_watch_script=Output.concat('''#!/usr/bin/env python3
+import subprocess, os, time
+iid=os.environ.get('INSTANCE_ID','')
+dd="/var/lib/cloud/data"
+ur="''', stack_s3_uri, '''"
+sf=dd+'/status.json'
+rf=dd+'/result.json'
+sfc=''
+rfc=''
+def cas(fn, c, un):
+ if os.path.exists(fn):
+  with open(fn) as f:
+   c2 = f.read()
+  if c2 != c:
+   subprocess.check_call(['aws','s3', 'cp', '--region', "''', aws_region, '''", fn, ur+'/'+un])
+   return c2
+ return c
+cas(dd+'/instance-id', '', 'instance-id')
+while True:
+ sfc2=cas(sf,sfc,f'cloud-init-status-{iid}.json')
+ rfc2=cas(rf,rfc,f'cloud-init-result-{iid}.json')
+ if rfc2 != '':
+  break
+ if rfc2 == rfc and sfc2 == sfc:
+  time.sleep(4)
+ sfc=sfc2
+ rfc=rfc2
+''')
 
 # For bind mounts, the cloud-init "mounts" module requires that mountpoints pre-exist
 # before mounting. So we create the docker volumes mountpoint in a boothook, long
 # before docker is installed. We also take this opportunity to:
+#   - install latest AWS cli
 #   - Create the docker group (we do it here instead of in cloud-config
 #     so we can set the GID to a stable value).
 #   - Install, and configure the AWS cloudwatch agent
-#   - On every boot, start the AWS cloudwatch agent
+#   - On every boot until cloud-init produces a result, run a script in the background
+#     that pushes cloud-init status updates to S3. We will use that in our 
+#     provisioning code to determine when the instance is ready.
 #
 # NOTE: The single quotes around 'CWCFGEOF' are essential, since they suppres "${var}"
 #       expansion in the HERE document, which would mess up ${aws:...} in
 #       the cloudwatch config file...
 ec2_instance.add_user_data(Output.concat('''#boothook
 #!/bin/bash
+set -eo pipefail
+if ! cloud-init-per instance xpre-init false; then
+exec >>/var/log/xpre-init.log
+exec 2>&1
+which aws || true
+apt-get update
+apt-get install -y unzip || true
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+./aws/install
+
 mkdir -p -m 710 /var/lib/docker
 mkdir -p -m 755 /var/lib/docker/volumes
 groupadd -g 998 docker
 CWA=/opt/aws/amazon-cloudwatch-agent
 CWC=$CWA/etc/config.json
-if [ ! -f $CWC ]; then
+#apt-get install -y collectd
 wget https://s3.''', aws_region, '''.amazonaws.com/amazoncloudwatch-agent-''', aws_region, '''/ubuntu/''', ec2_instance.ami_arch, '''/latest/amazon-cloudwatch-agent.deb
 dpkg -i -E ./amazon-cloudwatch-agent.deb
 cat >$CWC <<'CWCFGEOF'
 ''', jsonify_promise(cloudwatch_cfg, separators=(',', ':')), '''
 CWCFGEOF
-fi
+sed -i "s/{{INSTANCE_ID}}/$INSTANCE_ID/g" $CWC
 $CWA/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:$CWC -s
-'''))
+fi
+if [ ! -e /var/lib/cloud/data/result.json ]; then
+cat >ciwatch.py <<'CIWSEOF'
+''', cloud_init_watch_script, '''
+CIWSEOF
+chmod +x ciwatch.py
+nohup ./ciwatch.py >>/var/log/cloud-init-watch.log 2>&1 &
+fi
+'''), priority=-1)
 
 # ECR is AWS's equivalent of Dockerhub. There is a distinct endpoint in each
 # region, and for each AWS account. Also, there is a customized authentication
@@ -280,7 +409,7 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
 #
 cloud_config_obj = dict(
-    docversion=3,    # for debugging, a way to force redeployment
+    docversion=5,    # for debugging, a way to force redeployment by incrementing
 
     # Define linux user accounts. Note that having ANY entries in this list will
     # disable implicit creation of the default "ubuntu" account. Note that
@@ -367,7 +496,6 @@ cloud_config_obj = dict(
     # Any packages listed here will get installed with apt-get install
     packages = [
         "jq",
-        "awscli",
         "collectd",
         "ca-certificates",
         "curl",
@@ -381,9 +509,12 @@ cloud_config_obj = dict(
 
     # After all packages are installed, the following commands are run in order
     runcmd = [
+        # start the cloudwatch agent if it could not start in the boot script,
+        [ "service", "amazon-cloudwatch-agent", "start" ],
+
         # Install a recent version of aws-cli/boto3/botocore systemwide that supports configuration of
         # EC2 metadata endpoint (the version provided by Ubuntu is quite old).
-        [ "pip3", "install", "--upgrade", "boto3", "botocore", "awscli" ],
+        #[ "pip3", "install", "--upgrade", "boto3", "botocore", "awscli" ],
 
         # This command sets up docker on the root user to authenticate against ECR using AWS
         # credentials inherited by this EC2 instance through its associated IAM Role (created for
@@ -408,6 +539,33 @@ ec2_instance.add_user_data(cloud_config_obj)
 # We are done configuring the EC2 instance and associated resources.
 # Commit the configuration and let Pulumi create the infrastructure.
 ec2_instance.commit()
+
+# Asynchronously wait for cloud-init to finish on the new instance, at
+# which time a background script on the instance will create an S3 object
+# with the cloud-init result. The cloud-init process is complicated,
+# includes installing all the latest ubuntu package updates and probably
+# rebooting once (to get kernel updates). It may take up to 10 minutes
+# If it doesn't finish in 15 minutes we will raise an exception here.
+# When cloud_init_result is done, we can proceed if its successful.
+cloud_init_result_uri = Output.concat(stack_s3_uri, '/cloud-init-result-', ec2_instance.ec2_instance.id, '.json')
+cloud_init_result = wait_and_get_s3_json_object(
+  uri=cloud_init_result_uri,
+  region_name=aws_region,
+  max_wait_seconds=15*60,
+  poll_interval=10,
+)
+pulumi.export('ec2_instance_cloud_init_result', cloud_init_result)
+def _sync_validate_cloud_init_result(x: Jsonable) -> bool:
+  if isinstance(x, dict):
+    v1 = x.get('v1', None)
+    if isinstance(v1, dict):
+      errors = v1.get('errors', None)
+      if isinstance(errors, list):
+        if len(errors) == 0:
+          return True
+  raise XPulumiError(f"EC2 instance cloudinit failt: {x}")
+cloud_init_succeeded = cloud_init_result.apply(lambda x: _sync_validate_cloud_init_result(x))
+pulumi.export('ec2_instance_cloud_init_succeeded', cloud_init_succeeded)
 
 # Create output variables for our pulumi stack, so that other stacks
 # and tools can find the resources we created. For example,

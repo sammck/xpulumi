@@ -5,7 +5,7 @@
 
 """Miscellaneous utility functions"""
 
-from typing import Type, Any, Optional, Union, List
+from typing import Type, Any, Optional, Union, List, Tuple
 from .internal_types import Jsonable
 
 import json
@@ -213,3 +213,13 @@ def gen_etc_shadow_password_hash(password: str) -> str:
   salt = secrets.token_urlsafe(16)
   result = subprocess.check_output(['openssl', 'passwd', '-6', '-salt', salt, password]).decode('utf-8').rstrip()
   return result
+
+def split_s3_uri(uri: str) -> Tuple[str, str]:
+  parts = urlparse(uri)
+  if parts.scheme != 's3':
+    raise XPulumiError(f"Invalid 's3:' URL: {uri}")
+  bucket = parts.netloc
+  key = parts.path
+  while key.startswith('/'):
+    key = key[1:]
+  return bucket, key

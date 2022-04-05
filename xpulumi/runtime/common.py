@@ -22,6 +22,7 @@ from pulumi_aws import (
   iam,
   cloudwatch,
   rds,
+  s3,
   kms,
   secretsmanager,
 )

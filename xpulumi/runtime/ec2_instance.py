@@ -396,7 +396,7 @@ class Ec2Instance:
   instance_dependencies: List[Output]
   cloudwatch_agent_attached_policy: iam.RolePolicyAttachment
   ssm_attached_policy: iam.RolePolicyAttachment
-  role_policy_obj: Optional[JsonableDict] = None
+  role_policy_obj: Input[Optional[JsonableDict]] = None
   role_policy: iam.Policy
   attached_policy: iam.RolePolicyAttachment
   _ami_arch: Optional[str]=None
@@ -444,7 +444,7 @@ class Ec2Instance:
         data_volumes: Optional[List[Union[int, EbsVolume]]]=None,
         public_key: Optional[str]=None,
         public_key_file: Optional[str]=None,
-        role_policy_obj: Optional[JsonableDict]=None,
+        role_policy_obj: Input[Optional[JsonableDict]]=None,
         ami_os_version: Optional[str] = None,
         use_elastic_ip: Optional[bool] = None,
         parent_dns_zone: Optional[Union[str, DnsZone]] = None,
@@ -612,7 +612,7 @@ class Ec2Instance:
     # define a role policy that allows our instance to access needed AWS resources
     if role_policy_obj is None:
       role_policy_obj = self.DEFAULT_ROLE_POLICY_OBJ
-    role_policy_obj = deepcopy(role_policy_obj)
+    role_policy_obj = role_policy_obj
     self.role_policy_obj = role_policy_obj
 
     self.keypair = Ec2KeyPair(
@@ -716,7 +716,7 @@ class Ec2Instance:
         f"{resource_prefix}ec2-role-policy",
         path="/",
         description=f"Custom role policy for {self.description}",
-        policy=json.dumps(self.role_policy_obj, sort_keys=True),
+        policy=jsonify_promise(self.role_policy_obj),
         tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
         opts=aws_resource_options,
       )
@@ -911,3 +911,4 @@ class Ec2Instance:
     pulumi.export(f'{export_prefix}dns_names', self.dns_names)
     if not self.eip is None:
       pulumi.export(f'{export_prefix}public_ip', self.eip.public_ip)
+    pulumi.export(f'{export_prefix}ec2_instance_id', self.ec2_instance.id)

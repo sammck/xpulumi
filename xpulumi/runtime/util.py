@@ -41,7 +41,11 @@ from pulumi_aws import (
 from ..base_context import XPulumiContextBase
 from ..project import XPulumiProject
 from ..stack import XPulumiStack, parse_stack_name
-from ..util import ( run_once, gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash)
+from ..util import (
+    run_once,
+    gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash,
+    split_s3_uri,
+    )
 
 initial_cwd = os.getcwd()
 
@@ -201,7 +205,7 @@ def sync_get_processor_arches_from_instance_type(instance_type: str, region_name
       List[str]: The processor architectures supported by the instance type
   """
   sess = boto3.session.Session(region_name=region_name)
-  bec2: botocore.client.EC2 = sess.client('ec2')
+  bec2 = sess.client('ec2')
 
   resp = bec2.describe_instance_types(
       InstanceTypes=[ instance_type ],
@@ -375,3 +379,4 @@ def shell_quote_promise(
   else:
     result = Output.all(future_str).apply(lambda args: shlex.quote(*args))
   return result
+
