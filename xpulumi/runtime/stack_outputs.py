@@ -5,7 +5,7 @@
 
 """Promise-based fetching of external xpulumi stack outputs"""
 
-from typing import Optional, Any, List, Callable, Mapping, Iterator, Iterable, Tuple, Union
+from typing import Optional, Any, List, Callable, Mapping, Iterator, Iterable, Tuple, Union, cast
 
 import os
 
@@ -103,38 +103,46 @@ class StackOutputs:
         decrypt_secrets (Input[bool], optional):
                       True if secret outputs should be decrypted. Defaults to False.
     """
-    self._future_outputs = Output.all(stack_name, project_name, decrypt_secrets).apply(lambda args: self._resolve(*args))
+    self._future_outputs = Output.all(stack_name, project_name, decrypt_secrets).apply(
+        lambda args: self._resolve(cast(Optional[str], args[0]), cast(Optional[str], args[1]), cast(bool, args[2]))
+      )
 
-  def _resolve(self, stack_name: str, project_name: Optional[str], decrypt_secrets: bool) -> SyncStackOutputs:
+  def _resolve(self, stack_name: Optional[str], project_name: Optional[str], decrypt_secrets: bool) -> SyncStackOutputs:
     result = SyncStackOutputs(stack_name=stack_name, project_name=project_name, decrypt_secrets=decrypt_secrets)
     return result
 
   def get_outputs(self) -> Output[JsonableDict]:
-    return Output.all(self._future_outputs).apply(lambda args: args[0].outputs)
+    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: args[0].outputs)
   
   def get_output(self, name: Input[str], default: Input[Jsonable]=None) -> Output[Jsonable]:
-    return Output.all(self._future_outputs, name, default).apply(lambda args: args[0].get_output(args[1], default=args[2]))
+    return Output.all(cast(Output,self._future_outputs), name, default).apply(
+        lambda args: cast(SyncStackOutputs, args[0]).get_output(cast(str, args[1]), default=cast(Jsonable, args[2]))
+      )
   
   def require_output(self, name: Input[str]) -> Output[Jsonable]:
-    return Output.all(self._future_outputs, name).apply(lambda args: args[0].require_output(args[1]))
+    return Output.all(cast(Output,self._future_outputs), name).apply(
+        lambda args: cast(SyncStackOutputs, args[0]).require_output(cast(str, args[1]))
+      )
 
   def __getitem__(self, key: Input[str]) -> Output[Jsonable]:
     return self.require_output(key)
 
   def __len__(self) -> Output[int]:
-    return Output.all(self._future_outputs).apply(lambda args: len(args[0]))
+    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: len(cast(SyncStackOutputs, args[0])))
 
   def __contains__(self, key: Input[str]) -> Output[bool]:
-    return Output.all(self._future_outputs, key).apply(lambda args: args[1] in args[0])
+    return Output.all(cast(Output, self._future_outputs), key).apply(
+        lambda args: cast(str, args[1]) in cast(SyncStackOutputs, args[0])
+      )
 
   def keys(self) -> Output[Iterable[str]]:
-    return Output.all(self._future_outputs).apply(lambda args: args[0].keys())
+    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).keys()) 
   
   def values(self) -> Output[Iterable[Jsonable]]:
-    return Output.all(self._future_outputs).apply(lambda args: args[0].values())
+    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).values())
   
   def items(self) -> Output[Iterable[Tuple[str, Jsonable]]]:
-    return Output.all(self._future_outputs).apply(lambda args: args[0].items())
+    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).items())
 
 def get_normalized_stack(
       stack: Optional[Union[str, XPulumiStack]]=None,

@@ -26,6 +26,8 @@ from pulumi_aws import (
   kms,
   secretsmanager,
 )
+
+from xpulumi.exceptions import XPulumiError
 from .util import get_current_xpulumi_project_name, get_xpulumi_context, default_val
 from ..util import get_git_user_email
 
@@ -69,6 +71,8 @@ _aws_regions_lock = threading.Lock()
 def get_aws_region_data(aws_region: Optional[str]=None) -> AwsRegionData:
   if aws_region is None:
     aws_region = aws_default_region
+  if aws_region is None:
+    raise XPulumiError("An AWS region must be specified")
   with _aws_regions_lock:
     result = _aws_regions.get(aws_region, None)
     if result is None:

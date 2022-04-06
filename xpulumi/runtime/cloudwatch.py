@@ -61,15 +61,11 @@ class CloudWatch:
   resource_prefix: str = ''
   log_group: cloudwatch.LogGroup
 
-  @property
-  def sg_id(self) -> Output[str]:
-    return self.sg.id
-
   def __init__(
         self,
         resource_prefix: Optional[str] = None,
         create: Optional[bool] = None,
-        log_group_id: Input[Optional[str]] = None,
+        log_group_id: Optional[Input[str]] = None,
         log_group_name: Optional[str] = None
       ):
     if resource_prefix is None:

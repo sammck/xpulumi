@@ -124,10 +124,10 @@ class DnsZone:
     self.parent_zone = parent_zone
     if zone_name is None and not subzone_name is None:
       zone_name = prepend_subzone(parent_zone, subzone_name)
-    self.zone_name = zone_name
     if create:
       if zone_name is None:
         raise XPulumiError("one of zone_name or parent_zone+subzone_name must be provided")
+      self.zone_name = zone_name
       zone = route53.Zone(
           f'{resource_prefix}dns-zone',
           # opts=,
@@ -164,6 +164,7 @@ class DnsZone:
       if zone_id is None:
         if zone_name is None:
           raise XPulumiError("Either zone_name or zone_id must be provided")
+        self.zone_name = zone_name
         zone_info = route53.get_zone(
             name=zone_name,
             private_zone=False,
@@ -178,7 +179,7 @@ class DnsZone:
             )
           zone_name = zone_info.name
           pulumi.log.info(f"fetched zone name is {zone_name}")
-          self.zone_name = zone_name
+        self.zone_name = zone_name
         
 
       zone = route53.Zone.get(

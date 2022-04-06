@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from importlib.abc import ResourceReader
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, cast
 
 import subprocess
 import os
@@ -79,13 +79,12 @@ class FrontEndSecurityGroup:
         vpc: VpcEnv,
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
         resource_prefix: Optional[str] = None,
-        create: bool = True,
-        sg_id: Input[Optional[str]] = None,
+        sg_id: Optional[Input[str]] = None,
       ):
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
-    if create:
+    if sg_id is None:
       if open_ports is None:
         open_ports = [ 22, 80, 443 ]
       ingress: List[JsonableDict] = []
@@ -95,14 +94,17 @@ class FrontEndSecurityGroup:
         entry = deepcopy(x)
         if not 'cidr_blocks' in entry:
           entry['cidr_blocks'] = [ '0.0.0.0/0' ]
-        from_port: int = entry['from_port']
+        from_port = cast(int, entry['from_port'])
+        assert isinstance(from_port, int)
         if 'to_port' in entry:
-          to_port: int = entry['to_port']
+          to_port = cast(int, entry['to_port'])
+          assert isinstance(to_port, int)
         else:
           to_port = from_port
           entry['to_port'] = to_port
         if 'protocol' in entry:
-          protocol: str = entry['protocol']
+          protocol = cast(str, entry['protocol'])
+          assert isinstance(protocol, str)
         else:
           protocol = 'tcp'
           entry['protocol'] = protocol
@@ -133,7 +135,7 @@ class FrontEndSecurityGroup:
         opts=aws_resource_options,
       )
     else:
-      sg = ec2.SecurityGroup.get(f'{resource_prefix}front-end-sg', id=id)
+      sg = ec2.SecurityGroup.get(f'{resource_prefix}front-end-sg', id=sg_id)
     self.sg = sg
 
   def stack_export(self, export_prefix: Optional[str]=None) -> None:

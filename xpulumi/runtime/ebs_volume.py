@@ -118,4 +118,4 @@ class EbsVolume:
     if export_prefix is None:
       export_prefix = ''
 
-    pulumi.export(f'{export_prefix}ebs_volume{self.unit_postfix}', self.dns_names)
+    pulumi.export(f'{export_prefix}ebs_volume{self.unit_postfix}', self.ebs_volume.id)

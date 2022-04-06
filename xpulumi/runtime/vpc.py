@@ -2,7 +2,7 @@
 
 from importlib.abc import ResourceReader
 from re import I
-from typing import Optional, List
+from typing import Optional, List, cast
 
 import subprocess
 import os
@@ -13,6 +13,7 @@ import pulumi
 from pulumi import (
   ResourceOptions,
   Output,
+  Input,
 )
 
 from pulumi_aws import (
@@ -85,18 +86,18 @@ class VpcEnv:
   private_subnet_cidrs: List[str]
   vpc: ec2.Vpc
   public_subnets: List[ec2.Subnet]
-  public_subnet_ids: List[Output[str]]
+  public_subnet_ids: List[Input[str]]
   private_subnets: List[ec2.Subnet]
-  private_subnet_ids: List[Output[str]]
+  private_subnet_ids: List[Input[str]]
   subnets: List[ec2.Subnet]
-  subnet_ids: List[Output[str]]
+  subnet_ids: List[Input[str]]
   internet_gateway: ec2.InternetGateway
   route_table: ec2.DefaultRouteTable
   route_table_associations: List[ec2.RouteTableAssociation]
-  route_table_association_ids: List[Output[str]]
+  route_table_association_ids: List[Input[str]]
 
   @property
-  def vpc_id(self) -> int:
+  def vpc_id(self) -> Input[str]:
     return self.vpc.id
 
   def get_default_az(self) -> str:
@@ -219,9 +220,12 @@ class VpcEnv:
     self.aws_region = aws_region
     ro = rd.resource_options
 
-    n_azs = default_val(n_azs, self.DEFAULT_N_AZS) # The number of AZs that we will provision our vpc in
-    vpc_cidr = default_val(vpc_cidr, self.DEFAULT_CIDR)
-    n_potential_subnets = default_val(n_potential_subnets, self.DEFAULT_N_POTENTIAL_SUBNETS)
+    n_azs = cast(int, default_val(n_azs, self.DEFAULT_N_AZS)) # The number of AZs that we will provision our vpc in
+    assert isinstance(n_azs, int)
+    vpc_cidr = cast(str, default_val(vpc_cidr, self.DEFAULT_CIDR))
+    assert isinstance(vpc_cidr, str)
+    n_potential_subnets = cast(int, default_val(n_potential_subnets, self.DEFAULT_N_POTENTIAL_SUBNETS))
+    assert isinstance(n_potential_subnets, int)
 
     self.n_azs = n_azs
     self.vpc_cidr = vpc_cidr
@@ -267,7 +271,7 @@ class VpcEnv:
     self.vpc = vpc
 
     # create public subnets in separate AZs
-    public_subnets = []
+    public_subnets: List[ec2.Subnet] = []
     for i, cidr in enumerate(public_subnet_cidrs):
       subnet = ec2.Subnet(
           f'{resource_prefix}public-subnet-{i}',
@@ -287,12 +291,12 @@ class VpcEnv:
     self.public_subnets = public_subnets
 
     public_subnet_ids = [  x.id for x in public_subnets ]
-    self.public_subnet_ids = public_subnet_ids
+    self.public_subnet_ids = cast(List[Input[str]], public_subnet_ids)
 
     # create private subnets in separate AZs.
     # TODO: currently these are the same as public subnets. We can change
     # that with a NAT gateway, no-assign public IP, and network ACLs.
-    private_subnets = []
+    private_subnets: List[ec2.Subnet] = []
     for i, cidr in enumerate(private_subnet_cidrs):
       private_subnets.append(
         ec2.Subnet(
@@ -312,13 +316,13 @@ class VpcEnv:
       self.subnet_infos.append(subnet_info)
     self.private_subnets = private_subnets
     private_subnet_ids = [ x.id for x in private_subnets ]
-    self.private_subnet_ids = private_subnet_ids
+    self.private_subnet_ids = cast(List[Input[str]], private_subnet_ids)
 
     # convenient list of all subnets, public and private
     subnets = public_subnets + private_subnets
     self.subnets = subnets
     subnet_ids = [ x.id for x in subnets ]
-    self.subnet_ids = subnet_ids
+    self.subnet_ids = cast(List[Input[str]], subnet_ids)
 
     # Create an internet gateway to route internet traffic to/from public IPs attached to the VPC
     internet_gateway = ec2.InternetGateway(
@@ -344,7 +348,7 @@ class VpcEnv:
     self.route_table = route_table
 
     # Attach all subnets to our default route table
-    route_table_associations = []
+    route_table_associations: List[ec2.RouteTableAssociation] = []
     for i, subnet in enumerate(subnets):
       subnet_info = self.subnet_infos[i]
       rta = ec2.RouteTableAssociation(
@@ -357,7 +361,7 @@ class VpcEnv:
       subnet_info.route_table_association = rta
     self.route_table_associations = route_table_associations
     route_table_association_ids = [  x.id for x in route_table_associations ]
-    self.route_table_association_ids = route_table_association_ids
+    self.route_table_association_ids = cast(List[Input[str]], route_table_association_ids)
 
   def stack_export(self, export_prefix: Optional[str]=None) -> None:
     if export_prefix is None:
@@ -386,20 +390,28 @@ class VpcEnv:
     resource_prefix = self.resource_prefix
 
     outputs = SyncStackOutputs(stack_name=stack_name, project_name=project_name)
-    aws_region: str = outputs[f'{ import_prefix}vpc_aws_region']
-    vpc_id: str = outputs[f'{ import_prefix}vpc_id']
-    self.public_subnet_ids = outputs[f'{ import_prefix}public_subnet_ids']
-    self.private_subnet_ids = outputs[f'{ import_prefix}private_subnet_ids']
-    internet_gateway_id: str = outputs[f'{ import_prefix}internet_gateway_id']
-    route_table_id: str = outputs[f'{ import_prefix}route_table_id']
-    self.route_table_association_ids = outputs[f'{ import_prefix}route_table_association_ids']
-    self.vpc_cidr = outputs[f'{ import_prefix}vpc_cidr']
-    self.azs = outputs[f'{ import_prefix}vpc_azs']
-    self.public_subnet_cidrs = outputs[f'{ import_prefix}public_subnet_cidrs']
-    self.private_subnet_cidrs = outputs[f'{ import_prefix}private_subnet_cidrs']
-    self.public_subnet_ids = outputs[f'{ import_prefix}public_subnet_ids']
-    self.private_subnet_ids = outputs[f'{ import_prefix}private_subnet_ids']
-    self.route_table_association_ids = outputs[f'{ import_prefix}route_table_association_ids']
+    aws_region = cast(str, outputs[f'{import_prefix}vpc_aws_region'])
+    assert isinstance(aws_region, str)
+    vpc_id = cast(str, outputs[f'{import_prefix}vpc_id'])
+    assert isinstance(vpc_id, str)
+    internet_gateway_id = cast(str, outputs[f'{import_prefix}internet_gateway_id'])
+    assert isinstance(internet_gateway_id, str)
+    route_table_id = cast(str, outputs[f'{import_prefix}route_table_id'])
+    assert isinstance(self.route_table_association_ids, list)
+    self.vpc_cidr = cast(str, outputs[f'{import_prefix}vpc_cidr'])
+    assert isinstance(self.vpc_cidr, str)
+    self.azs = cast(List[str], outputs[f'{import_prefix}vpc_azs'])
+    assert isinstance(self.azs, list)
+    self.public_subnet_cidrs = cast(List[str], outputs[f'{import_prefix}public_subnet_cidrs'])
+    assert isinstance(self.public_subnet_cidrs, list)
+    self.private_subnet_cidrs = cast(List[str], outputs[f'{import_prefix}private_subnet_cidrs'])
+    assert isinstance(self.private_subnet_cidrs, list)
+    self.public_subnet_ids = cast(List[Input[str]], outputs[f'{import_prefix}public_subnet_ids'])
+    assert isinstance(self.public_subnet_ids, list)
+    self.private_subnet_ids = cast(List[Input[str]], outputs[f'{import_prefix}private_subnet_ids'])
+    assert isinstance(self.private_subnet_ids, list)
+    self.route_table_association_ids = cast(List[Input[str]], outputs[f'{import_prefix}route_table_association_ids'])
+    assert isinstance(self.route_table_association_ids, list)
 
     rd = get_aws_region_data(aws_region)
     aws_region = rd.aws_region
@@ -428,19 +440,19 @@ class VpcEnv:
       )
 
     self.public_subnets = []
-    for i, id in enumerate(self.public_subnet_ids):
+    for i, id2 in enumerate(self.public_subnet_ids):
       subnet = ec2.Subnet.get(
           f'{resource_prefix}public-subnet-{i}',
-          id=id,
+          id=id2,
           opts=ro,
         )
       self.public_subnets.append(subnet)
 
     self.private_subnets = []
-    for i, id in enumerate(self.private_subnet_ids):
+    for i, id3 in enumerate(self.private_subnet_ids):
       subnet = ec2.Subnet.get(
           f'{resource_prefix}private-subnet-{i}',
-          id=id,
+          id=id3,
           opts=ro,
         )
       self.private_subnets.append(subnet)
@@ -448,10 +460,10 @@ class VpcEnv:
     self.subnets = self.public_subnets + self.private_subnets
 
     self.route_table_associations = []
-    for i, id in enumerate(self.route_table_association_ids):
+    for i, id4 in enumerate(self.route_table_association_ids):
       rta = ec2.RouteTableAssociation.get(
           f'{resource_prefix}default-route-table-association-{i}',
-          id=id,
+          id=id4,
           route_table_id=route_table_id,
           opts=ro,
         )

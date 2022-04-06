@@ -1,7 +1,7 @@
 from base64 import b64encode
 import base64
 from copy import deepcopy
-from typing import Optional, List, Union, Set, Tuple, Dict, OrderedDict, Iterable, Callable
+from typing import Optional, List, Union, Set, Tuple, Dict, OrderedDict, Iterable, Callable, cast
 
 import subprocess
 import os
@@ -112,7 +112,11 @@ class UserDataPart:
       self.mime_type = mime_type
       self.headers = headers
       self.sync_part = Output.all(content, mime_type, headers).apply(
-                lambda args: self._resolve_sync_part(*args)
+          lambda args: self._resolve_sync_part(
+              cast(CloudInitPartConvertible, args[0]),
+              cast(Optional[str], args[1]),
+              cast(MimeHeadersConvertible, args[2])
+            )
         )
 
   def _resolve_sync_part(
@@ -134,12 +138,23 @@ class UserDataPart:
         force_mime: Input[bool]=False,
         include_from: Input[bool]=False,
       ) -> Output[Optional[str]]:
-    result: Output[str] = Output.all(self.sync_part, include_mime_version, force_mime, include_from).apply(
-        lambda args: args[0].render(include_mime_version=args[1], force_mime=args[2], include_from=args[3])
+    result = Output.all(
+        cast(Output, self.sync_part),
+        include_mime_version,
+        force_mime,
+        include_from
+      ).apply(
+        lambda args: cast(CloudInitPart, args[0]).render(
+            include_mime_version=cast(bool, args[1]),
+            force_mime=cast(bool, args[2]),
+            include_from=cast(bool, args[3])
+          )
       )
     return result
 
 UserDataConvertible = Union['UserData', UserDataPart, Input[CloudInitDocConvertible]]
+
+SyncRenderCallback = Callable[[Tuple[CloudInitDoc, bool]], Optional[Union[str, bytes]]]
 
 class UserData:
   init_content: Input[CloudInitDocConvertible] = None
@@ -205,7 +220,7 @@ class UserData:
         mime_type: Optional[str],
         headers: MimeHeadersConvertible,
         priority: int,
-        sync_render: Callable[[CloudInitDoc], Optional[Union[str, bytes]]],
+        sync_render: SyncRenderCallback,
         include_mime_version: bool,
         parts: List[CloudInitPart]
       ) -> Optional[Union[str, bytes]]:
@@ -218,7 +233,7 @@ class UserData:
       if not content is None:
         # insert the init part in the correct priority position, but
         # at the earliest point possible (before others with equal priority)
-        init_part = CloudInitPart(content=content, mime_type=mime_type, headers=headers)
+        init_part = CloudInitPart(content=cast(CloudInitPartConvertible, content), mime_type=mime_type, headers=headers)
         priorities = [ x[0] for x in self._priority_parts ]
         parts = parts[:]
         i = 0
@@ -229,12 +244,12 @@ class UserData:
 
     for part in parts:
       sync_user_data.add(part)
-    result = sync_render([sync_user_data, include_mime_version])
+    result = sync_render((sync_user_data, include_mime_version))
     return result
 
   def _render_var(
         self,
-        sync_render: Callable[[CloudInitDoc], Optional[Union[str, bytes]]],
+        sync_render: SyncRenderCallback,
         include_mime_version: Input[bool]=False
       ) -> Output[Optional[Union[str, bytes]]]:
     sync_parts = [x.sync_part for x in self.parts]
@@ -248,39 +263,39 @@ class UserData:
         include_mime_version,
         *sync_parts
       ).apply(
-        lambda args: self._sync_render_var(args[0], args[1], args[2], args[3], args[4], args[5], args[6:])
+        lambda args: self._sync_render_var(
+            cast(CloudInitDocConvertible, args[0]),
+            cast(Optional[str], args[1]),
+            cast(MimeHeadersConvertible, args[2]),
+            cast(int, args[3]),
+            cast(SyncRenderCallback, args[4]),
+            cast(bool, args[5]),
+            cast(List[CloudInitPart], args[6:])
+          )
       )
     return result
 
 
   def render(self, include_mime_version: Input[bool]=True) -> Output[Optional[str]]:
-    result: Output[Optional[str]] = self._render_var(
+    result = cast(Output[Optional[str]], self._render_var(
         lambda args: args[0].render(include_mime_version=args[1]),
         include_mime_version=include_mime_version
-      )
+      ))
     return result
 
   def render_binary(self, include_mime_version: Input[bool]=True) -> Output[Optional[bytes]]:
-    result: Output[Optional[bytes]] = self._render_var(
+    result = cast(Output[Optional[bytes]], self._render_var(
         lambda args: args[0].render_binary(include_mime_version=args[1]),
         include_mime_version=include_mime_version
-      )
+      ))
     return result
 
   def render_base64(self, include_mime_version: Input[bool]=True) -> Output[Optional[str]]:
-    result: Output[Optional[str]] = self._render_var(
+    result = cast(Output[Optional[str]], self._render_var(
         lambda args: args[0].render_base64(include_mime_version=args[1]),
         include_mime_version=include_mime_version
-      )
+      ))
     return result
-
-UserDataConvertible = Optional[
-    Union[
-        UserData,
-        UserDataPart,
-        Input[Optional[Union[str, bytes, JsonableDict, CloudInitDoc, CloudInitPart]]]
-      ]
-  ]
 
 def render_user_data_text(
       content: UserDataConvertible,
@@ -291,12 +306,12 @@ def render_user_data_text(
   # so we don't even allow setting it to False.
   result = user_data.render(include_mime_version=True)
   if debug_log:
-    def report(text: str):
+    def report(text: Optional[str]):
       if text is None:
         pulumi.log.info(f"Rendered user_data is: None")
       else:
         pulumi.log.info(f"Rendered user_data is:\n{multiline_indent(text, 4)}")
-    Output.all(result).apply(lambda args: report(*args))
+    Output.all(cast(Output, result)).apply(lambda args: report(cast(Optional[str], args[0])))
   return result
 
 def render_user_data_binary(

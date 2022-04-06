@@ -36,7 +36,7 @@ from pulumi_aws import (
   AwaitableGetAmiResult,
 )
 
-from xpulumi.internal_types import JsonableDict
+from xpulumi.internal_types import Jsonable, JsonableDict
 
 from .util import (
   TTL_SECOND,
@@ -254,13 +254,21 @@ class Ec2Volume:
   def get_shortened_volume_id(self) -> Output[str]:
     if self._shortened_volume_id is None:
       vol_id = self.get_volume_id()
-      self._shortened_volume_id = cast(Output[str], Output.all(vol_id).apply(lambda args: args[0].replace('vol-', '')))
+      self._shortened_volume_id = Output.all(
+          cast(Output, vol_id)
+        ).apply(
+            lambda args: cast(str, args[0]).replace('vol-', '')
+          )
     return self._shortened_volume_id
 
   def get_internal_device_name(self) -> Output[str]:
     if self._internal_device_name is None:
       s_vol_id = self.get_shortened_volume_id()
-      self._internal_device_name = cast(Output[str], Output.all(s_vol_id).apply(lambda args: f"/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{args[0]}"))
+      self._internal_device_name = Output.all(
+          cast(Output, s_vol_id)
+        ).apply(
+            lambda args: f"/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_vol{args[0]}"
+          )
     return self._internal_device_name
 
   @property
@@ -312,7 +320,7 @@ print("All vols up")
   return script
 
 def gen_wait_for_volumes_script(
-      internal_device_names: Input[List[str]],
+      internal_device_names: Union[List[str], List[Input[str]]],
       max_wait_seconds: int = 120,
       redirect_output_filename: Optional[str] = "/var/log/vol-wait.log"
     ) -> Output[str]:
@@ -476,10 +484,11 @@ class Ec2Instance:
       if sys_volume_size_gb is None:
         sys_volume_size_gb = pconfig.get_int(f'{cfg_prefix}ec2_sys_volume_size')
       if data_volumes is None:
-        data_volumes = pconfig.get(f'{cfg_prefix}ec2_data_volume_sizes')
-        if not data_volumes is None:
-          if isinstance(data_volumes, str):
-            data_volumes = [ int(data_volumes) ]
+        data_volumes_data = cast(Optional[Union[str, List[int]]], pconfig.get(f'{cfg_prefix}ec2_data_volume_sizes'))
+        if not data_volumes_data is None:
+          if isinstance(data_volumes_data, str):
+            data_volumes_data = [ int(data_volumes_data) ]
+        data_volumes = cast(Optional[List[Union[int, EbsVolume]]], data_volumes_data)
       if ami_os_version is None:
         ami_os_version = pconfig.get(f'{cfg_prefix}ec2_ami_os_version')
       if use_elastic_ip is None:
@@ -494,9 +503,12 @@ class Ec2Instance:
       if instance_name is None:
         instance_name = pconfig.get(f'{cfg_prefix}ec2_instance_name')
       if open_ports is None:
-        open_ports = pconfig.get(f'{cfg_prefix}ec2_open_ports')
-        if isinstance(open_ports, str):
-          open_ports = json.loads(open_ports)
+        op_data = cast(Jsonable, pconfig.get(f'{cfg_prefix}ec2_open_ports'))
+        if isinstance(op_data, str):
+          op_data = cast(Jsonable, json.loads(op_data))
+        assert op_data is None or isinstance(op_data, list)
+        open_ports = cast(Optional[List[Union[int, JsonableDict]]], op_data)
+
       if az is None:
         az = pconfig.get(f'{cfg_prefix}ec2_instance_az')
       if user_data is None:
@@ -565,6 +577,7 @@ class Ec2Instance:
       primary_dns_name = ordered_dns_names[0]
 
     if len(ordered_dns_names) > 0:
+      assert not primary_dns_name is None
       # put the primary name first
       ordered_dns_names.remove(primary_dns_name)
       ordered_dns_names = [ primary_dns_name ] + ordered_dns_names
@@ -631,7 +644,8 @@ class Ec2Instance:
   @property
   def ami_arch(self) -> str:
     if self._ami_arch is None:
-      self._ami_arch = get_ami_arch_from_instance_type(self.instance_type)
+      self._ami_arch = cast(str, get_ami_arch_from_instance_type(self.instance_type))
+      assert isinstance(self._ami_arch, str)
     return self._ami_arch
 
   def add_user_data(
@@ -665,7 +679,7 @@ class Ec2Instance:
         # there is no way to attach a volume to an EC2 instance until after the
         # instance is created.
         script = gen_wait_for_volumes_script(
-            data_device_names,
+            cast(List[Input[str]], data_device_names),
             max_wait_seconds=max_wait_seconds,
             redirect_output_filename=redirect_output_filename
           )

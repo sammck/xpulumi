@@ -28,6 +28,7 @@ from pulumi_aws import (
   kms,
   secretsmanager
 )
+from xpulumi.base_context import XPulumiContextBase
 
 from xpulumi.context import XPulumiContext
 
@@ -68,11 +69,11 @@ from .. import XPulumiError
 
 class Ec2KeyPair:
   resource_prefix: str = ''
-  ctx: XPulumiContext
+  ctx: XPulumiContextBase
   _public_key: Optional[str] = None
   _public_key_file: Optional[str] = None
   _keypair: Optional[ec2.KeyPair] = None
-  keypair_id: Input[Optional[str]] = None
+  keypair_id: Optional[Input[str]] = None
   _committed: bool = False
 
   def __init__(
@@ -82,7 +83,7 @@ class Ec2KeyPair:
         cfg_prefix: Optional[str]=None,
         public_key: Optional[str]=None,
         public_key_file: Optional[str]=None,
-        keypair_id: Input[Optional[str]]=None,
+        keypair_id: Optional[Input[str]]=None,
         commit: bool=True,
       ):
     if resource_prefix is None:
