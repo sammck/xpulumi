@@ -31,6 +31,7 @@ from xpulumi.runtime import (
     jsonify_promise,
     long_stack,
     S3FutureObject,
+    SshCachedHostKey,
   )
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
@@ -416,7 +417,7 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
 #
 cloud_config_obj = dict(
-    docversion=6,    # for debugging, a way to force redeployment by incrementing
+    docversion=7,    # for debugging, a way to force redeployment by incrementing
 
     # Define linux user accounts. Note that having ANY entries in this list will
     # disable implicit creation of the default "ubuntu" account. Note that
@@ -567,7 +568,7 @@ cloud_init_result_data = cloud_init_result.get_json_content()
 
 pulumi.export('ec2_instance_cloud_init_result', cloud_init_result_data)
 
-# Make the deployment fail if cloud-init returned any errors
+# Make the deployment fail if cloud-init returned any errors.
 def _sync_validate_cloud_init_result(x: Jsonable) -> bool:
   if isinstance(x, dict):
     v1 = x.get('v1', None)
@@ -579,6 +580,16 @@ def _sync_validate_cloud_init_result(x: Jsonable) -> bool:
   raise XPulumiError(f"EC2 instance cloud-init failed: {x}")
 cloud_init_succeeded = cloud_init_result_data.apply(lambda x: _sync_validate_cloud_init_result(x))
 pulumi.export('ec2_instance_cloud_init_succeeded', cloud_init_succeeded)
+
+# replace local SSH host key data if the instance, DNS, or EIP was updated
+cached_host_key = SshCachedHostKey(
+    'ec2_instance_cached_host_key',
+    ec2_instance.ec2_instance.id,
+    ip_address = ec2_instance.eip.public_ip,
+    dns_name = ec2_instance.primary_dns_name
+  )
+
+pulumi.export("cached_host_key_log", cached_host_key.cmd_out)
 
 # Create output variables for our pulumi stack, so that other stacks
 # and tools can find the resources we created. For example,

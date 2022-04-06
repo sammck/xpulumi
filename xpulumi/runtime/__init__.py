@@ -97,4 +97,6 @@ from ..runtime_support import (
     HashedPassword,
     S3FutureObject,
     S3FutureObjectProvider,
+    SshCachedHostKey,
+    SshCachedHostKeyProvider,
   )

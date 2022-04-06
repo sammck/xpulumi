@@ -8,3 +8,4 @@
 
 from .hashed_password_provider import ( HashedPassword, HashedPasswordProvider )
 from .s3_future_object_provider import ( S3FutureObject, S3FutureObjectProvider )
+from .ssh_hostkey_provider import (SshCachedHostKey, SshCachedHostKeyProvider )

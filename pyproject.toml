@@ -78,6 +78,7 @@ disable=[
     "too-many-instance-attributes",
     "too-many-nested-blocks",
     "unneeded-not",
+    "unnecessary-lambda",
   ]
 
 [tool.pylint.MASTER]
