@@ -22,9 +22,8 @@ from xpulumi.runtime import (
     HashedPassword,
     jsonify_promise,
     long_stack,
-    wait_and_get_s3_object_str,
+    S3FutureObject,
   )
-from xpulumi.runtime.s3_object_waiter import wait_and_get_s3_json_object
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
 # will cause the program to stall waiting for vscode to
@@ -409,7 +408,7 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
 #
 cloud_config_obj = dict(
-    docversion=5,    # for debugging, a way to force redeployment by incrementing
+    docversion=6,    # for debugging, a way to force redeployment by incrementing
 
     # Define linux user accounts. Note that having ANY entries in this list will
     # disable implicit creation of the default "ubuntu" account. Note that
@@ -548,13 +547,19 @@ ec2_instance.commit()
 # If it doesn't finish in 15 minutes we will raise an exception here.
 # When cloud_init_result is done, we can proceed if its successful.
 cloud_init_result_uri = Output.concat(stack_s3_uri, '/cloud-init-result-', ec2_instance.ec2_instance.id, '.json')
-cloud_init_result = wait_and_get_s3_json_object(
+
+cloud_init_result = S3FutureObject(
+  'ec2_cloud_init_result',
   uri=cloud_init_result_uri,
-  region_name=aws_region,
+  aws_region=aws_region,
   max_wait_seconds=15*60,
-  poll_interval=10,
-)
-pulumi.export('ec2_instance_cloud_init_result', cloud_init_result)
+  poll_interval=10
+)  
+cloud_init_result_data = cloud_init_result.get_json_content()
+
+pulumi.export('ec2_instance_cloud_init_result', cloud_init_result_data)
+
+# Make the deployment fail if cloud-init returned any errors
 def _sync_validate_cloud_init_result(x: Jsonable) -> bool:
   if isinstance(x, dict):
     v1 = x.get('v1', None)
@@ -563,8 +568,8 @@ def _sync_validate_cloud_init_result(x: Jsonable) -> bool:
       if isinstance(errors, list):
         if len(errors) == 0:
           return True
-  raise XPulumiError(f"EC2 instance cloudinit failt: {x}")
-cloud_init_succeeded = cloud_init_result.apply(lambda x: _sync_validate_cloud_init_result(x))
+  raise XPulumiError(f"EC2 instance cloud-init failed: {x}")
+cloud_init_succeeded = cloud_init_result_data.apply(lambda x: _sync_validate_cloud_init_result(x))
 pulumi.export('ec2_instance_cloud_init_succeeded', cloud_init_succeeded)
 
 # Create output variables for our pulumi stack, so that other stacks

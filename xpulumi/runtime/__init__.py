@@ -92,4 +92,9 @@ from .ec2_instance import (
     Ec2Instance,
   )
 from .cloudwatch import CloudWatch
-from ..runtime_support import HashedPasswordProvider, HashedPassword
+from ..runtime_support import (
+    HashedPasswordProvider,
+    HashedPassword,
+    S3FutureObject,
+    S3FutureObjectProvider,
+  )
