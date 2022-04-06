@@ -103,7 +103,7 @@ class XPulumiBackend:
     cfg_file = os.path.join(backend_dir, "backend.json")
     if not os.path.exists(cfg_file):
       raise XPulumiError(f"XPulumi backend does not exist: {name}")
-    with open(cfg_file) as f:
+    with open(cfg_file, encoding='utf-8') as f:
       cfg_data = json.load(f)
     self._cfg_data = cfg_data
     url: Optional[str] = cfg_data.get('uri', None)
@@ -277,8 +277,12 @@ class XPulumiBackend:
     # TODO: determine secret provider and passphrase_id from stack config
     secrets_provider = "service" if self.scheme == 'https' else "passphrase"
     if secrets_provider == "passphrase":
-      env['PULUMI_CONFIG_PASSPHRASE'] = self.ctx.get_pulumi_secret_passphrase(self.url, organization=organization, project=project, stack=stack)
-    project_backend = pauto.ProjectBackend(self.get_project_backend_url(project=project, organization=organization))
+      env['PULUMI_CONFIG_PASSPHRASE'] = self.ctx.get_pulumi_secret_passphrase(
+          self.url, organization=organization, project=project, stack=stack
+        )
+    project_backend = pauto.ProjectBackend(self.get_project_backend_url(
+        project=project, organization=organization
+      ))
     project_settings = pauto.ProjectSettings(project, "python", backend=project_backend)
     stack_settings = pauto.StackSettings(secrets_provider=secrets_provider)
     stacks_settings = {}
@@ -297,7 +301,7 @@ class XPulumiBackend:
         deployment = ws.export_stack(stack)
         export_data = dict(version=deployment.version, deployment=cast(JsonableDict, deployment.deployment))
       else:
-        resp = ws._run_pulumi_cmd_sync(
+        resp = ws._run_pulumi_cmd_sync(          # pylint: disable=protected-access
             ["stack", "export", "--stack", stack]
         )
         export_data = json.loads(resp.stdout)

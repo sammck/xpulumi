@@ -84,96 +84,6 @@ from .ebs_volume import EbsVolume
 def get_ami_name_filter(ami_arch: str, ami_distro: str, ami_os_version: str) -> str:
   return f"ubuntu/images/hvm-ssd/ubuntu-{ami_distro}-{ami_os_version}-{ami_arch}-server-*"
 
-
-'''
-# create a cloud-config document to attach as user-data to the new ec2 instance.
-# we create a sync function to generate the document when all needed outputs have values, and wrap it as a future that can consume outputs.
-def gen_frontend_cloud_config_obj(
-      zone_name: str,
-      region: str,
-      ecr_domain: str,
-      bootstrap_repo_name: str,
-      bootstrap_repo_tag: str
-    ) -> JsonableDict:
-  docker_config_obj = {
-      "credHelpers": {
-          "public.ecr.aws": "ecr-login",
-          ecr_domain: "ecr-login"
-        }
-    }
-  full_repo_and_tag = f"{ecr_domain}/{bootstrap_repo_name}:{bootstrap_repo_tag}"
-  docker_config = json.dumps(docker_config_obj, indent=1, sort_keys=True)
-  config_obj = dict(
-      repo_update = True,
-      repo_upgrade = "all",
-      fqdn = f"fe.{zone_name}",
-      apt = dict(
-          sources = {
-            "docker.list": dict(
-                source = "deb [arch=amd64] https://download.docker.com/linux/ubuntu $RELEASE stable",
-                keyid = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
-              ),
-            },
-        ),
-
-      packages = [
-          "jq",
-          "awscli",
-          "collectd",
-          "ca-certificates",
-          "curl",
-          "gnupg",
-          "lsb-release",
-          "docker-ce",
-          "docker-ce-cli",
-          "amazon-ecr-credential-helper",
-        ],
-
-      runcmd = [
-          [ "bash", "-c", f"mkdir -p /root/.docker && chmod 700 /root/.docker && echo '{docker_config}' > /root/.docker/config.json && chmod 600 /root/.docker/config.json" ],
-          [ "docker", "pull", full_repo_and_tag ],
-          [ "docker", "run", "--rm", "-v", "/:/host-rootfs", "--privileged", "--net=host", full_repo_and_tag ],
-          [ "bash", "-c", 'echo "it works!"' ],
-        ],
-    )
-  return config_obj
-
-def gen_future_frontend_cloud_config_obj(
-    zone_name: Union[str, Output[str]],
-    region: Union[str, Output[str]],
-    ecr_domain: Union[str, Output[str]],
-    bootstrap_repo_name: Union[str, Output[str]],
-    bootstrap_repo_tag: Union[str, Output[str]],
-  ) -> Output[dict]:
-  # "pulumi.Output.all(*future_args).apply(lambda args: sync_func(*args))"" is a pattern
-  # provided by pulumi. It waits until all promises in future_args have been satisfied,
-  # then invokes sync_func with the realized values of all the future_args as *args. Finally
-  # it wraps the synchronous function as a promise and returns the new promise as the result.
-  # this allows you to write synchronous code in pulumi that depends on future values, and
-  # turn it into asynchronous code
-  future_obj = Output.all(
-        zone_name, region, ecr_domain, bootstrap_repo_name, bootstrap_repo_tag
-    ).apply(lambda args: gen_frontend_cloud_config_obj(*args))
-  return future_obj
-
-future_frontend_cloud_config_obj = gen_future_frontend_cloud_config_obj(
-    zone_name=zone_name,
-    region=region,
-    ecr_domain=ecr_domain,
-    bootstrap_repo_name=front_end_bootstrap_repo_name,
-    bootstrap_repo_tag=front_end_bootstrap_repo_tag,
-  )
-
-frontend_cloud_config = yamlify_promise(
-    future_frontend_cloud_config_obj,
-    indent=1,
-    default_flow_style=None,
-    width=10000,
-    prefix_text="#cloud-config\n",
-  )
-
-'''
-
 class Ec2Volume:
   r"""
   Metadata about a single mounted data volume on an EC2 instance.
@@ -558,7 +468,7 @@ class Ec2Instance:
       if parent_dns_zone is None:
         raise XPulumiError("parent_dns_zone must be provided if dns_subnames are provided")
       for sn in dns_subnames:
-        if sn == '' or sn == '.':
+        if sn in [ '', '.' ]:
           fq_name = parent_dns_zone.zone_name
         else:
           fq_name = sn + '.' + parent_dns_zone.zone_name
@@ -692,7 +602,7 @@ class Ec2Instance:
         name: Input[Optional[str]]=None,
         use_config: bool=True,
         cfg_prefix: Optional[str]=None,
-        id: Input[Optional[str]]=None,
+        volid: Input[Optional[str]]=None,
       ) -> Ec2Volume:
     resource_prefix = self.resource_prefix
     unit_name = 'sd' + chr(ord('f') + len(self.data_volumes))
@@ -706,7 +616,7 @@ class Ec2Instance:
           name=name,
           use_config=use_config,
           cfg_prefix=cfg_prefix,
-          id=id,
+          volid=volid,
           commit=False   # We will commit at self.commit_volumes() time
         )
     assert isinstance(vol, EbsVolume)

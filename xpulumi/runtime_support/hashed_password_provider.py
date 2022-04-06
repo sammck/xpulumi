@@ -18,7 +18,7 @@ class HashedPasswordProvider(ResourceProvider):
       )
     return result
 
-  def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:
+  def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:  # pylint: disable=arguments-renamed
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.check(oldProps={oldProps}, newProps={newProps})")
     old_name = oldProps.get('name', None)
     name = newProps.get('name', None)
@@ -43,21 +43,21 @@ class HashedPasswordProvider(ResourceProvider):
       if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.create(props={props})")
       # since we don't have a unique ID, use the resource name provided
       # by the caller
-      id = cast(str, props["name"])
-      outs = self._gen_outs(id, cast(str, props['password']))
-      pulumi.log.info(f"HashedPasswordProvider.create() ==> CreateResult(id={id}, outs={outs})")
+      rid = cast(str, props["name"])
+      outs = self._gen_outs(rid, cast(str, props['password']))
+      pulumi.log.info(f"HashedPasswordProvider.create() ==> CreateResult(id={rid}, outs={outs})")
     except Exception as e:
       if _DEBUG_PROVIDER: pulumi.log.warn(f"HashedPasswordProvider.create() ==> Exception: {repr(e)}")
       raise
-    return CreateResult(id, outs)
+    return CreateResult(rid, outs)
 
-  def update(self, id: str, oldProps: JsonableDict, newProps: JsonableDict):
+  def update(self, id: str, oldProps: JsonableDict, newProps: JsonableDict): # pylint: disable=redefined-builtin
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.update(oldProps={oldProps}, newProps={newProps})")
     outs = self._gen_outs(cast(str, newProps['name']), cast(str, newProps['password']))
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.update() ==> UpdateResult(outs={outs})")
     return UpdateResult(outs)
 
-  def diff(self, id: str, oldProps: JsonableDict, newProps: JsonableDict) -> DiffResult:
+  def diff(self, id: str, oldProps: JsonableDict, newProps: JsonableDict) -> DiffResult:   # pylint: disable=redefined-builtin
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.diff(oldProps={oldProps}, newProps={newProps})")
     replaces: List[str] = []
     stables: List[str] = [ 'name' ]

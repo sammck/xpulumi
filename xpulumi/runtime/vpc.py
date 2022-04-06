@@ -110,8 +110,8 @@ class VpcEnv:
     raise XPulumiError(f"Availability Zone \"{az}\" is not included in VPC AZs {self.azs}")
 
   def get_az_index_of_subnet(self, subnet: ec2.Subnet) -> int:
-    for i in range(len(self.public_subnets)):
-      if subnet == self.public_subnets[i] or subnet == self.private_subnets[i]:
+    for i in range(len(self.public_subnets)):    # pylint: disable=consider-using-enumerate
+      if subnet in [ self.public_subnets[i],  self.private_subnets[i] ]:
         return i
     raise XPulumiError(f"Subnet \"{subnet}\" is not included in VPC subnetss {self.public_subnets+self.private_subnets}")
 
@@ -237,7 +237,9 @@ class VpcEnv:
     max_n_subnet_id_bits = 32 - vpc_ip_network.prefixlen
     #self.max_n_subnet_id_bits = max_n_subnet_id_bits
     if n_potential_subnets < 8 or n_potential_subnets > (1 << 31) or (n_potential_subnets & (n_potential_subnets - 1)) != 0:
-      raise RuntimeError("Config value n_potential_subnets must be a power of 2 >= 8: %d" % n_potential_subnets)
+      raise RuntimeError(
+          f"Config value n_potential_subnets must be a power of 2 >= 8: {n_potential_subnets}"
+        )
     #self.n_potential_subnets = n_potential_subnets
     n_subnet_id_bits = 0
     x = n_potential_subnets
@@ -245,7 +247,10 @@ class VpcEnv:
       x //= 2
       n_subnet_id_bits += 1
     if n_subnet_id_bits > max_n_subnet_id_bits:
-      raise RuntimeError("Config value n_potential_subnets is greater than maximum allowed (%d) by vpc CIDR %s: %d" % (1 << max_n_subnet_id_bits, vpc_cidr, n_potential_subnets))
+      raise RuntimeError(
+          f"Config value n_potential_subnets is greater than maximum allowed "
+          f"({1 << max_n_subnet_id_bits}) by vpc CIDR {vpc_cidr}: {n_potential_subnets}"
+        )
     #self.n_subnet_id_bits = n_subnet_id_bits
     vpc_potential_subnet_ip_networks = list(vpc_ip_network.subnets(prefixlen_diff=n_subnet_id_bits))
     #self.vpc_potential_subnet_ip_networks = vpc_potential_subnet_ip_networks

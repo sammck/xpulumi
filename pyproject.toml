@@ -77,9 +77,15 @@ disable=[
     "missing-module-docstring",
     "too-many-instance-attributes",
     "too-many-nested-blocks",
+    "unneeded-not",
+  ]
+
+[tool.pylint.MASTER]
+ignore=[
+    ".venv"
   ]
 
 [tool.pylint.FORMAT]
 indent-after-paren=4
 indent-string='  '
-max-line-length=140
+max-line-length=200

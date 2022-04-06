@@ -67,7 +67,7 @@ class CmdExitError(RuntimeError):
   def __init__(self, exit_code: int, msg: Optional[str]=None):
     if msg is None:
       msg = f"Command exited with return code {exit_code}"
-    super(msg)
+    super().__init__(msg)
     self.exit_code = exit_code
 
 class ArgparseExitError(CmdExitError):
@@ -110,7 +110,7 @@ class RoundTripConfig(MutableMapping[str, Any]):
     if not text.endswith('\n'):
       text += '\n'
     if text != self._text:
-      with open(self._config_file, 'w') as f:
+      with open(self._config_file, 'w', encoding='utf-8') as f:
         f.write(text)
 
   def __setitem__(self, key: str, value: Any):
@@ -140,7 +140,7 @@ class RoundTripConfig(MutableMapping[str, Any]):
   def items(self) -> ItemsView[str, Any]:
     return self.data.items()
 
-  def update(self, *args, **kwargs) -> None:
+  def update(self, *args, **kwargs) -> None:  # pylint: disable=arguments-differ
     if len(args) > 0:
       assert len(args) == 1
       assert len(kwargs) == 0
@@ -162,6 +162,17 @@ class CommandHandler:
   _backend_name: Optional[str] = None
   _project: Optional[XPulumiProject] = None
   _backend: Optional[XPulumiBackend] = None
+
+  _raw_stdout: TextIO = sys.stdout
+  _raw_stderr: TextIO = sys.stderr
+  _raw: bool = False
+  _compact: bool = False
+  _output_file: Optional[str] = None
+  _encoding: str = 'utf-8'
+  _config_file: Optional[str] = None
+
+  _colorize_stdout: bool = False
+  _colorize_stderr: bool = False
 
   def __init__(self, argv: Optional[Sequence[str]]=None):
     self._argv = argv
@@ -211,7 +222,7 @@ class CommandHandler:
           cmd.append('-c')
         cmd.append('.')
         with subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=f) as proc:
-          proc.communicate(input=json.dumps(value, separators=(',', ':'), sort_keys=True).encode('utf-8'))
+          proc.communicate(input=jq_input.encode('utf-8'))
           exit_code = proc.returncode
         if exit_code != 0:
           raise subprocess.CalledProcessError(exit_code, cmd)
@@ -271,7 +282,7 @@ class CommandHandler:
     from xpulumi.installer.util import sudo_call
     from xpulumi.installer.os_packages import PackageList
 
-    args = self._args
+    #args = self._args
 
     pl = PackageList()
     pl.add_packages_if_missing(['build-essential', 'meson', 'ninja-build', 'python3.8', 'python3.8-venv', 'sqlcipher'])
@@ -302,8 +313,8 @@ class CommandHandler:
       config_file = xpulumi_config_file_json
     else:
       config_file = xpulumi_config_file_yaml
-      new_config_data: JsonableDict = dict()
-      with open(config_file, 'w') as f:
+      new_config_data: JsonableDict = {}
+      with open(config_file, 'w', encoding='utf-8') as f:
         yaml.dump(new_config_data, f)
     cfg = XPulumiConfig(config_file)
     xpulumi_dir = os.path.join(cfg.xpulumi_dir, '.pulumi')
@@ -388,7 +399,7 @@ class CommandHandler:
       raise XPulumiError(f"Parent directory of file backend {new_backend_uri} does not exist")
     os.makedirs(backend_dir)
     os.makedirs(backend_pathname)
-    with open(os.path.join(backend_pathname, '.gitignore'), 'w') as f:
+    with open(os.path.join(backend_pathname, '.gitignore'), 'w', encoding='utf-8') as f:
       print("!.pulumi/", file=f)
     backend_data: JsonableDict = dict(
         name=new_backend,
@@ -398,7 +409,7 @@ class CommandHandler:
           includes_project=False,
         )
       )
-    with open(os.path.join(backend_dir, "backend.json"), 'w') as f:
+    with open(os.path.join(backend_dir, "backend.json"), 'w', encoding='utf-8') as f:
       print(json.dumps(backend_data, indent=2, sort_keys=True), file=f)
 
   def create_s3_backend(
@@ -436,7 +447,7 @@ class CommandHandler:
     args = self._args
     backend_name: str = args.default_backend
     backend = XPulumiBackend(backend_name)
-    self.update_config(default_backend=backend_name)
+    self.update_config(default_backend=backend.name)
     return 0
 
   def cmd_prj_create(self) -> int:

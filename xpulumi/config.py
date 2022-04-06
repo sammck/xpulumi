@@ -68,8 +68,7 @@ def locate_xpulumi_config_file(config_path: Optional[str]=None, starting_dir: Op
       if not scan_parent_dirs or old_dir == test_path:
         if scan_parent_dirs:
           raise FileNotFoundError(f"xpulumi: Config file not found in dir or parent dirs: '{config_path}'")
-        else:
-          raise FileNotFoundError(f"xpulumi: Config file not found in dir: '{config_path}'")
+        raise FileNotFoundError(f"xpulumi: Config file not found in dir: '{config_path}'")
   elif os.path.isfile(test_path):
     result = test_path
   else:
@@ -87,7 +86,7 @@ class XPulumiConfig:
 
   def __init__(self, config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True):
     self._config_file = locate_xpulumi_config_file(config_path=config_path, starting_dir=starting_dir, scan_parent_dirs=scan_parent_dirs)
-    with open(self._config_file) as f:
+    with open(self._config_file, encoding='utf-8') as f:
       config_text = f.read()
     if self._config_file.endswith('.yaml'):
       self._config_data = yaml.load(config_text, Loader=Loader)

@@ -308,7 +308,7 @@ def render_user_data_text(
   if debug_log:
     def report(text: Optional[str]):
       if text is None:
-        pulumi.log.info(f"Rendered user_data is: None")
+        pulumi.log.info("Rendered user_data is: None")
       else:
         pulumi.log.info(f"Rendered user_data is:\n{multiline_indent(text, 4)}")
     Output.all(cast(Output, result)).apply(lambda args: report(cast(Optional[str], args[0])))

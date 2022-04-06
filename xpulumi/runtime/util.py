@@ -53,7 +53,7 @@ _debugger_attached: bool = False
 
 def xbreakpoint() -> None:
   if _debugger_attached:
-    breakpoint()  # pylint: ignore=forgotten-debug-statement
+    breakpoint()  # pylint: disable=forgotten-debug-statement
 
 def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=30, force: bool=False) -> None:
   global _debugger_attached
@@ -65,7 +65,7 @@ def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=3
       if debugpy.is_client_connected():
         _debugger_attached = True
         pulumi.log.info("Pulumi debugger attached")
-        breakpoint()  # pylint: ignore=forgotten-debug-statement
+        breakpoint()  # pylint: disable=forgotten-debug-statement
         break
       time.sleep(1)
       max_wait_s -= 1

@@ -117,7 +117,7 @@ def file_url_to_pathname(url: str, cwd: Optional[str]=None, allow_relative: bool
   # file://~/myfile is interpreted as file "myfile" in the caller's home directory.
   # For sanity we treat file://localhost/ and file://127.0.0.1/ as special cases.
   base_dir = url_unquote(url_parts.netloc)
-  if base_dir == '' or base_dir == 'localhost' or base_dir == '127.0.0.1':
+  if base_dir in [ '', 'localhost', '127.0.0.1' ]:
     base_dir = '/'
   if not allow_relative and base_dir != '/':
     raise XPulumiError(f"Relative and network-based file:// backends are not allowed: {url}")
@@ -172,14 +172,14 @@ def append_lines_to_file_if_missing(pathname: str, lines: Union[str, List[str]],
     lines = [lines]
 
   if create_file and not os.path.exists(pathname):
-    with open(pathname, 'w') as f:
+    with open(pathname, 'w', encoding='utf-8') as f:
       pass
     result = True
 
   if len(lines) > 0:
     adjusted = [x.rstrip("\n\r") for x in lines]
     found = dict((x, False) for x in adjusted)
-    with open(pathname, "r+") as f:
+    with open(pathname, "r+", encoding='utf-8') as f:
       ends_with_newline: bool = True
       for line in f:
         ends_with_newline = line.endswith("\n")

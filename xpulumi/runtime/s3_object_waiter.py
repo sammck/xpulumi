@@ -95,7 +95,7 @@ def wait_and_get_s3_object_str(
       max_wait_seconds: float=DEFAULT_S3_OBJECT_WAIT_TIMEOUT_SECONDS, # -1 for infinite wait
       poll_interval: float = DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS,
     ) -> Output[str]:
-  bin = wait_and_get_s3_object(
+  bin_content = wait_and_get_s3_object(
       uri=uri,
       bucket=bucket,
       key=key,
@@ -103,12 +103,12 @@ def wait_and_get_s3_object_str(
       max_wait_seconds=max_wait_seconds,
       poll_interval=poll_interval
     )
-  result = bin.apply(lambda x: x.decode('utf-8'))
+  result = bin_content.apply(lambda x: x.decode('utf-8'))
   return result
 
-def _load_s3_json(bin: bytes, uri: Optional[str], bucket: Optional[str], key: Optional[str]) -> Jsonable:
+def _load_s3_json(bin_content: bytes, uri: Optional[str], bucket: Optional[str], key: Optional[str]) -> Jsonable:
   try:
-    s = bin.decode('utf-8')
+    s = bin_content.decode('utf-8')
     result: Jsonable = json.loads(s)
   except Exception as e:
     bucket, key = _normalize_bucket_key(uri=uri, bucket=bucket, key=key)
@@ -123,7 +123,7 @@ def wait_and_get_s3_json_object(
       max_wait_seconds: float=DEFAULT_S3_OBJECT_WAIT_TIMEOUT_SECONDS, # -1 for infinite wait
       poll_interval: float = DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS,
     ) -> Output[Jsonable]:
-  bin = wait_and_get_s3_object(
+  bin_content = wait_and_get_s3_object(
       uri=uri,
       bucket=bucket,
       key=key,
@@ -131,5 +131,5 @@ def wait_and_get_s3_json_object(
       max_wait_seconds=max_wait_seconds,
       poll_interval=poll_interval
     )
-  result: Output[Jsonable] = Output.all(bin, uri, bucket, key).apply(lambda args: _load_s3_json(*args))  # type: ignore[arg-type]
+  result: Output[Jsonable] = Output.all(bin_content, uri, bucket, key).apply(lambda args: _load_s3_json(*args))  # type: ignore[arg-type]
   return result

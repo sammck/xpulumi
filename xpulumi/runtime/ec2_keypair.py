@@ -124,7 +124,7 @@ class Ec2KeyPair:
   def set_public_key(self, public_key: Optional[str]=None, filename: Optional[str]=None) -> None:
     pathname = None if filename is None else self.ctx.abspath(os.path.expanduser(filename))
     if public_key is None and not pathname is None:
-      with open(pathname) as f:
+      with open(pathname, encoding='utf-8') as f:
         public_key = f.read().rstrip()
     self._public_key_file = pathname
     self._public_key = public_key

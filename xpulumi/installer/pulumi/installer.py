@@ -179,7 +179,7 @@ def extract_tarball(tarball_file: str, extract_dir: str='.', tbfilter: TarFilter
     filter_s = '--' + filter_s
 
   with subprocess.Popen(['tar', filter_s, '-xf', tarball_file, '-C', extract_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-    (stdout_bytes, stderr_bytes) = proc.communicate()
+    (_, stderr_bytes) = proc.communicate()
     exit_code = proc.returncode
   if exit_code != 0:
     stderr_s = stderr_bytes.decode('utf-8').rstrip()
@@ -188,7 +188,7 @@ def extract_tarball(tarball_file: str, extract_dir: str='.', tbfilter: TarFilter
 def mkdir_p(dirname: str):
   dirname = os.path.expanduser(dirname)
   with subprocess.Popen(['mkdir', '-p', dirname], stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
-    (stdout_bytes, stderr_bytes) = proc.communicate()
+    (_, stderr_bytes) = proc.communicate()
     exit_code = proc.returncode
   if exit_code != 0:
     stderr_s = stderr_bytes.decode('utf-8').rstrip()
@@ -320,7 +320,6 @@ def install_pulumi(
     raise RuntimeError("Requested Pulumi upgrade version {upgrade_version} is less than than minimum required version {min_version}")
 
   dirname = os.path.abspath(os.path.expanduser(dirname))
-  pulumi_cmd = os.path.join(dirname, 'bin', 'pulumi')
   old_version: Optional[str] = None
   if pulumi_is_installed(dirname):
     old_version = get_pulumi_version(dirname)
@@ -330,12 +329,10 @@ def install_pulumi(
       if min_version is None:
         print(f"Pulumi version {old_version} is already installed in {dirname}; no need to reinstall", file=stderr)
         return dirname, False
-      else:
-        if check_version_ge(old_version, min_version):
-          print(f"Pulumi version {old_version} is already installed in {dirname} and meets minimum version {min_version}; no need to upgrade", file=stderr)
-          return dirname, False
-        else:
-          print(f"Installed Pulumi version {old_version} in {dirname} does not meet minimum version {min_version}; upgrading", file=stderr)
+      if check_version_ge(old_version, min_version):
+        print(f"Pulumi version {old_version} is already installed in {dirname} and meets minimum version {min_version}; no need to upgrade", file=stderr)
+        return dirname, False
+      print(f"Installed Pulumi version {old_version} in {dirname} does not meet minimum version {min_version}; upgrading", file=stderr)
   else:
     print(f"Pulumi not installed in {dirname}; installing", file=stderr)
 
@@ -368,7 +365,7 @@ def get_pulumi_username(dirname: Optional[str]=None, stderr: TextIO=sys.stderr) 
     if exit_code != 0:
       raise RuntimeError("Unexpected nonzero exit code from \"pulumi whoami\": {exit_code}")
     if pulumi_out == "":
-      raise RuntimeError(f"Unexpected empty username output from \"pulumi whoami\"")
+      raise RuntimeError("Unexpected empty username output from \"pulumi whoami\"")
 
     username = pulumi_out
   return username

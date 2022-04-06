@@ -71,7 +71,7 @@ def update_os_package_list(force: bool=False, stderr: Optional[TextIO]=None) -> 
 def update_apt_sources_list(dest_file: str, signed_by: str, url: str, *args, stderr: Optional[TextIO]=None) -> None:
   arch = get_dpkg_arch()
   tmp_file = os.path.join(get_tmp_dir(), "tmp_apt_source.list")
-  with open(tmp_file, "w") as f:
+  with open(tmp_file, "w", encoding='utf-8') as f:
     print(f"deb [arch={arch} signed-by={signed_by}] {url} {' '.join(args)}", file=f)
   if os.path.exists(dest_file):
     if files_are_identical(tmp_file, dest_file):

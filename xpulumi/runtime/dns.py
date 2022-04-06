@@ -102,6 +102,7 @@ class DnsZone:
   parent_zone: Optional['DnsZone'] = None
   zone: route53.Zone
   zone_name: str
+  parent_zone_ns_record: Optional[route53.Record] = None
 
   @property
   def zone_id(self) -> Output[str]:
@@ -131,7 +132,7 @@ class DnsZone:
       zone = route53.Zone(
           f'{resource_prefix}dns-zone',
           # opts=,
-          comment='Public zone for pulumi stack %s' % long_stack,
+          comment=f'Public zone for pulumi stack {long_stack}',
           delegation_set_id=None,
           force_destroy=True,
           name=zone_name,
@@ -141,7 +142,7 @@ class DnsZone:
         )
       if not parent_zone is None:
         # Create an NS record in the parent zone that points to our zone's name servers.
-        public_parent_zone_ns_record = route53.Record(
+        self.parent_zone_ns_record = route53.Record(
           f'{resource_prefix}dns-zone-parent-ns-record',
           # aliases=None,
           # allow_overwrite=None,

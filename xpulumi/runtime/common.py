@@ -55,9 +55,9 @@ class AwsRegionData:
   caller_identity: pulumi_aws.GetCallerIdentityResult
 
 
-  def __init__(self, aws_region: str):
-    self.aws_region = aws_region
-    self.aws_provider = pulumi_aws.Provider('aws-%s' % aws_region, region=aws_region)
+  def __init__(self, region: str):
+    self.aws_region = region
+    self.aws_provider = pulumi_aws.Provider(f'aws-{region}', region=region)
     self.resource_options = ResourceOptions(provider=self.aws_provider)
     self.invoke_options = InvokeOptions(provider=self.aws_provider)
     self.caller_identity = pulumi_aws.get_caller_identity(opts=self.invoke_options)
@@ -68,16 +68,16 @@ class AwsRegionData:
 
 _aws_regions: Dict[str, AwsRegionData] = {}
 _aws_regions_lock = threading.Lock()
-def get_aws_region_data(aws_region: Optional[str]=None) -> AwsRegionData:
-  if aws_region is None:
-    aws_region = aws_default_region
-  if aws_region is None:
+def get_aws_region_data(region: Optional[str]=None) -> AwsRegionData:
+  if region is None:
+    region = aws_default_region
+  if region is None:
     raise XPulumiError("An AWS region must be specified")
   with _aws_regions_lock:
-    result = _aws_regions.get(aws_region, None)
+    result = _aws_regions.get(region, None)
     if result is None:
-      result = AwsRegionData(aws_region)
-      _aws_regions[aws_region] = result
+      result = AwsRegionData(region)
+      _aws_regions[region] = result
   return result
 
 aws_region_data = get_aws_region_data(aws_region)
@@ -93,8 +93,8 @@ aws_global_invoke_options = aws_global_region_data.invoke_options
 aws_global_account_id = aws_global_region_data.account_id
 
 
-def get_availability_zones(aws_region: Optional[str]=None):
-  azs = sorted(pulumi_aws.get_availability_zones(opts=get_aws_region_data(aws_region).invoke_options).names)
+def get_availability_zones(region: Optional[str]=None):
+  azs = sorted(pulumi_aws.get_availability_zones(opts=get_aws_region_data(region).invoke_options).names)
   return azs
 
 owner_tag: Optional[str] = default_val(pconfig.get('owner'), None)

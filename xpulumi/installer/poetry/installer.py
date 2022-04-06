@@ -61,7 +61,8 @@ class StandardInstaller:
 
 @run_once
 def std_installer_module() -> types.ModuleType:
-  import imp
+  # TODO: Use up-to-date way of doing this
+  import imp  # pylint: disable=deprecated-module
   module_name = "xpulumi.installer.poetry.std_installer"
   std_installer = imp.new_module(module_name)
   code = download_url_text("https://install.python-poetry.org")
@@ -70,16 +71,16 @@ def std_installer_module() -> types.ModuleType:
   return std_installer
 
 def std_data_dir(version: Optional[str] = None) -> Path:
-  return std_installer_module().data_dir(version=version)
+  return std_installer_module().data_dir(version=version) # pylint: disable=no-member
 
 def std_bin_dir(version: Optional[str] = None) -> Path:
-  return std_installer_module().bin_dir(version=version)
+  return std_installer_module().bin_dir(version=version) # pylint: disable=no-member
 
 class Installer:
   std_installer: StandardInstaller
 
   def __init__(self, *args, **kwargs) -> None:
-    self.std_installer = cast(StandardInstaller, std_installer_module().Installer(*args, **kwargs))
+    self.std_installer = cast(StandardInstaller, std_installer_module().Installer(*args, **kwargs)) # pylint: disable=no-member
 
   def run(self) -> int:
     return self.std_installer.run()  # type: ignore[attr-defined]
@@ -92,7 +93,7 @@ def get_poetry_prog() -> Optional[str]:
 
 def get_poetry_version() -> str:
   result = sudo_check_output_stderr_exception(['poetry', '--version'], use_sudo=False).decode('utf-8').rstrip()
-  result = result.split(' ')[-1]
+  result = result.rsplit(' ', 1)[-1]
   return result
 
 def install_poetry(

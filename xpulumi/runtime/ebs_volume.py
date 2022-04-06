@@ -32,7 +32,7 @@ class EbsVolume:
   az: Input[Optional[str]] = None
   volume_size_gb: int = DEFAULT_VOLUME_SIZE_GB
   name: Input[Optional[str]] = None
-  id: Input[Optional[str]] = None
+  volid: Input[Optional[str]] = None
   _ebs_volume: Optional[ebs.Volume] = None
   _committed: bool = False
 
@@ -55,7 +55,7 @@ class EbsVolume:
         name: Input[Optional[str]]=None,
         use_config: bool = True,
         cfg_prefix: Optional[str]=None,
-        id: Input[Optional[str]]=None,
+        volid: Input[Optional[str]]=None,
         commit: bool=True,
       ):
     if resource_prefix is None:
@@ -69,15 +69,15 @@ class EbsVolume:
         volume_size_gb = pconfig.get_int(f'{cfg_prefix}ebs_volume_size{self.unit_postfix}')
       if az is None:
         az = pconfig.get(f'{cfg_prefix}ebs_volume_az{self.unit_postfix}')
-      if id is None:
-        id = pconfig.get(f'{cfg_prefix}ebs_volume_id{self.unit_postfix}')
+      if volid is None:
+        volid = pconfig.get(f'{cfg_prefix}ebs_volume_id{self.unit_postfix}')
 
     if volume_size_gb is None:
       volume_size_gb = self.DEFAULT_VOLUME_SIZE_GB
 
     self.az = az
     self.volume_size_gb = volume_size_gb
-    self.id = id
+    self.volid = volid
 
     if commit:
       self.commit()
@@ -88,7 +88,7 @@ class EbsVolume:
 
     resource_prefix = self.resource_prefix
 
-    if self.id is None:
+    if self.volid is None:
       if self.az is None:
         raise XPulumiError("An availability zone must be specified for an EBS volume")
 
@@ -105,11 +105,11 @@ class EbsVolume:
           tags=with_default_tags(Name=self.name),
           opts=aws_resource_options,
         )
-      self.id = self.ebs_volume.id
+      self.volid = self.ebs_volume.id
     else:
       self._ebs_volume = ebs.Volume.get(
           f'{resource_prefix}ebs-volume{self.unit_postfix}',
-          id = self.id,
+          id = self.volid,
           opts=aws_resource_options,
         )
     self._committed = True

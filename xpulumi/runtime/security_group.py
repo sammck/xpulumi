@@ -116,7 +116,7 @@ class FrontEndSecurityGroup:
 
       sg = ec2.SecurityGroup(
         f'{resource_prefix}front-end-sg',
-        description='%s front-end security group. Public SSH, HTTP, and HTTPS' % long_stack,
+        description=f'{long_stack} front-end security group. Public SSH, HTTP, and HTTPS',
         egress=[
           dict(
             cidr_blocks=[ '0.0.0.0/0' ],

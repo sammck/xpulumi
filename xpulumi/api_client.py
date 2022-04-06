@@ -226,7 +226,13 @@ class PulumiApiClient:
           f"organization={organization}, project={project}, stack={stack}")
     return resp
 
-  def export_stack_deployment(self, project: str, stack: str, organization: Optional[str]=None, version: Optional[int]=None) -> JsonableDict:
+  def export_stack_deployment(
+        self,
+        project: str,
+        stack: str,
+        organization: Optional[str]=None,
+        version: Optional[int]=None
+      ) -> JsonableDict:
     api_path = self.get_stack_api_path(project, stack, 'export', organization=organization)
     if not version is None:
       api_path += f"/{version}"

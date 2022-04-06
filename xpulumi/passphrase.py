@@ -185,7 +185,7 @@ class PassphraseCipher:
           raise XPulumiError(f"Badly formed salt_state value: {salt_state}")
         salt = b64decode(parts[1])
     elif not salt_state is None:
-      raise XPulumiError(f"Salt and salt_state cannot both be provided to PassphraseCipher")
+      raise XPulumiError("Salt and salt_state cannot both be provided to PassphraseCipher")
     self._salt = salt
     key = PBKDF2(passphrase, salt, dkLen=self.KEY_SIZE_BYTES, count=self.PBKDF2_COUNT, hmac_hash_module=self.PBKDF2_HASH_MODULE)
     self._key = key

@@ -351,7 +351,7 @@ class PulumiWrapper:
     env['PULUMI_HOME'] = ctx.get_pulumi_home()
     project = self.project
     backend = self.backend
-    if not backend is None and (backend.scheme == 'http' or backend.scheme == 'https'):
+    if not backend is None and (backend.scheme in [ 'http', 'https' ]):
       env['PULUMI_BACKEND_URL'] = backend.url
       env['PULUMI_ACCESS_TOKEN'] = backend.require_access_token()
     else:

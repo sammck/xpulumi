@@ -70,7 +70,7 @@ def get_gh_version() -> str:
           use_sudo=False
         )
     ).decode('utf-8').rstrip()
-  line0 = long_version.split('\n')[0].rstrip()
+  line0 = long_version.split('\n', 1)[0].rstrip()
   parts = line0.split(' ')
   if len(parts) < 3 or parts[0] != 'gh' or parts[1] != 'version' or parts[2] == '':
     raise XPulumiError(f"Malformed gh version response: {line0}")
@@ -91,12 +91,12 @@ def install_gh(force: bool=False):
     else:
       print(f"GitHub CLI version {version} does not meet the minimum version {MIN_GH_VERSION}; upgrading", file=sys.stderr)
   else:
-    print(f"GitHub CLI is not installed; installing", file=sys.stderr)
+    print("GitHub CLI is not installed; installing", file=sys.stderr)
 
   if need_client_install:
 
     variant = "stable"
-    lsbrelease = get_linux_distro_name()
+    #lsbrelease = get_linux_distro_name()
 
     update_gpg_keyring(
         "https://cli.github.com/packages/githubcli-archive-keyring.gpg",
@@ -107,7 +107,7 @@ def install_gh(force: bool=False):
         "/etc/apt/sources.list.d/github-cli.list",
         "/etc/apt/trusted.gpg.d/githubcli-archive-keyring.gpg",
         "https://cli.github.com/packages",
-        "stable",
+        variant,
         "main"
       )
 

@@ -31,7 +31,6 @@ from .exceptions import XPulumiError
 from .constants import PULUMI_STANDARD_BACKEND
 from .config import XPulumiConfig
 
-
 if TYPE_CHECKING:
   from .project import XPulumiProject
   from .backend import XPulumiBackend
@@ -130,8 +129,7 @@ class XPulumiContextBase(XPulumiContext):
     v = self.get_kv_store().get_value(name)
     if v is None:
       return None
-    else:
-      return v.as_simple_jsonable()
+    return v.as_simple_jsonable()
 
   def init_from_config(self, config: XPulumiConfig) -> None:
     self._config = config
@@ -318,12 +316,11 @@ class XPulumiContextBase(XPulumiContext):
     return result
 
   def get_credentials_data(self) -> JsonableDict:
-    result: JsonableDict
     if self._credentials_data is None:
       credentials_file = self.get_credentials_filename()
       if not credentials_file is None:
         try:
-          with open(credentials_file) as f:
+          with open(credentials_file, encoding='utf-8') as f:
             json_text = f.read()
         except FileNotFoundError:
           pass
@@ -356,7 +353,10 @@ class XPulumiContextBase(XPulumiContext):
         passphrase_id: Optional[str] = None,
         salt_state: Optional[str] = None,
       ) -> str:
-    raise XPulumiError(f"Unable to determine secrets passphrase for backend={backend_url}, organization={organization}, project={project}, stack={stack}, passphrase_id={passphrase_id}, stalt_state={salt_state}")
+    raise XPulumiError(
+        f"Unable to determine secrets passphrase for backend={backend_url}, organization={organization}, "
+        f"project={project}, stack={stack}, passphrase_id={passphrase_id}, stalt_state={salt_state}"
+      )
 
   def set_pulumi_secret_passphrase(
         self,
@@ -474,7 +474,7 @@ class XPulumiContextBase(XPulumiContext):
       self._environ = env
       env['PULUMI_HOME'] = ctx.get_pulumi_home()
       project = self.get_optional_project()
-      backend: Optional[XPulumiBackend] = None
+      backend: Optional['XPulumiBackend'] = None
       if project is None:
         if 'PULUMI_BACKEND_URL' in env:
           del env['PULUMI_BACKEND_URL']
@@ -483,7 +483,7 @@ class XPulumiContextBase(XPulumiContext):
       else:
         env['PULUMI_BACKEND_URL'] = project.get_project_backend_url()
         backend = project.backend
-        if backend.scheme == 'https' or backend.scheme == 'http':
+        if backend.scheme in [ 'https', 'http' ]:
           env['PULUMI_ACCESS_TOKEN'] = backend.require_access_token()
         else:
           if 'PULUMI_ACCESS_TOKEN' in env:
@@ -524,7 +524,7 @@ class XPulumiContextBase(XPulumiContext):
     if project is None:
       cwd = self._cwd
     else:
-      cwd = project._project_dir  # pylint: ignore=protected-access
+      cwd = project._project_dir  # pylint: disable=protected-access
     kwargs['cwd'] = cwd
     return arglist
 

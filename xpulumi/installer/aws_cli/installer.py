@@ -78,7 +78,7 @@ def get_aws_cli_long_version() -> str:
 
 def get_aws_cli_version() -> str:
   long_result = get_aws_cli_long_version()
-  sp_parts0 = long_result.split(' ')[0]
+  sp_parts0 = long_result.split(' ', 1)[0]
   sl_parts = sp_parts0.split('/')
   if len(sl_parts) != 2 or sl_parts[0] != 'aws-cli' or sl_parts[1] == '':
     raise XPulumiError(f"Malformed AWS CLI version string: {long_result}")
@@ -99,7 +99,7 @@ def install_aws_cli(force: bool=False):
     else:
       print(f"AWS CLI version {version} does not meet the minimum version {MIN_AWS_CLI_VERSION}; upgrading", file=sys.stderr)
   else:
-    print(f"AWS CLI is not installed; installing", file=sys.stderr)
+    print("AWS CLI is not installed; installing", file=sys.stderr)
 
   home_local = os.path.expanduser("~/.local")
 

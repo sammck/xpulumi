@@ -265,7 +265,7 @@ def sudo_Popen(
       sudo_reason=sudo_reason,
     )
 
-  result = subprocess.Popen(
+  result = subprocess.Popen(  # pylint: disable=consider-using-with
       args,
       bufsize=bufsize,
       executable=executable,
@@ -630,7 +630,7 @@ def sudo_check_call_stderr_exception(
         encoding=cast(str, encoding),
         errors=errors,
       ) as proc:
-    (stdout_bytes, stderr_bytes) = cast(Tuple[Union[str, bytes], Union[str, bytes]], proc.communicate())
+    (_, stderr_bytes) = cast(Tuple[Union[str, bytes], Union[str, bytes]], proc.communicate())
     exit_code = proc.returncode
   if exit_code != 0:
     if encoding is None:
@@ -668,7 +668,7 @@ def get_linux_distro_name() -> str:
   return linux_distro
 
 def file_contents(filename: str) -> str:
-  with open(filename) as f:
+  with open(filename, encoding='utf-8') as f:
     result = f.read()
   return result
 
@@ -781,8 +781,7 @@ def should_run_with_group(group_name: str, require: bool=True) -> bool:
     if not os_group_includes_user(group_name):
       if os_group_exists(group_name):
         raise XPulumiError(f"User \"{get_current_os_user()}\" is not a member of OS group \"{group_name}\"")
-      else:
-        raise XPulumiError(f"OS group \"{group_name}\" does not exist")
+      raise XPulumiError(f"OS group \"{group_name}\" does not exist")
     result = not os_group_includes_current_process(group_name)
   else:
     result = not os_group_includes_current_process(group_name) and os_group_includes_user(group_name)

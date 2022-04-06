@@ -155,11 +155,11 @@ class XPulumiStack:
     cfg_file_yaml = os.path.join(project_dir, f"xpulumi-stack.{stack_name}.yaml")
     if os.path.exists(cfg_file_json):
       self._xcfg_file = cfg_file_json
-      with open(cfg_file_json) as f:
+      with open(cfg_file_json, encoding='utf-8') as f:
         xcfg_data = cast(JsonableDict, json.load(f))
     elif os.path.exists(cfg_file_yaml):
       self._xcfg_file = cfg_file_yaml
-      with open(cfg_file_yaml) as f:
+      with open(cfg_file_yaml, encoding='utf-8') as f:
         xcfg_text = f.read()
       xcfg_data = cast(JsonableDict, yaml.load(xcfg_text, Loader=Loader))
     assert isinstance(xcfg_data, dict)
@@ -168,7 +168,7 @@ class XPulumiStack:
     pulumi_cfg_file = os.path.join(project_dir, f'Pulumi.{stack_name}.yaml')
     self._pulumi_cfg_file = pulumi_cfg_file
     if os.path.exists(pulumi_cfg_file):
-      with open(pulumi_cfg_file) as f:
+      with open(pulumi_cfg_file, encoding='utf-8') as f:
         pulumi_cfg_text = f.read()
       pulumi_cfg_data = cast(JsonableDict, yaml.load(pulumi_cfg_text, Loader=Loader))
       assert isinstance(pulumi_cfg_data, dict)

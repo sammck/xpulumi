@@ -35,7 +35,7 @@ class S3FutureObjectProvider(ResourceProvider):
       )
     return result
 
-  def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:
+  def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:   # pylint: disable=arguments-renamed
     if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.check(oldProps={oldProps}, newProps={newProps})")
     old_uri = oldProps.get('uri', None)
     uri = newProps.get('uri', None)
@@ -66,9 +66,9 @@ class S3FutureObjectProvider(ResourceProvider):
     if not isinstance(aws_region, str) or aws_region == '':
       failures.append(CheckFailure('aws_region', f'aws_region must be None or a nonempty string: {aws_region}'))
     if not isinstance(max_wait_seconds, float):
-      failures.append(CheckFailure('max_wait_seconds', f'max_wait_seconds must be a float'))
+      failures.append(CheckFailure('max_wait_seconds', 'max_wait_seconds must be a float'))
     if not isinstance(poll_interval, float) or poll_interval < 0:
-      failures.append(CheckFailure('poll_interval', f'poll_interval must be a float >= 0'))
+      failures.append(CheckFailure('poll_interval', 'poll_interval must be a float >= 0'))
 
     inputs = dict(uri=uri, aws_region=aws_region, max_wait_seconds=max_wait_seconds, poll_interval=poll_interval)
 
@@ -87,13 +87,13 @@ class S3FutureObjectProvider(ResourceProvider):
       raise
     return CreateResult(uri, outs)
 
-  def update(self, id: str, oldProps: JsonableDict, newProps: JsonableDict):
-    if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.update(id={id}, oldProps={oldProps}, newProps={newProps})")
+  def update(self, id: str, oldProps: JsonableDict, newProps: JsonableDict):  # pylint: disable=redefined-builtin
+    if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.update(id={id}, oldProps={oldProps}, newProps={newProps})") # pylint: disable=redefined-builtin
     outs = self._gen_outs(newProps)
     if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.update() ==> UpdateResult(outs={outs})")
     return UpdateResult(outs)
 
-  def diff(self, id: str, oldProps: JsonableDict, newProps: JsonableDict) -> DiffResult:
+  def diff(self, id: str, oldProps: JsonableDict, newProps: JsonableDict) -> DiffResult:   # pylint: disable=redefined-builtin
     if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.diff(id={id}, oldProps={oldProps}, newProps={newProps})")
     replaces: List[str] = []
     stables: List[str] = []
