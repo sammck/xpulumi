@@ -41,7 +41,7 @@ except ImportError:
 
 class XPulumiProject:
   _ctx: XPulumiContextBase
-  _name: Optional[str] = None
+  _name: str
   _project_dir: str
   _xcfg_file: str
   _xcfg_data: JsonableDict
@@ -65,29 +65,32 @@ class XPulumiProject:
       cwd = ctx.get_cwd()
     if name is None:
       name = ctx.get_project_name(cwd=cwd)
+    assert not name is None
     self._name = name
     project_dir = self._ctx.get_project_infra_dir(name)
     self._project_dir = project_dir
-    xcfg_data: Jsonable = None
+    xcfg_data: Optional[JsonableDict] = None
     cfg_file_json = os.path.join(project_dir, "xpulumi-project.json")
     cfg_file_yaml = os.path.join(project_dir, "xpulumi-project.yaml")
     if os.path.exists(cfg_file_json):
       self._xcfg_file = cfg_file_json
       with open(cfg_file_json) as f:
-        xcfg_data = json.load(f)
+        xcfg_data = cast(JsonableDict, json.load(f))
     elif os.path.exists(cfg_file_yaml):
       self._xcfg_file = cfg_file_yaml
       with open(cfg_file_yaml) as f:
         xcfg_text = f.read()
-      xcfg_data = yaml.load(xcfg_text, Loader=Loader)
+      xcfg_data = cast(JsonableDict, yaml.load(xcfg_text, Loader=Loader))
+    assert isinstance(xcfg_data, dict)
     self._xcfg_data = xcfg_data
-    pulumi_cfg_data: Jsonable = None
+    pulumi_cfg_data: Optional[JsonableDict] = None
     pulumi_cfg_file = os.path.join(project_dir, 'Pulumi.yaml')
     self._pulumi_cfg_file = pulumi_cfg_file
     if os.path.exists(pulumi_cfg_file):
       with open(pulumi_cfg_file) as f:
         pulumi_cfg_text = f.read()
-      pulumi_cfg_data = yaml.load(pulumi_cfg_text, Loader=Loader)
+      pulumi_cfg_data = cast(JsonableDict, yaml.load(pulumi_cfg_text, Loader=Loader))
+      assert isinstance(pulumi_cfg_data, dict)
       self._pulumi_cfg_data = pulumi_cfg_data
 
     if xcfg_data is None and pulumi_cfg_data is None:
@@ -102,17 +105,24 @@ class XPulumiProject:
       if 'url' in pulumi_cfg_data:
         cfg_data['pulumi_resolved_backend_url'] = pulumi_cfg_data['url']
       if 'options' in pulumi_cfg_data:
-        poptions: JsonableDict = pulumi_cfg_data['options']
+        poptions = cast(JsonableDict, pulumi_cfg_data['options'])
+        assert isinstance(poptions, dict)
         if 'template' in poptions:
-          ptemplate: JsonableDict = poptions['template']
+          ptemplate = cast(JsonableDict, poptions['template'])
+          assert isinstance(ptemplate, dict)
           if 'config' in ptemplate:
-            ptconfig = ptemplate['config']
+            ptconfig = cast(JsonableDict, ptemplate['config'])
+            assert isinstance(ptconfig, dict)
             cfg_data['stack_template_config'] = ptconfig
             if 'xpulumi:backend' in ptconfig:
-              xpbe: JsonableDict = ptconfig['xpulumi:backend']
+              xpbe = cast(JsonableDict, ptconfig['xpulumi:backend'])
+              assert isinstance(xpbe, dict)
               if 'value' in xpbe:
-                cfg_data['backend'] = xpbe['value'] 
+                bev = cast(str, xpbe['value'])
+                assert isinstance(bev, str)
+                cfg_data['backend'] = bev 
     if not xcfg_data is None:
+      assert isinstance(xcfg_data, dict)
       cfg_data.update(xcfg_data)
     if not 'pulumi_project_name' in cfg_data:
       cfg_data['pulumi_project_name'] = name
@@ -120,13 +130,16 @@ class XPulumiProject:
       cfg_data['name'] = name
     cfg_data['project_dir'] = project_dir
     self._cfg_data = cfg_data
-    pulumi_project_name: Optional[str] = cfg_data["pulumi_project_name"]
+    pulumi_project_name = cast(Optional[str], cfg_data.get("pulumi_project_name", None))
+    if pulumi_project_name is None:
+      pulumi_project_name = name
     self._pulumi_project_name = pulumi_project_name
     organization = cfg_data.get("organization", None)
     self._organization = organization
     if not 'backend' in cfg_data:
       raise XPulumiError(f"Pulumi project in {project_dir} is not configured with an xpulumi backend")
-    backend_name = cfg_data['backend']
+    backend_name = cast(str, cfg_data['backend'])
+    assert isinstance(backend_name, str)
     self._backend_name = backend_name
     self._backend = XPulumiBackend(backend_name, ctx=ctx, cwd=project_dir)
 
@@ -136,6 +149,7 @@ class XPulumiProject:
 
   @property
   def name(self) -> str:
+    assert isinstance(self._name, str)
     return self._name
 
   @property
@@ -152,14 +166,13 @@ class XPulumiProject:
 
   @property
   def organization(self) -> str:
+    assert isinstance(self._organization, str)
     return self._organization
 
   @property
   def cfg_data(self) -> JsonableDict:
     return self._cfg_data
 
-
-  @property
   def abspath(self, pathname: str) -> str:
     return os.path.abspath(os.path.join(self._project_dir, os.path.expanduser(pathname)))
 
@@ -180,6 +193,7 @@ class XPulumiProject:
         stack_name: Optional[str]=None,
       ) -> str:
     result = self.backend.get_stack_backend_url(self.get_stack_name(stack_name), organization=self.organization, project=self.pulumi_project_name)
+    return result
 
   def get_stack_backend_url_parts(
         self,

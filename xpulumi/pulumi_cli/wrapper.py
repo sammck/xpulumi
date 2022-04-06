@@ -27,11 +27,10 @@ import argcomplete  # type: ignore[import]
 import boto3
 import boto3.session
 import colorama  # type: ignore[import]
-import ruamel.yaml
+import ruamel.yaml # type: ignore[import]
 import yaml
 import yaml.parser
-from boto3_type_annotations.s3 import Client as S3Client
-from boto3_type_annotations.s3 import ServiceResource as S3Resource
+from mypy_boto3_s3 import Client as S3Client, ServiceResource as S3Resource
 from botocore.exceptions import ClientError
 from colorama import Back, Fore, Style
 from secret_kv import create_kv_store, get_kv_store_passphrase
@@ -51,12 +50,12 @@ try:
     from yaml import CDumper as YamlDumper
     from yaml import CLoader as YamlLoader
 except ImportError:
-    from yaml import Loader as YamlLoader, Dumper as YamlDumper
+    from yaml import Loader as YamlLoader, Dumper as YamlDumper  # type: ignore[misc]
 
 class CmdExitError(RuntimeError):
   exit_code: int
 
-value_options = {
+value_options: Dict[str, List[str]] = {
     "":  [ '--color', '-C', '--cwd', '--profiling', '--tracing', '-v', '--verbose'],
     "cancel":  [ '-s', '--stack' ],
     "config":  [ '--config-file', '-s', '--stack' ],
@@ -138,7 +137,7 @@ value_options = {
     "whoami":  [ ],
   }
 
-value_options_set = set()
+value_options_set: Set[str] = set()
 for olist in value_options.values():
   value_options_set.update(olist)
 
@@ -213,7 +212,7 @@ class PulumiCmd:
     subcmd_options: Set[str] = set(value_options[""])
     for i in range(len(subcmd_parts)):
       ss = ' '.join(subcmd_parts[:i+1])
-      subcmd_options.update(value_options[ss])
+      subcmd_options.update(cast(dict, value_options[ss]))
     self.subcmd_valid_options = subcmd_options
 
   def init_from_tokens(self, tokens: List[Union[str, CmdOption]]):
@@ -251,13 +250,15 @@ class PulumiCmd:
     self.init_from_tokens(tokens)
 
   def prefix_option(self, option: str, value: Optional[str]=None) -> None:
-    tokens: List[Union[str, CmdOption]] = [ CmdOption(option, value) ] + self.tokens
+    tokens = cast(List[Union[str, CmdOption]], [ CmdOption(option, value) ])
+    tokens.extend(self.tokens)
     self.init_from_tokens(tokens)
 
   def set_option(self, *options: str, value: Optional[str]=None) -> None:
     self.remove_option(*options)
     newOpt = CmdOption(options[0], value)
-    tokens: List[Union[str, CmdOption]] = [ newOpt ] + self.tokens
+    tokens = cast(List[Union[str, CmdOption]], [ newOpt ])
+    tokens.extend(self.tokens)
     self.init_from_tokens(tokens)
 
   def option_is_allowed(self, *options: str) -> bool:
@@ -320,6 +321,7 @@ class PulumiWrapper:
 
   @property
   def ctx(self) -> XPulumiContextBase:
+    assert not self._ctx is None
     return self._ctx
 
   @property
@@ -363,12 +365,19 @@ class PulumiWrapper:
       passphrase: Optional[str] = None
       if not backend is None:
         try:
-          passphrase = ctx.get_pulumi_secret_passphrase(backend_url=backend.url, organization=project.organization, project=project.name, stack=stack_name)
+          passphrase = ctx.get_pulumi_secret_passphrase(
+              backend_url=backend.url,
+              organization=None if project is None else project.organization,
+              project=None if project is None else project.name,
+              stack=stack_name
+            )
         except XPulumiError:
           pass
       if passphrase is None:
         try:
-          passphrase = ctx.get_simple_kv_secret('pulumi/passphrase')
+          passphrase_v = ctx.get_simple_kv_secret('pulumi/passphrase')
+          assert passphrase_v is None or isinstance(passphrase_v, str)
+          passphrase = passphrase_v
         except Exception:
           pass
       if not passphrase is None:
@@ -415,4 +424,4 @@ class PulumiWrapper:
   def check_output(self, arglist: List[str], **kwargs) -> Union[str, bytes]:
     stack_name: Optional[str] = kwargs.pop('stack_name', None)
     arglist = self._fix_raw_popen_args(arglist, kwargs, stack_name=stack_name)
-    return subprocess.check_call(arglist, **kwargs)
+    return subprocess.check_output(arglist, **kwargs)

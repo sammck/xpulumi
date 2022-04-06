@@ -1,6 +1,6 @@
 from ..internal_types import Jsonable, JsonableDict
 from ..util import split_s3_uri
-from typing import Any, Optional, List
+from typing import Any, Optional, List, cast
 import json
 
 from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult, UpdateResult, CheckResult, CheckFailure
@@ -18,10 +18,10 @@ _DEBUG_PROVIDER = False
 class S3FutureObjectProvider(ResourceProvider):
   def _gen_outs(self, props: JsonableDict) -> JsonableDict:
     if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider._gen_outs(props={props})")
-    uri: str = props['uri']
-    aws_region: str = props['aws_region']
-    max_wait_seconds: float = props['max_wait_seconds']
-    poll_interval: float = props['poll_interval']
+    uri = cast(str, props['uri'])
+    aws_region = cast(str, props['aws_region'])
+    max_wait_seconds = cast(float, props['max_wait_seconds'])
+    poll_interval = cast(float, props['poll_interval'])
     content = sync_wait_and_get_s3_object(
       uri=uri,
       region_name=aws_region,
@@ -37,17 +37,17 @@ class S3FutureObjectProvider(ResourceProvider):
 
   def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:
     if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.check(oldProps={oldProps}, newProps={newProps})")
-    old_uri: Optional[str] = oldProps.get('uri', None)
-    uri: Optional[str] = newProps.get('uri', None)
-    aws_region: Optional[str] = newProps.get('aws_region', None)
+    old_uri = oldProps.get('uri', None)
+    uri = newProps.get('uri', None)
+    aws_region = newProps.get('aws_region', None)
     if aws_region is None:
-      aws_region='us-east-1'
-    max_wait_seconds: Optional[float] = newProps.get('max_wait_seconds', None)
+      aws_region = 'us-east-1'
+    max_wait_seconds = newProps.get('max_wait_seconds', None)
     if max_wait_seconds is None:
       max_wait_seconds = DEFAULT_S3_OBJECT_WAIT_TIMEOUT_SECONDS
     if isinstance(max_wait_seconds, int):
       max_wait_seconds = float(max_wait_seconds)
-    poll_interval: Optional[float] = newProps.get('poll_interval', None)
+    poll_interval = newProps.get('poll_interval', None)
     if poll_interval is None:
       poll_interval = DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS
     if isinstance(poll_interval, int):
@@ -58,7 +58,7 @@ class S3FutureObjectProvider(ResourceProvider):
       if not isinstance(uri, str):
         failures.append(CheckFailure('uri', f'uri must be a string: {uri}'))
       try:
-        split_s3_uri(uri)
+        split_s3_uri(cast(str, uri))
       except Exception:
         failures.append(CheckFailure('uri', f'uri must be a valid S3 uri: {uri}'))
       if not old_uri is None and uri != old_uri:
@@ -79,7 +79,7 @@ class S3FutureObjectProvider(ResourceProvider):
     try:
       if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.create(props={props})")
       # we will use the URI as the unique ID
-      uri = props["uri"]
+      uri = cast(str, props["uri"])
       outs = self._gen_outs(props)
       pulumi.log.info(f"S3FutureObjectProvider.create() ==> CreateResult(id={uri}, outs={outs})")
     except Exception as e:
@@ -137,5 +137,5 @@ class S3FutureObject(Resource):
       )
 
   def get_json_content(self) -> Output[Jsonable]:
-    result: Output[Jsonable] = self.content.apply(lambda x: json.loads(x))
+    result: Output[Jsonable] = self.content.apply(lambda x: None if x is None else json.loads(x))
     return result

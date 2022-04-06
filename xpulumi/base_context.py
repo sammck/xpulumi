@@ -141,27 +141,24 @@ class XPulumiContextBase(XPulumiContext):
     self._default_stack_name = config.default_stack_name
 
   @property
-  def default_backend_name(self) -> str:
+  def default_backend_name(self) -> Optional[str]:
     return self._default_backend_name
     
   @property
-  def default_stack_name(self) -> str:
+  def default_stack_name(self) -> Optional[str]:
     return self._default_stack_name
     
   def get_config(self) -> XPulumiConfig:
     if self._config is None:
       config = XPulumiConfig(starting_dir=self._cwd)
       self.init_from_config(config)
+      assert not self._config is None
     return self._config
 
   def get_project_root_dir(self) -> str:
     if self._project_root_dir is None:
       self.get_config()
-    return self._project_root_dir
-
-  def get_project_root_dir(self) -> str:
-    if self._project_root_dir is None:
-      self.get_config()
+    assert not self._project_root_dir is None
     return self._project_root_dir
 
   def get_infra_dir(self) -> str:
@@ -294,9 +291,6 @@ class XPulumiContextBase(XPulumiContext):
         if not k in self._aws_account_region_map:
           self._aws_account_region_map[k] = s
     return s
-
-  def get_environ(self) -> Dict[str, str]:
-    return self._environ
 
   def get_pulumi_access_token_and_username(self, backend_url: Optional[str]=None) -> Tuple[Optional[str], Optional[str]]:
     if backend_url is None:
@@ -474,10 +468,10 @@ class XPulumiContextBase(XPulumiContext):
     self._cwd = self.abspath(cwd)
 
   def get_environ(self) -> Dict[str, str]:
-    if self._env is None:
-      ctx = self.get_context()
+    if self._environ is None:
+      ctx = self
       env = dict(os.environ)
-      self._env = env
+      self._environ = env
       env['PULUMI_HOME'] = ctx.get_pulumi_home()
       project = self.get_optional_project()
       backend: Optional[XPulumiBackend] = None
@@ -499,20 +493,28 @@ class XPulumiContextBase(XPulumiContext):
         passphrase: Optional[str] = None
         if not backend is None:
           try:
-            passphrase = ctx.get_pulumi_secret_passphrase(backend_url=backend.url, organization=project.organization, project=project.name, stack=stack_name)
+            passphrase = ctx.get_pulumi_secret_passphrase(
+                backend_url=backend.url,
+                organization=None if project is None else project.organization,
+                project=None if project is None else project.name,
+                stack=stack_name
+              )
           except XPulumiError:
             pass
         if passphrase is None:
           try:
-            passphrase = ctx.get_simple_kv_secret('pulumi/passphrase')
+            passphrase_v = ctx.get_simple_kv_secret('pulumi/passphrase')
+            if not passphrase_v is None and not isinstance(passphrase_v, str):
+              raise XPulumiError("secret-kv value is not None or a string: pulumi/passphrase")
+            passphrase = passphrase_v
           except Exception:
             pass
         if not passphrase is None:
           env['PULUMI_CONFIG_PASSPHRASE'] = passphrase
-    return self._env
+    return self._environ
 
   def _fix_raw_popen_args(self, arglist: List[str], kwargs: Dict[str, Any]) -> List[str]:
-    arglist = [ self.get_context().get_pulumi_cli() ] + arglist
+    arglist = [ self.get_pulumi_cli() ] + arglist
     env = self.get_environ()
     call_env = kwargs.pop('env', None)
     if not call_env is None:

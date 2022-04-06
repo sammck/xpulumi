@@ -8,7 +8,7 @@
 """Installer for standard poetry CLI"""
 
 from ast import Module
-from typing import TextIO, Tuple, Optional, Dict, Iterator, Sequence
+from typing import TextIO, Tuple, Optional, Dict, Iterator, Sequence, cast
 from pathlib import Path
 
 import subprocess
@@ -23,6 +23,7 @@ import platform
 import tempfile
 import shutil
 import shlex
+import types
 from enum import Enum
 from contextlib import contextmanager
 
@@ -41,9 +42,25 @@ MIN_POETRY_VERSION = "1.1.12"
 
 verbose: bool = False
 
+class StandardInstaller:
+    def __init__(
+        self,
+        version: Optional[str] = None,
+        preview: bool = False,
+        force: bool = False,
+        accept_all: bool = False,
+        git: Optional[str] = None,
+        path: Optional[str] = None,
+    ) -> None:
+      ...
+
+
+    def run(self) -> int:
+      ...
+
 
 @run_once
-def standard_installer() -> Module:
+def std_installer_module() -> types.ModuleType:
   import imp
   module_name = "xpulumi.installer.poetry.std_installer"
   std_installer = imp.new_module(module_name)
@@ -53,19 +70,19 @@ def standard_installer() -> Module:
   return std_installer
 
 def std_data_dir(version: Optional[str] = None) -> Path:
-  return standard_installer().data_dir(version=version)
+  return std_installer_module().data_dir(version=version)
 
 def std_bin_dir(version: Optional[str] = None) -> Path:
-  return standard_installer().bin_dir(version=version)
+  return std_installer_module().bin_dir(version=version)
 
 class Installer:
-  std_installer: object
+  std_installer: StandardInstaller
 
   def __init__(self, *args, **kwargs) -> None:
-    self.std_installer = standard_installer().Installer(*args, **kwargs)
+    self.std_installer = cast(StandardInstaller, std_installer_module().Installer(*args, **kwargs))
 
   def run(self) -> int:
-    return self.std_installer.run()
+    return self.std_installer.run()  # type: ignore[attr-defined]
 
 def poetry_is_installed() -> bool:
   return command_exists('poetry')

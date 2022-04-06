@@ -7,11 +7,11 @@
 
 """xpulumi configuration"""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, cast
 from .internal_types import JsonableDict
 
 if TYPE_CHECKING:
-  from base_context import XPulumiContextBase
+  from .base_context import XPulumiContextBase
 
 import os
 import yaml
@@ -100,8 +100,8 @@ class XPulumiConfig:
     project_root_dir = os.path.abspath(os.path.join(xpulumi_dir, os.path.expanduser(project_root_dir)))
     self._project_root_dir = project_root_dir
     self._pulumi_home = os.path.join(xpulumi_dir, '.pulumi')
-    self._default_backend_name = self._config_data.get('default_backend', None)
-    self._default_stack_name = self._config_data.get('default_stack', None)
+    self._default_backend_name = cast(Optional[str], self._config_data.get('default_backend', None))
+    self._default_stack_name = cast(Optional[str], self._config_data.get('default_stack', None))
 
   @property
   def config_file(self) -> str:

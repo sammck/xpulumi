@@ -257,13 +257,19 @@ def get_pulumi_prog(dirname: Optional[str]=None) -> Optional[str]:
     result = os.path.join(dirname, 'bin', 'pulumi')
   return result
 
+def require_pulumi_prog(dirname: Optional[str]=None) -> str:
+  result: Optional[str] = get_pulumi_prog(dirname)
+  if result is None:
+    raise XPulumiError("Unable to locate pulumi executable")
+  return result
+
 def pulumi_is_installed(dirname: Optional[str]=None) -> bool:
   return not get_pulumi_prog(dirname) is None
 
 def get_pulumi_version(dirname: Optional[str]=None) -> str:
   version = cast(bytes,
       sudo_check_output_stderr_exception(
-          [get_pulumi_prog(dirname), 'version'],
+          [require_pulumi_prog(dirname), 'version'],
           use_sudo=False
         )
     ).decode('utf-8').rstrip()

@@ -1,3 +1,11 @@
+# Copyright (c) 2022 Samuel J. McKelvie
+#
+# MIT License - See LICENSE file accompanying this package.
+#
+
+"""Pulumi script to build a deve box EC2 instance"""
+
+from typing import cast
 
 import json
 import shlex
@@ -37,7 +45,7 @@ enable_debugging()
 # the username is changed, the old home directory will remain, since the /home
 # is mounted on a reusable EBS volume, but the new account will have the
 # same UID/GID as the old account and will have access to both home directories.
-ec2_instance_username: str = default_val(pconfig.get("ec2_instance_username"), os.getlogin())
+ec2_instance_username: str = cast(str, default_val(pconfig.get("ec2_instance_username"), os.getlogin()))
 pulumi.export("ec2_username", ec2_instance_username)
 
 # The sudo password for our EC2 user. This must be set as a secret config value on this stack with

@@ -7,7 +7,7 @@
 
 """General utilities for installation"""
 
-from typing import TYPE_CHECKING, Optional, List, Union, TextIO, cast, Callable, Any, Set, Tuple, Generator
+from typing import TYPE_CHECKING, Optional, List, Union, TextIO, cast, Callable, Any, Set, Tuple, Generator, overload, Literal
 
 import os
 import sys
@@ -454,6 +454,62 @@ class CalledProcessErrorWithStderrMessage(subprocess.CalledProcessError):
     def __str__(self):
       return super().__str__() + f": [{self.stderr}]" 
 
+@overload
+def sudo_check_output_stderr_exception(
+      args: _CMD,
+      bufsize: int = ...,
+      executable: Optional[StrOrBytesPath] = ...,
+      stdin: Optional[_FILE] = ...,
+      stderr: Optional[_FILE] = ...,
+      preexec_fn: Optional[Callable[[], Any]] = ...,
+      close_fds: bool = ...,
+      shell: bool = ...,
+      cwd: Optional[StrOrBytesPath] = ...,
+      env: Optional[_ENV] = ...,
+      universal_newlines: Optional[bool] = ...,
+      startupinfo: Any = ...,
+      creationflags: int = ...,
+      restore_signals: bool = ...,
+      start_new_session: bool = ...,
+      pass_fds: Any = ...,
+      *,
+      encoding: Optional[str] = ...,
+      errors: Optional[str] = ...,
+      use_sudo: bool = ...,
+      run_with_group: Optional[str] = ...,
+      sudo_reason: Optional[str] = ...,
+      text: Literal[True],
+    ) -> str:
+  ...
+
+@overload
+def sudo_check_output_stderr_exception(
+      args: _CMD,
+      bufsize: int = ...,
+      executable: Optional[StrOrBytesPath] = ...,
+      stdin: Optional[_FILE] = ...,
+      stderr: Optional[_FILE] = ...,
+      preexec_fn: Optional[Callable[[], Any]] = ...,
+      close_fds: bool = ...,
+      shell: bool = ...,
+      cwd: Optional[StrOrBytesPath] = ...,
+      env: Optional[_ENV] = ...,
+      universal_newlines: Optional[bool] = ...,
+      startupinfo: Any = ...,
+      creationflags: int = ...,
+      restore_signals: bool = ...,
+      start_new_session: bool = ...,
+      pass_fds: Any = ...,
+      *,
+      encoding: Optional[str] = ...,
+      errors: Optional[str] = ...,
+      use_sudo: bool = ...,
+      run_with_group: Optional[str] = ...,
+      sudo_reason: Optional[str] = ...,
+      text: Literal[False, None] = None,
+    ) -> bytes:
+  ...
+
 def sudo_check_output_stderr_exception(
       args: _CMD,
       bufsize: int = -1,
@@ -472,12 +528,12 @@ def sudo_check_output_stderr_exception(
       start_new_session: bool = False,
       pass_fds: Any = (),
       *,
-      text: Optional[bool] = None,
       encoding: Optional[str] = None,
       errors: Optional[str] = None,
       use_sudo: bool = True,
       run_with_group: Optional[str] = None,
       sudo_reason: Optional[str] = None,
+      text: Optional[bool] = None,
     ) -> Union[str, bytes]:
   args = _sudo_fix_args(
       args,

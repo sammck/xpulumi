@@ -16,5 +16,8 @@
     "terminal.integrated.env.windows": {
       "PATH": "${workspaceFolder}/bin:${env:PATH}",
       "PYTHONPATH": "${workspaceFolder}/src/python:${env:PYTHONPATH}"
-    }
+    },
+    "python.linting.mypyEnabled": false,
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true
   }

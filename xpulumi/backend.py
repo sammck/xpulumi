@@ -82,7 +82,8 @@ class XPulumiBackend:
     if self.scheme == "file":
       # make file: URLs absolute. Use cwd option if provided.
       if cwd is None:
-        cwd = options.get('cwd', None)
+        cwd = cast(Optional[str], self.options.get('cwd', None))
+        assert cwd is None or isinstance(cwd, str)
       self._url = pathname_to_file_url(self.abspath(file_url_to_pathname(url, cwd=cwd)))
       self._url_parts = urlparse(url)
     if self.scheme == 'https':
@@ -90,11 +91,12 @@ class XPulumiBackend:
       self._includes_organization = True
       self._includes_project = True
     else:
-      self._includes_organization = self.options.get('includes_organization', False)
+      self._includes_organization = cast(bool, self.options.get('includes_organization', False))
       assert isinstance(self._includes_organization, bool)
-      self._includes_project = self.options.get('includes_project', False)
+      self._includes_project = cast(bool, self.options.get('includes_project', False))
       assert isinstance(self._includes_project, bool)
-    self._default_organization = self.options.get("default_organization", None)
+    self._default_organization = cast(Optional[str], self.options.get("default_organization", None))
+    assert self._default_organization is None or isinstance(self._default_organization, str)
 
   def init_from_name(self, name: str) -> None:
     backend_dir = self._ctx.get_backend_infra_dir(name)
@@ -114,6 +116,7 @@ class XPulumiBackend:
 
   @property
   def name(self) -> str:
+    assert not self._name is None
     return self._name
 
   @property

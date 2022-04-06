@@ -27,7 +27,7 @@ def get_executor() -> concurrent.futures.ThreadPoolExecutor:
   return executor
 
 DEFAULT_S3_OBJECT_WAIT_TIMEOUT_SECONDS: float = 10.0*60
-DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS: int = 5.0
+DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS: float = 5.0
 
 def _normalize_bucket_key(
       uri: Optional[str]=None,
@@ -97,7 +97,7 @@ async def async_wait_s3_object(
       max_wait_seconds: float=DEFAULT_S3_OBJECT_WAIT_TIMEOUT_SECONDS, # -1 for infinite wait
       poll_interval: float = DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS,
     ) -> None:
-  bucket, key = _normalize_bucket_key(uri, bucket, key)
+  nbucket, nkey = _normalize_bucket_key(uri, bucket, key)
   start_time = time.monotonic()
   if sess is None:
     sess = boto3.session.Session(region_name=region_name)
@@ -106,7 +106,7 @@ async def async_wait_s3_object(
   executor = get_executor()
   while True:
     try:
-      task = loop.run_in_executor(executor, lambda: bcs3.head_object(Bucket=bucket, Key=key))
+      task = loop.run_in_executor(executor, lambda: bcs3.head_object(Bucket=nbucket, Key=nkey))
       await task
       return
     except botocore.errorfactory.ClientError:
@@ -116,7 +116,7 @@ async def async_wait_s3_object(
     else:
       elapsed = time.monotonic() - start_time
       if elapsed > max_wait_seconds:
-        raise TimeoutError(f"Timed out waiting for s3://{bucket}/{key} to exist")
+        raise TimeoutError(f"Timed out waiting for s3://{nbucket}/{nkey} to exist")
       wait_seconds = min(poll_interval, max_wait_seconds - elapsed)
     if wait_seconds > 0:
       await asyncio.sleep(wait_seconds)
@@ -193,13 +193,13 @@ async def async_wait_and_get_s3_object(
   Raises:
       TimeoutError: The S# object did not appear before max_wait_seconds elapsed
   """
-  bucket, key = _normalize_bucket_key(uri, bucket, key)
+  nbucket, nkey = _normalize_bucket_key(uri, bucket, key)
   if sess is None:
     sess = boto3.session.Session(region_name=region_name)
   bcs3 = sess.client('s3')
   await async_wait_s3_object(
-      bucket=bucket,
-      key=key,
+      bucket=nbucket,
+      key=nkey,
       sess=sess,
       region_name=region_name,
       max_wait_seconds=max_wait_seconds,
@@ -207,7 +207,7 @@ async def async_wait_and_get_s3_object(
       )
   loop = asyncio.get_event_loop()
   executor = get_executor()
-  resp = await loop.run_in_executor(executor, lambda: bcs3.get_object(Bucket=bucket, Key=key))
+  resp = await loop.run_in_executor(executor, lambda: bcs3.get_object(Bucket=nbucket, Key=nkey))
   result = await loop.run_in_executor(executor, lambda: resp['Body'].read())
   return result
 

@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi stack configuration.
 
 """
 
-from typing import Optional, cast, Dict, Tuple, Union
+from typing import Optional, cast, Dict, Tuple, Union, cast
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -150,26 +150,28 @@ class XPulumiStack:
     self._stack_name = stack_name
 
     project_dir = project.project_dir
-    xcfg_data: Jsonable = None
+    xcfg_data: Optional[JsonableDict] = None
     cfg_file_json = os.path.join(project_dir, f"xpulumi-stack.{stack_name}.json")
     cfg_file_yaml = os.path.join(project_dir, f"xpulumi-stack.{stack_name}.yaml")
     if os.path.exists(cfg_file_json):
       self._xcfg_file = cfg_file_json
       with open(cfg_file_json) as f:
-        xcfg_data = json.load(f)
+        xcfg_data = cast(JsonableDict, json.load(f))
     elif os.path.exists(cfg_file_yaml):
       self._xcfg_file = cfg_file_yaml
       with open(cfg_file_yaml) as f:
         xcfg_text = f.read()
-      xcfg_data = yaml.load(xcfg_text, Loader=Loader)
+      xcfg_data = cast(JsonableDict, yaml.load(xcfg_text, Loader=Loader))
+    assert isinstance(xcfg_data, dict)
     self._xcfg_data = xcfg_data
-    pulumi_cfg_data: Jsonable = None
+    pulumi_cfg_data: Optional[JsonableDict] = None
     pulumi_cfg_file = os.path.join(project_dir, f'Pulumi.{stack_name}.yaml')
     self._pulumi_cfg_file = pulumi_cfg_file
     if os.path.exists(pulumi_cfg_file):
       with open(pulumi_cfg_file) as f:
         pulumi_cfg_text = f.read()
-      pulumi_cfg_data = yaml.load(pulumi_cfg_text, Loader=Loader)
+      pulumi_cfg_data = cast(JsonableDict, yaml.load(pulumi_cfg_text, Loader=Loader))
+      assert isinstance(pulumi_cfg_data, dict)
       self._pulumi_cfg_data = pulumi_cfg_data
 
     cfg_data: JsonableDict = {}
@@ -190,6 +192,7 @@ class XPulumiStack:
 
   @property
   def stack_name(self) -> str:
+    assert not self._stack_name is None
     return self._stack_name
 
   @property
@@ -220,7 +223,6 @@ class XPulumiStack:
   def cfg_data(self) -> JsonableDict:
     return self._cfg_data
 
-  @property
   def abspath(self, pathname: str) -> str:
     return self.project.abspath(pathname)
 
@@ -229,6 +231,7 @@ class XPulumiStack:
 
   def get_stack_backend_url(self) -> str:
     result = self.project.get_stack_backend_url(self.stack_name)
+    return result
 
   def get_stack_backend_url_parts(self) -> ParseResult:
     return self.project.get_stack_backend_url_parts(self.stack_name)
@@ -268,7 +271,8 @@ class XPulumiStack:
 
   def get_config_values(self) -> JsonableDict:
     pc = self.get_pulumi_config()
-    result: JsonableDict = pc.get('config', {})
+    result: JsonableDict = cast(JsonableDict, pc.get('config', {}))
+    assert isinstance(result, dict)
     return result
 
   def get_config_value(self, name: str, default: Jsonable=None) -> Jsonable:
@@ -284,7 +288,8 @@ class XPulumiStack:
     return result
 
   def get_aws_region(self, default: Optional[str]=None) -> Optional[str]:
-    result: Optional[str] = self.get_config_value('aws:region', default=default)
+    result: Optional[str] = cast(Optional[str], self.get_config_value('aws:region', default=default))
+    assert result is None or isinstance(result, str)
     return result
 
   def __str__(self) -> str:

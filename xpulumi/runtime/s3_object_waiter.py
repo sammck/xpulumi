@@ -7,7 +7,7 @@
 
 """Functions to wait for S3 objects"""
 
-from typing import Optional, Awaitable
+from typing import Optional, Awaitable, cast
 
 from pulumi import Input, Output
 
@@ -48,15 +48,15 @@ def wait_s3_object(
       poll_interval
     ).apply(
         lambda args: async_wait_s3_object(
-            uri=args[0],
-            bucket=args[1],
-            key=args[2],
-            region_name=args[3],
-            max_wait_seconds=args[4],
-            poll_interval=args[5]
+            uri=cast(Optional[str], args[0]),
+            bucket=cast(Optional[str], args[1]),
+            key=cast(Optional[str], args[2]),
+            region_name=cast(Optional[str], args[3]),
+            max_wait_seconds=cast(float, args[4]),
+            poll_interval=cast(float, args[5])
           )
       )
-  result: Output[bool] = Output.all(ow).apply(lambda args: True)
+  result: Output[bool] = Output.all(ow).apply(lambda args: True)  # type: ignore[arg-type]
   return result
 
 def wait_and_get_s3_object(
@@ -76,15 +76,15 @@ def wait_and_get_s3_object(
       poll_interval
     ).apply(
         lambda args: async_wait_and_get_s3_object(
-            uri=args[0],
-            bucket=args[1],
-            key=args[2],
-            region_name=args[3],
-            max_wait_seconds=args[4],
-            poll_interval=args[5]
+            uri=cast(Optional[str], args[0]),
+            bucket=cast(Optional[str], args[1]),
+            key=cast(Optional[str], args[2]),
+            region_name=cast(Optional[str], args[3]),
+            max_wait_seconds=cast(float, args[4]),
+            poll_interval=cast(float, args[5])
           )
       )
-  result: Output[bytes] = Output.all(ow).apply(lambda args: args[0])
+  result: Output[bytes] = Output.all(ow).apply(lambda args: args[0])  # type: ignore[arg-type]
   return result
 
 def wait_and_get_s3_object_str(
@@ -131,5 +131,5 @@ def wait_and_get_s3_json_object(
       max_wait_seconds=max_wait_seconds,
       poll_interval=poll_interval
     )
-  result: Output[Jsonable] = Output.all(bin, uri, bucket, key).apply(lambda args: _load_s3_json(*args))
+  result: Output[Jsonable] = Output.all(bin, uri, bucket, key).apply(lambda args: _load_s3_json(*args))  # type: ignore[arg-type]
   return result

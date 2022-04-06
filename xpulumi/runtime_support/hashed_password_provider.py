@@ -1,6 +1,6 @@
 from ..internal_types import JsonableDict
 from ..util import gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash
-from typing import Any, Optional, List
+from typing import Any, Optional, List, cast
 from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult, UpdateResult, CheckResult, CheckFailure
 from pulumi import ResourceOptions, Input, Output
 import pulumi
@@ -20,9 +20,9 @@ class HashedPasswordProvider(ResourceProvider):
 
   def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.check(oldProps={oldProps}, newProps={newProps})")
-    old_name: Optional[str] = oldProps.get('name', None)
-    name: Optional[str] = newProps.get('name', None)
-    password: Optional[str] = newProps.get('password', None)
+    old_name = oldProps.get('name', None)
+    name = newProps.get('name', None)
+    password = newProps.get('password', None)
     failures: List[CheckFailure] = []
     if not isinstance(name, str):
       failures.append(CheckFailure('name', f'name must be a string: {name}'))
@@ -43,8 +43,8 @@ class HashedPasswordProvider(ResourceProvider):
       if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.create(props={props})")
       # since we don't have a unique ID, use the resource name provided
       # by the caller
-      id = props["name"]
-      outs = self._gen_outs(id, props['password'])
+      id = cast(str, props["name"])
+      outs = self._gen_outs(id, cast(str, props['password']))
       pulumi.log.info(f"HashedPasswordProvider.create() ==> CreateResult(id={id}, outs={outs})")
     except Exception as e:
       if _DEBUG_PROVIDER: pulumi.log.warn(f"HashedPasswordProvider.create() ==> Exception: {repr(e)}")
@@ -53,7 +53,7 @@ class HashedPasswordProvider(ResourceProvider):
 
   def update(self, id: str, oldProps: JsonableDict, newProps: JsonableDict):
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.update(oldProps={oldProps}, newProps={newProps})")
-    outs = self._gen_outs(newProps['name'], newProps['password'])
+    outs = self._gen_outs(cast(str, newProps['name']), cast(str, newProps['password']))
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.update() ==> UpdateResult(outs={outs})")
     return UpdateResult(outs)
 

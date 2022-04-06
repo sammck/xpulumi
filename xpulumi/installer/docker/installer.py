@@ -61,6 +61,7 @@ def escaped_hex(hex: str) -> str:
   result = ''
   for i in range(0, len(hex), 2):
     result += f"\\x{hex[i:i+2]}"
+  return result
 
 class BinFmtEntry:
   _pathname: str
@@ -115,12 +116,12 @@ def invalidate_binfmt_cache(target_arch: str):
 def fix_binfmt_qemu_binary(target_arch: str):
   binfmt = get_binfmt(target_arch)
   package_name = binfmt.get_package_name()
-  magic = binfmt.get_field('magic', '')
+  magic = cast(str, binfmt.get_field('magic', ''))
   escaped_magic = escaped_hex(magic)
-  mask = binfmt.get_field('mask', '')
+  mask = cast(str, binfmt.get_field('mask', ''))
   escaped_mask = escaped_hex(mask)
-  interpreter = binfmt.get_field('interpreter', '')
-  offset = binfmt.get_field('offset', '')
+  interpreter = cast(str, binfmt.get_field('interpreter', ''))
+  offset = cast(str, binfmt.get_field('offset', ''))
   invalidate_binfmt_cache(target_arch)
   sudo_check_output_stderr_exception(
       [

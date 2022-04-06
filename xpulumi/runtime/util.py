@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Tuple, TypeVar, Optional, Union, Dict
-
+from typing import Any, Callable, List, Tuple, TypeVar, Optional, Union, Dict, cast
+from mypy_boto3_ec2.literals import InstanceTypeType
 import subprocess
 import os
 import json
@@ -11,7 +11,7 @@ import yaml
 import boto3.session
 import botocore.client
 import threading
-import debugpy
+import debugpy # type: ignore[import]
 import time
 import shlex
 
@@ -155,12 +155,6 @@ def get_current_xpulumi_project() -> XPulumiProject:
 def get_current_xpulumi_project_name() -> str:
   return get_current_xpulumi_project().name
 
-def get_current_xpulumi_project() -> XPulumiProject:
-  return get_xpulumi_project()
-
-def get_current_xpulumi_project_name() -> str:
-  return get_current_xpulumi_project().name
-
 _stack_cache: Dict[Tuple[Optional[str], Optional[str]], XPulumiStack] = {}
 _stack_cache_lock = threading.Lock()
 def get_xpulumi_stack(
@@ -208,14 +202,14 @@ def sync_get_processor_arches_from_instance_type(instance_type: str, region_name
   bec2 = sess.client('ec2')
 
   resp = bec2.describe_instance_types(
-      InstanceTypes=[ instance_type ],
+      InstanceTypes= cast(List[InstanceTypeType], [ instance_type ]),
     )
   metas = resp['InstanceTypes']
   if len(metas) == 0:
     raise RuntimeError(f"Invalid EC2 instance type \"{instance_type}\"")
   meta = metas[0]
   processor_info = meta['ProcessorInfo']
-  arches = processor_info['SupportedArchitectures']
+  arches: List[str] = list(processor_info['SupportedArchitectures'])
   if len(arches) < 1:
     raise RuntimeError(f"No processor architectures for instance type \"{instance_type}\"")
   return arches
@@ -269,9 +263,9 @@ def get_ami_arch_from_instance_type(instance_type: Input[str], region_name: Inpu
                   result is concrete; otherwise it is a promise
   """
   if isinstance(instance_type, str) and (region_name is None or isinstance(region_name, str)):
-    result: Output[str] = sync_get_ami_arch_from_instance_type(instance_type, region_name=region_name)
+    result: Input[str] = sync_get_ami_arch_from_instance_type(instance_type, region_name=region_name)
   else:
-    result = Output.all(instance_type, region_name).apply(lambda args: sync_get_ami_arch_from_instance_type(*args))
+    result = Output.all(instance_type, region_name).apply(lambda args: sync_get_ami_arch_from_instance_type(*args))  # type: ignore [arg-type]
   return result
 
 
@@ -296,10 +290,12 @@ def yamlify_promise(
   Returns:
       Output[str]   A Pulumi "output" value that will resolve to the yaml string corresponding to future_obj
   """
-  def gen_yaml(obj: Any) -> str:
+  def gen_yaml(obj: Jsonable, indent: int, default_flow_style: Optional[bool], width: int, prefix_text: Optional[str]) -> str:
+    if prefix_text is None:
+      prefix_text = ''
     return prefix_text + yaml.dump(obj, sort_keys=True, indent=indent, default_flow_style=default_flow_style, width=width)
 
-  result = Output.all(future_obj).apply(lambda args: gen_yaml(*args))
+  result = Output.all(future_obj, indent, default_flow_style, width, prefix_text).apply(lambda args: gen_yaml(*args)) # type: ignore [arg-type]
   return result
 
 
@@ -334,7 +330,7 @@ def jsonify_promise(
   # it wraps the synchronous function as a promise and returns the new promise as the result.
   # this allows you to write synchronous code in pulumi that depends on future values, and
   # turn it into asynchronous code
-  result = Output.all(future_obj, indent, separators).apply(lambda args: gen_json(*args))
+  result = Output.all(future_obj, indent, separators).apply(lambda args: gen_json(*args)) # type: ignore[arg-type]
   return result
 
 def list_of_promises(promises: List[Output[Any]]) -> Output[List[Any]]:
@@ -350,16 +346,16 @@ def list_of_promises(promises: List[Output[Any]]) -> Output[List[Any]]:
 
   return Output.all(*tuple(promises)).apply(lambda args: gen_result(*args))
 
-T = TypeVar("T")
-def default_val(x: Optional[T], default: Optional[T]) -> Optional[T]:
+T2 = TypeVar("T2")
+def default_val(x: Optional[T2], default: Optional[T2]) -> Optional[T2]:
   """Simple function that provides a default value if the argument is None
 
   Args:
-      x (Optional[T]): An optional value or None
-      default (Optional[T]): The default to provide if x is None. May also be None.
+      x (Optional[T2]): An optional value or None
+      default (Optional[T2]): The default to provide if x is None. May also be None.
 
   Returns:
-      Optional[T]: x if x is not None; otherwise default.
+      Optional[T2]: x if x is not None; otherwise default.
   """
   if x is None:
     x = default
@@ -377,6 +373,6 @@ def shell_quote_promise(
   if isinstance(future_str, str):
     result: Input[str] = shlex.quote(future_str)
   else:
-    result = Output.all(future_str).apply(lambda args: shlex.quote(*args))
+    result = Output.all(future_str).apply(lambda args: shlex.quote(*args))  # type: ignore[arg-type]
   return result
 

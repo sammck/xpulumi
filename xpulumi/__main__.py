@@ -8,7 +8,7 @@
 """xpulumi CLI"""
 
 import base64
-from typing import Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping, cast, Any, Iterator, Iterable, Tuple
+from typing import Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping, cast, Any, Iterator, Iterable, Tuple, ItemsView, ValuesView, KeysView
 
 import os
 import sys
@@ -23,7 +23,7 @@ from io import TextIOWrapper
 import yaml
 from secret_kv import create_kv_store
 from urllib.parse import urlparse, ParseResult
-import ruamel.yaml
+import ruamel.yaml # type: ignore[import]
 from io import StringIO
 
 from xpulumi.config import XPulumiConfig
@@ -80,7 +80,7 @@ class NoExitArgumentParser(argparse.ArgumentParser):
 class RoundTripConfig(MutableMapping[str, Any]):
   _config_file: str
   _text: str
-  _data: MutableMapping
+  _data: MutableMapping[str, Any]
   _yaml: Optional[ruamel.yaml.YAML] = None
 
   def __init__(self, config_file: str):
@@ -89,12 +89,13 @@ class RoundTripConfig(MutableMapping[str, Any]):
     self._text = text
     if config_file.endswith('.yaml'):
       self._yaml = ruamel.yaml.YAML()
-      self._data = self._yaml.load(text)
+      self._data = cast(MutableMapping[str, Any], self._yaml.load(text))
     else:
-      self._data = json.loads(text)
+      self._data = cast(MutableMapping[str, Any], json.loads(text))
+    assert isinstance(self._data, dict)
 
   @property
-  def data(self) -> MutableMapping:
+  def data(self) -> MutableMapping[str, Any]:
     return self._data
 
   def save(self):
@@ -125,16 +126,16 @@ class RoundTripConfig(MutableMapping[str, Any]):
   def __len__(self) -> int:
     return len(self.data)
 
-  def __contains__(self, key: str) -> bool:
+  def __contains__(self, key: object) -> bool:
     return key in self.data
 
-  def keys(self) -> Iterable[str]:
+  def keys(self) -> KeysView[str]:
     return self.data.keys()
 
-  def values(self) -> Iterable[Any]:
+  def values(self) -> ValuesView[Any]:
     return self.data.values()
 
-  def items(self) -> Iterable[Tuple[str, Any]]:
+  def items(self) -> ItemsView[str, Any]:
     return self.data.items()
 
   def update(self, *args, **kwargs) -> None:
@@ -403,10 +404,10 @@ class CommandHandler:
 
   def cmd_be_create(self) -> int:
     args = self._args
-    new_s3_bucket_project: Optional[str] = args.new_s3_bucket_project,
-    new_s3_bucket_backend: Optional[str] = args.backend
-    new_backend: str = args.new_backend
-    new_backend_uri: Optional[str] = args.new_backend_uri
+    new_s3_bucket_project = cast(Optional[str], args.new_s3_bucket_project)
+    new_s3_bucket_backend = cast(Optional[str], args.backend)
+    new_backend = cast(str, args.new_backend)
+    new_backend_uri = cast(Optional[str], args.new_backend_uri)
     if new_backend_uri is None or new_backend_uri == "file" or new_backend_uri == "file:" or new_backend_uri == "file://":
       new_backend_uri = "file://./state"
     parts = urlparse(new_backend_uri)
