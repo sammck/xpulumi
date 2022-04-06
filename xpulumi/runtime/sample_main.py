@@ -1,6 +1,6 @@
 
 # type: ignore
-
+# pylint: skip-file
 '''
 #!/usr/bin/env python3
 
@@ -54,14 +54,16 @@ config = pulumi.Config()
 stack_ref = pulumi.StackReference(f"sammck/my-first-app/dev")
 
 
-#num_auth_instances = default_val(config.get_int('num_auth_instances'), 1) # simpler and cheaper to debug with 1 container. Scale up for prod. During update, temporarily there will be 2x
+#num_auth_instances = default_val(config.get_int('num_auth_instances'), 1)
+# simpler and cheaper to debug with 1 container. Scale up for prod. During update, temporarily there will be 2x
 long_stack = "%s-%s" % (pulumi.get_project(), pulumi.get_stack())
 stack_short_prefix = pulumi.get_stack()[:5] + '-'
 
 global_region = 'us-east-1'
 region = default_val('aws_region', aws.get_region())
 
-# We create a seperate AWS pulumi provider bound to us-east-1 because certain AWS resources must be provisioned in that region (e.g., cloudfront
+# We create a seperate AWS pulumi provider bound to us-east-1 because certain
+# AWS resources must be provisioned in that region (e.g., cloudfront
 # certificates)
 global_aws = aws.Provider('aws-%s' % global_region, region=global_region)
 resource_options_global_aws = ResourceOptions(provider=global_aws)
@@ -174,9 +176,9 @@ cloudwatch_log_group = cloudwatch.LogGroup(
   'cloudwatch_log_group',
   # opts=None,
   # kms_key_id=None,
-  name="%s-log-group" % long_stack, 
-  # name_prefix=None, 
-  retention_in_days=30, 
+  name="%s-log-group" % long_stack,
+  # name_prefix=None,
+  retention_in_days=30,
   tags=default_tags
 )
 
@@ -279,16 +281,16 @@ pulumi.export('public-zone-id', public_zone.zone_id)
 public_parent_zone_ns_record = route53.Record(
   'public-parent-zone-ns-record',
   # opts=None,
-  # aliases=None, 
-  # allow_overwrite=None, 
+  # aliases=None,
+  # allow_overwrite=None,
   # failover_routing_policies=None,
-  # geolocation_routing_policies=None, 
-  # health_check_id=None, 
-  # latency_routing_policies=None, 
-  # multivalue_answer_routing_policy=None, 
-  name=zone_name, 
+  # geolocation_routing_policies=None,
+  # health_check_id=None,
+  # latency_routing_policies=None,
+  # multivalue_answer_routing_policy=None,
+  name=zone_name,
   records=public_zone.name_servers,
-  # set_identifier=None, 
+  # set_identifier=None,
   ttl=TTL_MINUTE * 10,
   type='NS',
   # weighted_routing_policies=None,
@@ -467,7 +469,7 @@ region_wildcard_cert = acm.Certificate(
   # certificate_body=None,
   # certificate_chain=None,
   domain_name='*.%s' % zone_name,
-  # options=None, 
+  # options=None,
   # private_key=None,
   subject_alternative_names=[
     zone_name # allow a bare zone name in addition to wildcard prefix
@@ -513,7 +515,7 @@ else:
     # certificate_body=None,
     # certificate_chain=None,
     domain_name='*.%s' % zone_name,
-    # options=None, 
+    # options=None,
     # private_key=None,
     subject_alternative_names=[
       zone_name # allow a bare zone name in addition to wildcard prefix
@@ -577,7 +579,7 @@ lb_security_group = ec2.SecurityGroup(
 # Create a target group that the load balancer can forward requests to. Instances inhe group
 # will be identified by internal IP address, which is a requirement for FARGATE services.
 # The group will listen on port 5000 for HTTP requests forwarded by the load balancer. A health
-# check at "http://<internal-ip>:5000/ping" will be used to detect failing instances. 
+# check at "http://<internal-ip>:5000/ping" will be used to detect failing instances.
 lb_target_group = elbv2.TargetGroup(
   'lb-target-group',
   # opts=None,
@@ -713,16 +715,16 @@ http_listener = elbv2.Listener(
 public_www_dns_entry = route53.Record(
   'public-www-dns-record',
   # opts=None,
-  # aliases=None, 
-  # allow_overwrite=None, 
-  # failover_routing_policies=None, 
-  # geolocation_routing_policies=None, 
-  # health_check_id=None, 
-  # latency_routing_policies=None, 
-  # multivalue_answer_routing_policy=None, 
-  name='www.%s' % zone_name, 
+  # aliases=None,
+  # allow_overwrite=None,
+  # failover_routing_policies=None,
+  # geolocation_routing_policies=None,
+  # health_check_id=None,
+  # latency_routing_policies=None,
+  # multivalue_answer_routing_policy=None,
+  name='www.%s' % zone_name,
   records=[ load_balancer.dns_name ],
-  # set_identifier=None, 
+  # set_identifier=None,
   ttl=TTL_MINUTE * 10,
   type='CNAME',
   # weighted_routing_policies=None,
@@ -733,16 +735,16 @@ public_www_dns_entry = route53.Record(
 public_auth_dns_entry = route53.Record(
   'public-auth-dns-record',
   # opts=None,
-  # aliases=None, 
-  # allow_overwrite=None, 
-  # failover_routing_policies=None, 
-  # geolocation_routing_policies=None, 
-  # health_check_id=None, 
-  # latency_routing_policies=None, 
-  # multivalue_answer_routing_policy=None, 
-  name='auth.%s' % zone_name, 
+  # aliases=None,
+  # allow_overwrite=None,
+  # failover_routing_policies=None,
+  # geolocation_routing_policies=None,
+  # health_check_id=None,
+  # latency_routing_policies=None,
+  # multivalue_answer_routing_policy=None,
+  name='auth.%s' % zone_name,
   records=[ load_balancer.dns_name ],
-  # set_identifier=None, 
+  # set_identifier=None,
   ttl=TTL_MINUTE * 10,
   type='CNAME',
   # weighted_routing_policies=None,
@@ -760,16 +762,16 @@ public_bare_dns_entry = route53.Record(
       name=load_balancer.dns_name,
       zone_id=load_balancer.zone_id
     )
-  ], 
-  # allow_overwrite=None, 
-  # failover_routing_policies=None, 
-  # geolocation_routing_policies=None, 
-  # health_check_id=None, 
-  # latency_routing_policies=None, 
-  # multivalue_answer_routing_policy=None, 
-  name=zone_name, 
+  ],
+  # allow_overwrite=None,
+  # failover_routing_policies=None,
+  # geolocation_routing_policies=None,
+  # health_check_id=None,
+  # latency_routing_policies=None,
+  # multivalue_answer_routing_policy=None,
+  name=zone_name,
   # records=[ load_balancer.dns_name ],
-  # set_identifier=None, 
+  # set_identifier=None,
   # ttl=TTL_MINUTE * 10,
   type='A',
   # weighted_routing_policies=None,
@@ -898,16 +900,16 @@ for i in range(num_db_instances):
 public_db_dns_entry = route53.Record(
   'public-db-dns-record',
   # opts=None,
-  # aliases=None, 
-  # allow_overwrite=None, 
-  # failover_routing_policies=None, 
-  # geolocation_routing_policies=None, 
-  # health_check_id=None, 
-  # latency_routing_policies=None, 
-  # multivalue_answer_routing_policy=None, 
-  name='db.%s' % zone_name, 
+  # aliases=None,
+  # allow_overwrite=None,
+  # failover_routing_policies=None,
+  # geolocation_routing_policies=None,
+  # health_check_id=None,
+  # latency_routing_policies=None,
+  # multivalue_answer_routing_policy=None,
+  name='db.%s' % zone_name,
   records=[ db_cluster.endpoint ],
-  # set_identifier=None, 
+  # set_identifier=None,
   ttl=TTL_MINUTE * 10,
   type='CNAME',
   # weighted_routing_policies=None,
@@ -1255,7 +1257,6 @@ auth_ecs_service = ecs.Service(
 pulumi.export('ecs-auth-service', auth_ecs_service.name)
 
 pulumi.export('auth-ecr-hashed-image-url', hashed_auth_image_url)
-'''
 
 pulumi.export('vpc-cidr', vpc_cidr)
 pulumi.export('azs', azs)
@@ -1263,7 +1264,6 @@ pulumi.export('public_subnet_cidrs', public_subnet_cidrs)
 pulumi.export('private_subnet_cidrs', private_subnet_cidrs)
 pulumi.export('website_url', 'https://www.%s' % zone_name)
 
-'''
 # pulumi.export("auth-task-container-definitions", auth_task_container_definitions)
 # pulumi.export("auth-task-definition", auth_task_definition)
 '''

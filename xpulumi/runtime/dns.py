@@ -94,7 +94,7 @@ def sync_get_zone(
         opts=opts,
       )
   loop = asyncio.get_event_loop()
-  result = loop.run_until_complete(corout())  
+  result = loop.run_until_complete(corout())
   return result
 
 class DnsZone:
@@ -143,16 +143,16 @@ class DnsZone:
         # Create an NS record in the parent zone that points to our zone's name servers.
         public_parent_zone_ns_record = route53.Record(
           f'{resource_prefix}dns-zone-parent-ns-record',
-          # aliases=None, 
-          # allow_overwrite=None, 
+          # aliases=None,
+          # allow_overwrite=None,
           # failover_routing_policies=None,
-          # geolocation_routing_policies=None, 
-          # health_check_id=None, 
-          # latency_routing_policies=None, 
-          # multivalue_answer_routing_policy=None, 
-          name=zone_name, 
+          # geolocation_routing_policies=None,
+          # health_check_id=None,
+          # latency_routing_policies=None,
+          # multivalue_answer_routing_policy=None,
+          name=zone_name,
           records=zone.name_servers,
-          # set_identifier=None, 
+          # set_identifier=None,
           ttl=TTL_MINUTE * 10,
           type='NS',
           # weighted_routing_policies=None,
@@ -180,7 +180,7 @@ class DnsZone:
           zone_name = zone_info.name
           pulumi.log.info(f"fetched zone name is {zone_name}")
         self.zone_name = zone_name
-        
+
 
       zone = route53.Zone.get(
           f'{resource_prefix}dns-zone',

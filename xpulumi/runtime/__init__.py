@@ -70,7 +70,7 @@ from .vpc import VpcEnv
 from .dns import DnsZone
 from .security_group import FrontEndSecurityGroup
 from .ec2_keypair import Ec2KeyPair
-from .user_data import ( 
+from .user_data import (
     UserData,
     UserDataPart,
     CloudInitDoc,

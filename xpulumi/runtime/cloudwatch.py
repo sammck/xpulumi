@@ -80,9 +80,9 @@ class CloudWatch:
       log_group = cloudwatch.LogGroup(
           'cloudwatch_log_group',
           # kms_key_id=None,
-          name=log_group_name, 
-          # name_prefix=None, 
-          retention_in_days=30, 
+          name=log_group_name,
+          # name_prefix=None,
+          retention_in_days=30,
           tags=default_tags,
           opts=aws_resource_options,
         )

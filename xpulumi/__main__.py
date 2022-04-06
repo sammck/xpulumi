@@ -8,7 +8,9 @@
 """xpulumi CLI"""
 
 import base64
-from typing import Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping, cast, Any, Iterator, Iterable, Tuple, ItemsView, ValuesView, KeysView
+from typing import (
+    Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping,
+    cast, Any, Iterator, Iterable, Tuple, ItemsView, ValuesView, KeysView )
 
 import os
 import sys
@@ -74,7 +76,7 @@ class ArgparseExitError(CmdExitError):
 class NoExitArgumentParser(argparse.ArgumentParser):
   def exit(self, status=0, message=None):
     if message:
-        self._print_message(message, sys.stderr)
+      self._print_message(message, sys.stderr)
     raise ArgparseExitError(status, message)
 
 class RoundTripConfig(MutableMapping[str, Any]):
@@ -319,7 +321,7 @@ class CommandHandler:
     return self._cfg
 
   def get_config_file(self) -> str:
-    return self.get_config().config_file  
+    return self.get_config().config_file
 
   def update_config(self, *args, **kwargs):
     cfg_file = self.get_config_file()
@@ -399,7 +401,13 @@ class CommandHandler:
     with open(os.path.join(backend_dir, "backend.json"), 'w') as f:
       print(json.dumps(backend_data, indent=2, sort_keys=True), file=f)
 
-  def create_s3_backend(self, new_backend: str, new_backend_uri: str, new_s3_bucket_project: Optional[str]=None, new_s3_bucket_backend: Optional[str]=None):
+  def create_s3_backend(
+        self,
+        new_backend: str,
+        new_backend_uri: str,
+        new_s3_bucket_project: Optional[str]=None,
+        new_s3_bucket_backend: Optional[str]=None
+      ):
     raise NotImplementedError()
 
   def cmd_be_create(self) -> int:
@@ -414,7 +422,12 @@ class CommandHandler:
     if parts.scheme == 'file':
       self.create_file_backend(new_backend, new_backend_uri)
     elif parts.scheme == 's3':
-      self.create_s3_backend(new_backend, new_backend_uri, new_s3_bucket_project=new_s3_bucket_project, new_s3_bucket_backend=new_s3_bucket_backend)
+      self.create_s3_backend(
+          new_backend,
+          new_backend_uri,
+          new_s3_bucket_project=new_s3_bucket_project,
+          new_s3_bucket_backend=new_s3_bucket_backend
+        )
     else:
       raise XPulumiError(f"Cannot create a new backend with scheme {parts.scheme}")
     return 0
@@ -447,10 +460,7 @@ class CommandHandler:
     Returns:
         int: The exit code that would be returned if this were run as a standalone command.
     """
-    import argparse
-
     parser = argparse.ArgumentParser(description="Manage pulumi-based projects.")
-
 
     # ======================= Main command
 
@@ -481,22 +491,22 @@ class CommandHandler:
                         description='Valid commands',
                         help='Additional help available with "xpulumi <command-name> -h"')
 
-                
+
     # ======================= version
 
-    parser_version = subparsers.add_parser('version', 
+    parser_version = subparsers.add_parser('version',
                             description='''Display version information. JSON-quoted string. If a raw string is desired, user -r.''')
     parser_version.set_defaults(func=self.cmd_version)
 
     # ======================= init-env
 
-    parser_init_env = subparsers.add_parser('init-env', 
+    parser_init_env = subparsers.add_parser('init-env',
                             description='''Initialize a new overall GitHub project environment.''')
     parser_init_env.set_defaults(func=self.cmd_init_env)
 
     # ======================= run
 
-    parser_run = subparsers.add_parser('run', 
+    parser_run = subparsers.add_parser('run',
                             description='''Run a command, optionally in group or with sudo.''')
     parser_run.add_argument('-g', '--group', dest="run_with_group", default=None,
                         help='Run with membership in the specified OS group, using sudo if current process has not picked up membership')
@@ -520,7 +530,7 @@ class CommandHandler:
 
     # ======================= backend
 
-    parser_backend = subparsers.add_parser('backend', 
+    parser_backend = subparsers.add_parser('backend',
                             description='''Subcommands related to management of pulumi backends.''')
     backend_subparsers = parser_backend.add_subparsers(
                         title='Subcommands',
@@ -529,7 +539,7 @@ class CommandHandler:
 
     # ======================= backend create
 
-    parser_be_create = backend_subparsers.add_parser('create', 
+    parser_be_create = backend_subparsers.add_parser('create',
                             description='''Create a backend.''')
     parser_be_create.add_argument('--new-s3-bucket-project', default=None,
                         help='If an S3 backend, create a new project with the given name and a "global" stack on the current backend that creates and manages the bucket.')
@@ -541,7 +551,7 @@ class CommandHandler:
 
     # ======================= backend select
 
-    parser_be_select = backend_subparsers.add_parser('select', 
+    parser_be_select = backend_subparsers.add_parser('select',
                             description='''Select a default backend.''')
     parser_be_select.add_argument('default_backend',
                         help='The new default backend name')
@@ -558,7 +568,7 @@ class CommandHandler:
 
     # ======================= project create
 
-    parser_prj_create = project_subparsers.add_parser('create', 
+    parser_prj_create = project_subparsers.add_parser('create',
                             description='''Create a project.''')
     parser_prj_create.add_argument('new_project',
                         help='The new project name')
@@ -574,7 +584,7 @@ class CommandHandler:
 
     # ======================= stack
 
-    parser_stack = subparsers.add_parser('stack', 
+    parser_stack = subparsers.add_parser('stack',
                             description='''Subcommands related to management of pulumi stacks.''')
     stack_subparsers = parser_stack.add_subparsers(
                         title='Subcommands',
@@ -583,7 +593,7 @@ class CommandHandler:
 
     # ======================= stack select
 
-    parser_stack_select = stack_subparsers.add_parser('select', 
+    parser_stack_select = stack_subparsers.add_parser('select',
                             description='''Select a default stack.''')
     parser_stack_select.add_argument('default_stack',
                         help='The new default stack name')

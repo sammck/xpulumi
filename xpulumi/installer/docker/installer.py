@@ -55,12 +55,12 @@ MIN_DOCKER_SERVER_VERSION = MIN_DOCKER_CLIENT_VERSION
 
 verbose: bool = False
 
-def escaped_hex(hex: str) -> str:
-  if len(hex) % 2 != 0:
+def escaped_hex(hexv: str) -> str:
+  if len(hexv) % 2 != 0:
     raise XPulumiError("Hex values must contain an even number of digits")
   result = ''
-  for i in range(0, len(hex), 2):
-    result += f"\\x{hex[i:i+2]}"
+  for i in range(0, len(hexv), 2):
+    result += f"\\x{hexv[i:i+2]}"
   return result
 
 class BinFmtEntry:
@@ -81,7 +81,7 @@ class BinFmtEntry:
       vs = v.rstrip()
       if vs == field_name:
         return ''
-      elif vs.startswith(m):
+      if vs.startswith(m):
         return vs[len(m):].lstrip()
     return default
 
@@ -206,9 +206,12 @@ def install_docker(force: bool=False):
       print(f"meets the minimum version {MIN_DOCKER_CLIENT_VERSION}. No update is necessary.", file=sys.stderr)
       need_client_install = False
     else:
-      print(f"Docker client version {version} does not meet the minimum version {MIN_DOCKER_CLIENT_VERSION}; upgrading", file=sys.stderr)
+      print(
+          f"Docker client version {version} does not meet the minimum "
+          f"version {MIN_DOCKER_CLIENT_VERSION}; upgrading", file=sys.stderr
+        )
   else:
-    print(f"Docker is not installed; installing", file=sys.stderr)
+    print("Docker is not installed; installing", file=sys.stderr)
 
   if need_client_install:
     PackageList([ "docker-engine",  "docker.io", "containerd", "runc" ]).uninstall_all()
@@ -221,7 +224,7 @@ def install_docker(force: bool=False):
     lsbrelease = get_linux_distro_name()
 
     # HACK: docker does not currently have a repo for ubuntu 22.04 (jammy), but they recommend using
-    #   the ubuntu 20.04 (focal) repo. 
+    #   the ubuntu 20.04 (focal) repo.
     if lsbrelease == "jammy":
       lsbrelease="focal"
 
@@ -256,7 +259,10 @@ def install_docker(force: bool=False):
         pl.upgrade_all()
         print("Install/upgrade of docker-ce succeeded on first attempt...", file=sys.stderr)
       except subprocess.CalledProcessError as e:
-        print(f"Install/upgrade of docker-ce failed on first attempt. Retrying to work around docker-ce install bug...: {e}")
+        print(
+            f"Install/upgrade of docker-ce failed on first attempt. "
+            f"Retrying to work around docker-ce install bug...: {e}"
+          )
         pl.upgrade_all()
         print("Install/upgrade of docker-ce succeeded on second attempt...", file=sys.stderr)
 
@@ -272,33 +278,46 @@ def install_docker(force: bool=False):
 
     prog = get_docker_prog()
     version = get_docker_version()
-      
+
     if not check_version_ge(version, MIN_DOCKER_CLIENT_VERSION):
       raise XPulumiError(
-        f"Docker client installed/upgraded, but version {version} still does not meet the minimum version {MIN_DOCKER_CLIENT_VERSION}")
-  
+          f"Docker client installed/upgraded, but version {version} still "
+          f"does not meet the minimum version {MIN_DOCKER_CLIENT_VERSION}")
+
     print(f"Docker client version {version} successfully installed...", file=sys.stderr)
 
-  if not os_group_exists('docker'):  
+  if not os_group_exists('docker'):
     raise XPulumiError(
       f"The OS group 'docker' does not exist, even though Docker client version {version} is installed")
 
   if not os_group_includes_user('docker'):
     print(f"User {get_current_os_user()} is not in the 'docker' OS group--adding...", file=sys.stderr)
     os_group_add_user('docker')
-  
+
   if should_run_with_group('docker'):
-    print(f"User {get_current_os_user()} is in the 'docker' OS group, but current process is not.  sudo required until shell restart...", file=sys.stderr)
+    print(
+        f"User {get_current_os_user()} is in the 'docker' OS group, but current process is not. "
+        f"sudo required until shell restart...", file=sys.stderr
+      )
 
   try:
     docker_server_version = get_docker_server_version()
   except ChildProcessError as e:
-    raise XPulumiError(f"Docker server is not reachable by the client, even though user {get_current_os_user()} is in the 'docker' OS group") from e
+    raise XPulumiError(
+        f"Docker server is not reachable by the client, even though user {get_current_os_user()} "
+        f"is in the 'docker' OS group"
+      ) from e
 
   if not check_version_ge(docker_server_version, MIN_DOCKER_SERVER_VERSION):
-    raise XPulumiError(f"Docker server is reachable by the client, but its version {docker_server_version} does not meet the minimum version {MIN_DOCKER_SERVER_VERSION}")
+    raise XPulumiError(
+        f"Docker server is reachable by the client, but its version {docker_server_version} "
+        f"does not meet the minimum version {MIN_DOCKER_SERVER_VERSION}"
+      )
 
-  print(f"Docker server is reachable, and its version {docker_server_version} meets the minimum version {MIN_DOCKER_SERVER_VERSION}", file=sys.stderr)
+  print(
+      f"Docker server is reachable, and its version {docker_server_version} "
+      f"meets the minimum version {MIN_DOCKER_SERVER_VERSION}", file=sys.stderr
+    )
 
   pl = PackageList()
   pl.add_packages_if_missing( [ "binfmt-support", "qemu-user-static" ])
@@ -306,11 +325,10 @@ def install_docker(force: bool=False):
 
   fix_all_binfmt_qemu_binaries_if_needed()
 
-  print(f"All QEMU interpreter binaries have been registered with binfmts as --fix-binary; no further update necessary", file=sys.stderr)
+  print("All QEMU interpreter binaries have been registered with binfmts as --fix-binary; no further update necessary", file=sys.stderr)
 
   if should_run_with_group('docker'):
-    print(f"WARNING: Command 'docker' requires membership in OS group 'docker', which is newly added for", file=sys.stderr)
+    print("WARNING: Command 'docker' requires membership in OS group 'docker', which is newly added for", file=sys.stderr)
     print(f"user \"{get_current_os_user()}\", and is not yet effective for the current process. Please logout", file=sys.stderr)
-    print(f" and log in again, or in the mean time run docker with:", file=sys.stderr)
+    print(" and log in again, or in the mean time run docker with:", file=sys.stderr)
     print(f"         sudo -E -u {get_current_os_user()} docker [<arg>...]", file=sys.stderr)
-

@@ -50,7 +50,7 @@ class SyncStackOutputs:
 
   def get_output(self, name: str, default: Jsonable=None) -> Jsonable:
     return self.outputs.get(name, default)
-  
+
   def require_output(self, name: str) -> Jsonable:
     return self.outputs[name]
 
@@ -68,10 +68,10 @@ class SyncStackOutputs:
 
   def keys(self) -> Iterable[str]:
     return self.outputs.keys()
-  
+
   def values(self) -> Iterable[Jsonable]:
     return self.outputs.values()
-  
+
   def items(self) -> Iterable[Tuple[str, Jsonable]]:
     return self.outputs.items()
 
@@ -94,7 +94,7 @@ class StackOutputs:
        as well as all outputs as a JsonableDict.
 
     Args:
-        stack_name (Input[Optional[str]], optional): 
+        stack_name (Input[Optional[str]], optional):
                       The stack name within the xpulumi project, or None to use the
                       same stack name as the current project. Defaults to None.
         project_name (Input[Optional[str]], optional):
@@ -113,12 +113,12 @@ class StackOutputs:
 
   def get_outputs(self) -> Output[JsonableDict]:
     return Output.all(cast(Output, self._future_outputs)).apply(lambda args: args[0].outputs)
-  
+
   def get_output(self, name: Input[str], default: Input[Jsonable]=None) -> Output[Jsonable]:
     return Output.all(cast(Output,self._future_outputs), name, default).apply(
         lambda args: cast(SyncStackOutputs, args[0]).get_output(cast(str, args[1]), default=cast(Jsonable, args[2]))
       )
-  
+
   def require_output(self, name: Input[str]) -> Output[Jsonable]:
     return Output.all(cast(Output,self._future_outputs), name).apply(
         lambda args: cast(SyncStackOutputs, args[0]).require_output(cast(str, args[1]))
@@ -136,11 +136,11 @@ class StackOutputs:
       )
 
   def keys(self) -> Output[Iterable[str]]:
-    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).keys()) 
-  
+    return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).keys())
+
   def values(self) -> Output[Iterable[Jsonable]]:
     return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).values())
-  
+
   def items(self) -> Output[Iterable[Tuple[str, Jsonable]]]:
     return Output.all(cast(Output, self._future_outputs)).apply(lambda args: cast(SyncStackOutputs, args[0]).items())
 
@@ -190,7 +190,7 @@ def require_stack_output(
       decrypt_secrets: bool=False,
       bypass_pulumi: bool=True
     ) -> Jsonable:
-  
+
   pstack = get_normalized_stack(stack, project)
   outputs = pstack.get_stack_outputs(decrypt_secrets=decrypt_secrets, bypass_pulumi=bypass_pulumi)
   if not output_name in outputs:

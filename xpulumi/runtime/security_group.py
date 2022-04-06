@@ -113,7 +113,7 @@ class FrontEndSecurityGroup:
           if not desc is None:
             entry['description'] = desc
         ingress.append(entry)
-    
+
       sg = ec2.SecurityGroup(
         f'{resource_prefix}front-end-sg',
         description='%s front-end security group. Public SSH, HTTP, and HTTPS' % long_stack,

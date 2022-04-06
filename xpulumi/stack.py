@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi stack configuration.
 
 """
 
-from typing import Optional, cast, Dict, Tuple, Union, cast
+from typing import Optional, cast, Dict, Tuple, Union
 from .internal_types import Jsonable, JsonableDict
 
 import os

@@ -43,7 +43,7 @@ MIN_POETRY_VERSION = "1.1.12"
 verbose: bool = False
 
 class StandardInstaller:
-    def __init__(
+  def __init__(
         self,
         version: Optional[str] = None,
         preview: bool = False,
@@ -51,12 +51,12 @@ class StandardInstaller:
         accept_all: bool = False,
         git: Optional[str] = None,
         path: Optional[str] = None,
-    ) -> None:
-      ...
+      ) -> None:
+    ...
 
 
-    def run(self) -> int:
-      ...
+  def run(self) -> int:
+    ...
 
 
 @run_once
@@ -109,12 +109,15 @@ def install_poetry(
       print(f"Poetry version {version} is already in PATH. No update is necessary.", file=sys.stderr)
       return
     elif check_version_ge(version, min_version):
-      print(f"Poetry version {version} is already in PATH and meets the minimum version {min_version}. No update is necessary.", file=sys.stderr)
+      print(
+          f"Poetry version {version} is already in PATH and meets the minimum version {min_version}. "
+          f"No update is necessary.",
+          file=sys.stderr
+        )
       return
   else:
-    print(f"'poetry' command not found; installing Poetry.", file=sys.stderr)
+    print("'poetry' command not found; installing Poetry.", file=sys.stderr)
   installer = Installer(preview=use_preview, force=force)
   exit_code = installer.run()
   if exit_code != 0:
     raise XPulumiError(f"Poetry installer returned nonzero exit code: {exit_code}")
-

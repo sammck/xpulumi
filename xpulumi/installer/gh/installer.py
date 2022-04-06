@@ -123,10 +123,9 @@ def install_gh(force: bool=False):
 
     prog = get_gh_prog()
     version = get_gh_version()
-      
+
     if not check_version_ge(version, MIN_GH_VERSION):
       raise XPulumiError(
         f"GitHub CLI (gh) installed/upgraded, but version {version} still does not meet the minimum version {MIN_GH_VERSION}")
-  
-    print(f"GitHub CLI version {version} successfully installed...", file=sys.stderr)
 
+    print(f"GitHub CLI version {version} successfully installed...", file=sys.stderr)

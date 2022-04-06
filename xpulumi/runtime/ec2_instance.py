@@ -87,7 +87,7 @@ def get_ami_name_filter(ami_arch: str, ami_distro: str, ami_os_version: str) -> 
 
 '''
 # create a cloud-config document to attach as user-data to the new ec2 instance.
-# we create a sync function to generate the document when all needed outputs have values, and wrap it as a future that can consume outputs. 
+# we create a sync function to generate the document when all needed outputs have values, and wrap it as a future that can consume outputs.
 def gen_frontend_cloud_config_obj(
       zone_name: str,
       region: str,
@@ -175,7 +175,7 @@ frontend_cloud_config = yamlify_promise(
 '''
 
 class Ec2Volume:
-  """
+  r"""
   Metadata about a single mounted data volume on an EC2 instance.
 
   Keeps track of the EBS volume, as well as which device name it is
@@ -190,7 +190,7 @@ class Ec2Volume:
     $ lsblk -o +serial
     NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT                  SERIAL
     nvme0n1     259:0    0   40G  0 disk                             vol0c14668ff49981879
-    └─nvme0n1p1 259:1    0   40G  0 part /                           
+    └─nvme0n1p1 259:1    0   40G  0 part /
     nvme1n1     259:2    0   40G  0 disk                             vol019ea9659aaae62e2
 
   In this case nvme0n1 is the standard boot drive, forked from the instance AMI, with
@@ -274,7 +274,7 @@ class Ec2Volume:
   @property
   def external_dev_name(self) -> str:
     return f'/dev/{self.unit_name}'
-  
+
 def sync_gen_wait_for_volumes_script(
       internal_device_names: List[str],
       max_wait_seconds: int = 120,
@@ -581,7 +581,7 @@ class Ec2Instance:
       # put the primary name first
       ordered_dns_names.remove(primary_dns_name)
       ordered_dns_names = [ primary_dns_name ] + ordered_dns_names
-      
+
     if description is None:
       description = f"EC2 instance ({resource_prefix}) in Pulumi stack {long_stack}"
 
@@ -625,7 +625,6 @@ class Ec2Instance:
     # define a role policy that allows our instance to access needed AWS resources
     if role_policy_obj is None:
       role_policy_obj = self.DEFAULT_ROLE_POLICY_OBJ
-    role_policy_obj = role_policy_obj
     self.role_policy_obj = role_policy_obj
 
     self.keypair = Ec2KeyPair(
@@ -820,20 +819,20 @@ class Ec2Instance:
     dns_records: List[route53.Record] = []
     if self.register_dns and len(self.dns_names) > 0:
       cname_target: Optional[str] = None
-      for i, dn in enumerate(self.dns_names):
+      for dn in self.dns_names:
         if cname_target is None or dn == self.parent_dns_zone.zone_name:
           dns_record = route53.Record(
               f'{resource_prefix}ec2-instance-dns-record-{dn}',
               # aliases=None,
-              # allow_overwrite=None, 
-              # failover_routing_policies=None, 
-              # geolocation_routing_policies=None, 
-              # health_check_id=None, 
-              # latency_routing_policies=None, 
-              # multivalue_answer_routing_policy=None, 
+              # allow_overwrite=None,
+              # failover_routing_policies=None,
+              # geolocation_routing_policies=None,
+              # health_check_id=None,
+              # latency_routing_policies=None,
+              # multivalue_answer_routing_policy=None,
               name=dn,
               records=[ self.eip.public_ip ],
-              # set_identifier=None, 
+              # set_identifier=None,
               ttl=TTL_MINUTE * 10,
               type='A',
               # weighted_routing_policies=None,
@@ -846,16 +845,16 @@ class Ec2Instance:
           dns_record = route53.Record(
               f'{resource_prefix}ec2-instance-dns-record-{dn}',
               # opts=None,
-              # aliases=None, 
-              # allow_overwrite=None, 
-              # failover_routing_policies=None, 
-              # geolocation_routing_policies=None, 
-              # health_check_id=None, 
-              # latency_routing_policies=None, 
-              # multivalue_answer_routing_policy=None, 
-              name=dn, 
+              # aliases=None,
+              # allow_overwrite=None,
+              # failover_routing_policies=None,
+              # geolocation_routing_policies=None,
+              # health_check_id=None,
+              # latency_routing_policies=None,
+              # multivalue_answer_routing_policy=None,
+              name=dn,
               records=[ cname_target ],
-              # set_identifier=None, 
+              # set_identifier=None,
               ttl=TTL_MINUTE * 10,
               type='CNAME',
               # weighted_routing_policies=None,

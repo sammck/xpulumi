@@ -47,10 +47,10 @@ from xpulumi.installer.util import file_contents
 from xpulumi.internal_types import JsonableTypes
 
 try:
-    from yaml import CDumper as YamlDumper
-    from yaml import CLoader as YamlLoader
+  from yaml import CDumper as YamlDumper
+  from yaml import CLoader as YamlLoader
 except ImportError:
-    from yaml import Loader as YamlLoader, Dumper as YamlDumper  # type: ignore[misc]
+  from yaml import Loader as YamlLoader, Dumper as YamlDumper  # type: ignore[misc]
 
 class CmdExitError(RuntimeError):
   exit_code: int
@@ -131,7 +131,7 @@ value_options: Dict[str, List[str]] = {
       ],
     "version":  [ ],
     "watch":  [
-        '-c', '--config', '--config-file', '-m', '--message', '-p', '--parallel', '--path', 
+        '-c', '--config', '--config-file', '-m', '--message', '-p', '--parallel', '--path',
         '--policy-pack', '--policy-pack-config', '--secrets-provider', '-s', '--stack'
       ],
     "whoami":  [ ],
@@ -233,7 +233,7 @@ class PulumiCmd:
 
   def has_option_value(self, *options: str) -> bool:
     return len(self.get_option_value_as_list(*options)) > 0
-  
+
   def get_option_value(self, *options: str) -> Optional[Union[str, bool]]:
     results = self.get_option_value_as_list(*options)
     if len(results) > 1:
@@ -331,7 +331,7 @@ class PulumiWrapper:
   @property
   def project(self) -> Optional[XPulumiProject]:
     return self._project
-    
+
   @property
   def backend(self) -> Optional[XPulumiBackend]:
     return self._backend
@@ -339,7 +339,7 @@ class PulumiWrapper:
   @property
   def stack_name(self) -> Optional[str]:
     return self._stack_name
-    
+
   def abspath(self, path: str) -> str:
     return os.path.abspath(os.path.join(self._cwd, os.path.expanduser(path)))
 

@@ -210,4 +210,3 @@ async def async_wait_and_get_s3_object(
   resp = await loop.run_in_executor(executor, lambda: bcs3.get_object(Bucket=nbucket, Key=nkey))
   result = await loop.run_in_executor(executor, lambda: resp['Body'].read())
   return result
-

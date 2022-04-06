@@ -292,7 +292,7 @@ class XPulumiBackend:
           secrets_provider=secrets_provider,
           project_settings=project_settings,
           stack_settings=stacks_settings)
-      
+
       if decrypt_secrets:
         deployment = ws.export_stack(stack)
         export_data = dict(version=deployment.version, deployment=cast(JsonableDict, deployment.deployment))
@@ -467,4 +467,3 @@ class XPulumiBackend:
 
   def __str__(self) -> str:
     return f"<XPulumi backend {self.name} ==> {self.url}>"
-

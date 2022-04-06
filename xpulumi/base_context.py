@@ -55,11 +55,11 @@ def get_aws_identity(s: BotoAwsSession) -> Dict[str, str]:
   """
   result: Dict[str, str]
   if hasattr(s, "_xpulumi_caller_identity"):
-    result = s._xpulumi_caller_dentity  # type: ignore[attr-defined]
+    result = s._xpulumi_caller_dentity  # type: ignore[attr-defined] # pylint: disable=protected-access
   else:
     sts = s.client('sts')
     result = sts.get_caller_identity()
-    s._xpulumi_caller_identity = result  # type: ignore[attr-defined]
+    s._xpulumi_caller_identity = result  # type: ignore[attr-defined] # pylint: disable=protected-access
   return result
 
 def get_aws_account(s: BotoAwsSession) -> str:
@@ -143,11 +143,11 @@ class XPulumiContextBase(XPulumiContext):
   @property
   def default_backend_name(self) -> Optional[str]:
     return self._default_backend_name
-    
+
   @property
   def default_stack_name(self) -> Optional[str]:
     return self._default_stack_name
-    
+
   def get_config(self) -> XPulumiConfig:
     if self._config is None:
       config = XPulumiConfig(starting_dir=self._cwd)
@@ -524,7 +524,7 @@ class XPulumiContextBase(XPulumiContext):
     if project is None:
       cwd = self._cwd
     else:
-      cwd = project._project_dir
+      cwd = project._project_dir  # pylint: ignore=protected-access
     kwargs['cwd'] = cwd
     return arglist
 
@@ -539,6 +539,3 @@ class XPulumiContextBase(XPulumiContext):
   def raw_pulumi_call(self, arglist: List[str], **kwargs) -> int:
     arglist = self._fix_raw_popen_args(arglist, kwargs)
     return subprocess.call(arglist, **kwargs)
-
-
-

@@ -120,7 +120,7 @@ class XPulumiProject:
               if 'value' in xpbe:
                 bev = cast(str, xpbe['value'])
                 assert isinstance(bev, str)
-                cfg_data['backend'] = bev 
+                cfg_data['backend'] = bev
     if not xcfg_data is None:
       assert isinstance(xcfg_data, dict)
       cfg_data.update(xcfg_data)
@@ -233,4 +233,3 @@ class XPulumiProject:
 
   def __str__(self) -> str:
     return f"<XPulumi project {self.name}>"
-

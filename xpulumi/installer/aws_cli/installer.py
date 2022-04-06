@@ -122,7 +122,7 @@ def install_aws_cli(force: bool=False):
 
     prog = get_aws_cli_prog()
     version = get_aws_cli_version()
-      
+
     if not check_version_ge(version, MIN_AWS_CLI_VERSION):
       raise XPulumiError(
         f"AWS CLI installed/upgraded, but version {version} still does not meet the minimum version {MIN_AWS_CLI_VERSION}")

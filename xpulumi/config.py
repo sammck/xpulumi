@@ -10,19 +10,21 @@
 from typing import TYPE_CHECKING, Optional, cast
 from .internal_types import JsonableDict
 
-if TYPE_CHECKING:
-  from .base_context import XPulumiContextBase
-
 import os
 import yaml
 import json
 from yaml import load, dump
+
+from .constants import XPULUMI_CONFIG_FILENAME_BASE, XPULUMI_CONFIG_DIRNAME
+
 try:
   from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
   from yaml import Loader, Dumper  #type: ignore[misc]
 
-from .constants import XPULUMI_CONFIG_FILENAME_BASE, XPULUMI_CONFIG_DIRNAME
+
+if TYPE_CHECKING:
+  from .base_context import XPulumiContextBase
 
 def locate_xpulumi_config_file(config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True) -> str:
   if starting_dir is None:
@@ -38,7 +40,7 @@ def locate_xpulumi_config_file(config_path: Optional[str]=None, starting_dir: Op
     config_path = os.path.abspath(os.path.join(starting_dir, os.path.expanduser(config_path)))
   test_path = config_path
   if not os.path.exists(test_path):
-      raise FileNotFoundError(f"xpulumi: Config file not found: '{config_path}'")
+    raise FileNotFoundError(f"xpulumi: Config file not found: '{config_path}'")
   if os.path.isdir(test_path):
     tail_1_json = XPULUMI_CONFIG_FILENAME_BASE + '.json'
     tail_2_json = os.path.join(XPULUMI_CONFIG_DIRNAME, tail_1_json)
@@ -106,11 +108,11 @@ class XPulumiConfig:
   @property
   def config_file(self) -> str:
     return self._config_file
-    
+
   @property
   def config_data(self) -> JsonableDict:
     return self._config_data
-  
+
   @property
   def xpulumi_dir(self) -> str:
     return self._xpulumi_dir

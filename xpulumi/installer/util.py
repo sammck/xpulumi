@@ -21,7 +21,6 @@ import urllib3
 import shutil
 import shlex
 import subprocess
-from functools import lru_cache
 
 import threading
 from collections import defaultdict
@@ -171,7 +170,7 @@ def download_url_file(
     ) -> None:
   if pool_manager is None:
     pool_manager = urllib3.PoolManager()
-  
+
   if not filter_cmd is None and not isinstance(filter_cmd, list):
     filter_cmd = cast(List[str], [ filter_cmd ])
   if filter_cmd is None or len(filter_cmd) == 0 or (len(filter_cmd) == 1 and filter_cmd[0] == 'cat'):
@@ -451,8 +450,8 @@ def sudo_check_output(
   return result
 
 class CalledProcessErrorWithStderrMessage(subprocess.CalledProcessError):
-    def __str__(self):
-      return super().__str__() + f": [{self.stderr}]" 
+  def __str__(self):
+    return super().__str__() + f": [{self.stderr}]"
 
 @overload
 def sudo_check_output_stderr_exception(

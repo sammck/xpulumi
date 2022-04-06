@@ -64,8 +64,8 @@ def get_pulumi_latest_version() -> str:
   """
   Returns the latest version of Pulumi CLI available for download
   """
-  resp: http.client.HTTPResponse = urllib.request.urlopen(pulumi_latest_version_url)
-  contents: bytes = resp.read()
+  with urllib.request.urlopen(pulumi_latest_version_url) as resp:
+    contents: bytes = resp.read()
   pulumi_latest_version = contents.decode('utf-8').strip()
   return pulumi_latest_version
 
@@ -94,7 +94,7 @@ def get_pulumi_tarball_url(version: Optional[str]=None):
     pulumi_arch = 'x64'
   else:
     raise RuntimeError(f"CPU architecture \"{platform_machine}\" is not supported")
-  
+
   result = f"{pulumi_tarball_base_url}-v{version}-{pulumi_os}-{pulumi_arch}.tar.gz"
   return result
 
@@ -108,7 +108,7 @@ def download_file(url: str, dirname: str='.', filename: Optional[str]=None) -> s
       filename (Optional[str], optional): The pathname in which to place the tarball, or None to use the last element of the url as a filename.
                                           Evaluated relative to dirname. Defaults to None.
   Returns:
-      str: The path where the tarball was placed 
+      str: The path where the tarball was placed
   """
   dirname = os.path.expanduser(dirname)
   if filename is None:
@@ -135,7 +135,7 @@ def download_pulumi_tarball(
 
   Returns:
       Tuple[str, str]: A tuple with:
-                          [0] The path where the tarball was placed 
+                          [0] The path where the tarball was placed
                           [1] The URL from which the tarball was fetched
   """
   url = get_pulumi_tarball_url(version=version)
@@ -154,14 +154,14 @@ class TarFilter(Enum):
   NONE = 'no-auto-compress'
 
 
-def extract_tarball(tarball_file: str, extract_dir: str='.', filter: TarFilter=TarFilter.AUTO):
+def extract_tarball(tarball_file: str, extract_dir: str='.', tbfilter: TarFilter=TarFilter.AUTO):
   """
   Extracts a tarball, optionally filtering through bzip, etc.
 
   Args:
       tarball_file (str): The filename containing the tarball.
       extract_dir (str, optional): The directory in which to expand the tarball. Defaults to '.'.
-      filter (TarFilter, optional):  The compression filter to use. Defaults to TarFilter.AUTO, which
+      tbfilter (TarFilter, optional):  The compression filter to use. Defaults to TarFilter.AUTO, which
                 will choose based on file extension.
 
   Raises:
@@ -170,10 +170,10 @@ def extract_tarball(tarball_file: str, extract_dir: str='.', filter: TarFilter=T
   extract_dir = os.path.expanduser(extract_dir)
   tarball_file = os.path.expanduser(tarball_file)
 
-  if filter is None:
-    filter = TarFilter.AUTO
+  if tbfilter is None:
+    tbfilter = TarFilter.AUTO
 
-  filter_s: str = filter.value
+  filter_s: str = tbfilter.value
 
   if not filter_s.startswith('-'):
     filter_s = '--' + filter_s
@@ -204,7 +204,7 @@ def download_pulumi(dirname: str, version: Optional[str]=None, stderr: TextIO=sy
 
     if os.path.exists(tmp_install_dir):
       shutil.rmtree(tmp_install_dir)
-    
+
     try:
       if not os.path.exists(tmp_install_dir):
         mkdir_p(tmp_install_dir)
@@ -216,7 +216,7 @@ def download_pulumi(dirname: str, version: Optional[str]=None, stderr: TextIO=sy
         tmp_bin_dir = os.path.join(tmp_install_dir, 'pulumi')
         if not os.path.exists(tmp_bin_dir):
           raise RuntimeError(f"Pulumi tarball at {tb_url} does not include pulumi subdirectory")
-      
+
       if os.path.exists(backup_bin_dir):
         shutil.rmtree(backup_bin_dir)
 
@@ -296,7 +296,7 @@ def install_pulumi(
                        accepted. Defaults to None.
       upgrade_version (Optional[str], optional): The version to install if an installation is performed.
                        If None or 'latest', then the latest version will be installed.. Defaults to None.
-      force (bool, optional): 
+      force (bool, optional):
                        If True, the installation will be refreshed even if the current version satisfies other
                        constraints. Defaults to False.
 
@@ -314,7 +314,7 @@ def install_pulumi(
   if upgrade_version == 'latest':
     upgrade_version = None
   if min_version == 'latest':
-    min_version = get_pulumi_latest_version()    
+    min_version = get_pulumi_latest_version()
 
   if not upgrade_version is None and not min_version is None and not check_version_ge(upgrade_version, min_version):
     raise RuntimeError("Requested Pulumi upgrade version {upgrade_version} is less than than minimum required version {min_version}")
@@ -360,9 +360,7 @@ def get_pulumi_username(dirname: Optional[str]=None, stderr: TextIO=sys.stderr) 
   pulumi_err = pulumi_err_bytes.decode('utf-8').rstrip()
   username: Optional[str] = None
   if pulumi_err != '':
-    """
-    error: PULUMI_ACCESS_TOKEN must be set for login during non-interactive CLI sessions
-    """
+    # error: PULUMI_ACCESS_TOKEN must be set for login during non-interactive CLI sessions
     if not pulumi_err.startswith("error: PULUMI_ACCESS_TOKEN must be set "):
       print(pulumi_err, file=stderr)
       raise XPulumiError(f"Unexpected stderr output from \"pulumi whoami\", exit_code={exit_code}")
@@ -374,4 +372,3 @@ def get_pulumi_username(dirname: Optional[str]=None, stderr: TextIO=sys.stderr) 
 
     username = pulumi_out
   return username
-

@@ -51,3 +51,35 @@ upload_to_pypi = false
 upload_to_release = true
 build_command = "pip install poetry && poetry build"
 
+[tool.pylint.'MESSAGES CONTROL']
+disable=[
+    "wrong-import-order",
+    "duplicate-code",
+    "too-many-arguments",
+    "missing-function-docstring",
+    "import-outside-toplevel",
+    "too-few-public-methods",
+    "missing-class-docstring",
+    "unused-import",
+    "too-many-locals",
+    "unused-argument",
+    "invalid-name",
+    "no-self-use",
+    "global-statement",
+    "broad-except",
+    "too-many-branches",
+    "too-many-statements",
+    "exec-used",
+    "ungrouped-imports",
+    "subprocess-popen-preexec-fn",
+    "multiple-statements",
+    "too-many-public-methods",
+    "missing-module-docstring",
+    "too-many-instance-attributes",
+    "too-many-nested-blocks",
+  ]
+
+[tool.pylint.FORMAT]
+indent-after-paren=4
+indent-string='  '
+max-line-length=140

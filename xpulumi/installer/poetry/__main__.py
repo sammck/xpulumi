@@ -44,4 +44,3 @@ def main(argv: Optional[Sequence[str]]=None):
 
 if __name__ == "__main__":
   main()
-

@@ -96,7 +96,7 @@ class Ec2KeyPair:
       public_key_file = pconfig.get(f'{cfg_prefix}ssh_public_key_file')
     if use_config and keypair_id is None:
       keypair_id = pconfig.get(f'{cfg_prefix}ssh_keypair_id')
-    
+
     self.keypair_id = keypair_id
     if keypair_id is None:
       self.set_public_key(public_key=public_key, filename=public_key_file)
@@ -142,7 +142,6 @@ class Ec2KeyPair:
       resource_prefix = self.resource_prefix
       public_key = self.public_key
       keypair_id = self.keypair_id
-      ctx = self.ctx
       if keypair_id is None:
         if public_key is None:
           raise XPulumiError("Unable to determine SSH public key--not passed and ~/.ssh/id_rsa.pub not present")

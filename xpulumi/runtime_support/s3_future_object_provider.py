@@ -121,10 +121,10 @@ class S3FutureObject(Resource):
         poll_interval: float = DEFAULT_S3_OBJECT_POLL_INTERVAL_SECONDS,
         opts: Optional[ResourceOptions]=None,
       ):
-    
+
     super().__init__(
         S3FutureObjectProvider(),
-        name, 
+        name,
         # NOTE: Pulumi doesn't populate output properties unless they are also inputs...
         dict(
             uri=uri,

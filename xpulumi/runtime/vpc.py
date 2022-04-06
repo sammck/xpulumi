@@ -386,7 +386,7 @@ class VpcEnv:
         import_prefix: Optional[str]=None
       ) -> None:
     if  import_prefix is None:
-       import_prefix = ''
+      import_prefix = ''
     resource_prefix = self.resource_prefix
 
     outputs = SyncStackOutputs(stack_name=stack_name, project_name=project_name)

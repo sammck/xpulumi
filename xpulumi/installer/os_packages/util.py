@@ -91,7 +91,11 @@ def install_apt_sources_list_if_missing(dest_file: str, signed_by: str, url: str
     update_apt_sources_list(dest_file, signed_by, url, *args, stderr=stderr)
 
 def get_os_package_version(package_name: str) -> str:
-  stdout_bytes = cast(bytes, sudo_check_output_stderr_exception(['dpkg-query', '--showformat=${Version}', '--show', package_name], use_sudo=False))
+  stdout_bytes = sudo_check_output_stderr_exception(
+      ['dpkg-query', '--showformat=${Version}', '--show',
+      package_name],
+      use_sudo=False
+    )
   return stdout_bytes.decode('utf-8').rstrip()
 
 def os_package_is_installed(package_name: str) -> bool:
@@ -233,4 +237,10 @@ def os_group_add_user(group_name: str, user: Optional[str]=None, stderr: Optiona
   if user is None:
     user = get_current_os_user()
   if not os_group_includes_user(user):
-    sudo_check_output_stderr_exception(['usermod', '-a', '-G', group_name, user], stderr=stderr, sudo_reason=f"Adding user '{user}' to OS group '{group_name}'")
+    sudo_check_output_stderr_exception(
+        [
+            'usermod', '-a', '-G', group_name, user
+          ],
+        stderr=stderr,
+        sudo_reason=f"Adding user '{user}' to OS group '{group_name}'"
+      )

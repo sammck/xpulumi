@@ -11,7 +11,7 @@ from pulumi_aws import (
   ebs,
 )
 
-from .common import (     
+from .common import (
     pconfig,
     default_tags,
     get_availability_zones,

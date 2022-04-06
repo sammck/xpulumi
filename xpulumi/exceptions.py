@@ -12,7 +12,7 @@ from .internal_types import JsonableDict
 
 class XPulumiError(Exception):
   """Base class for all error exceptions defined by this package."""
-  pass
+  #pass
 
 class PulumiApiError(XPulumiError):
   _url: str

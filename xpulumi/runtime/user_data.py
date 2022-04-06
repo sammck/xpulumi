@@ -337,4 +337,3 @@ def render_user_data_base64(
   # so we don't even allow setting it to False.
   result = user_data.render_base64(include_mime_version=True)
   return result
-

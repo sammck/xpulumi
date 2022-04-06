@@ -111,7 +111,7 @@ class PassphraseCipher:
   In the case of the Pulumi CLI "stack output" command, such wrapping dicts are removed--encrypted
   values are replaced with the string "[secret]", and decryped values are deserialized from their
   JSON representation and inserted into the stack output object; e.g., .
-  
+
       $ pulumi stack --stack dev output --json --show-secrets
       {
         "exposed_input": "Paul is alive",
@@ -195,7 +195,7 @@ class PassphraseCipher:
       salt_state = f"v1:{b64_salt}:{verification_ciphertext}"
     self._salt_state = salt_state
     verification_ciphertext = salt_state.split(':', 2)[2]
-    try: 
+    try:
       verification_plaintext = self.decrypt(verification_ciphertext)
     except Exception as e:
       raise XPulumiError(f"Provided passphrase [redacted] does not match salt state validatorr: {salt_state}") from e
@@ -212,7 +212,7 @@ class PassphraseCipher:
     """The 64-bit salt, used to uniqueify the key associated with a passphrase across multiple deployments"""
     return self._salt
 
-  @property 
+  @property
   def salt_state(self) -> str:
     """A Pulumi-compatible encryption state string
        that includes the salt and a a verifier, in the form
@@ -266,7 +266,7 @@ class PassphraseCipher:
     b64_ciphertext = b64encode(ciphertext_data_and_tag).decode('utf-8')
     result = f"v1:{b64_nonce}:{b64_ciphertext}"
     return result
-    
+
   def decrypt(self, ciphertext: str) -> str:
     """Decrypt a pulumi-compatible cyphertext string into a plaintext string.
 
@@ -313,7 +313,3 @@ class PassphraseCipher:
     except Exception as e:
       raise XPulumiError(f"Ciphertext cannot be decrypted with given passphrase and salt \"{self.salt_state}\": {ciphertext}") from e
     return plaintext
-
-
-
-

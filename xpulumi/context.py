@@ -35,7 +35,7 @@ class XPulumiContext(ABC):
 
   @abstractmethod
   def get_pulumi_access_token(self, backend_url: Optional[str]=None) -> Optional[str]: ...
-  
+
   @abstractmethod
   def get_pulumi_secret_passphrase(
         self,
@@ -46,7 +46,7 @@ class XPulumiContext(ABC):
         passphrase_id: Optional[str] = None,
         salt_state: Optional[str] =None,
     ) -> str: ...
-  
+
   @abstractmethod
   def get_pulumi_home(self) -> str: ...
 
@@ -58,4 +58,3 @@ class XPulumiContext(ABC):
 
   @abstractmethod
   def get_cwd(self) -> str: ...
-

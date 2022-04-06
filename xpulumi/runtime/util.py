@@ -53,7 +53,7 @@ _debugger_attached: bool = False
 
 def xbreakpoint() -> None:
   if _debugger_attached:
-    breakpoint()
+    breakpoint()  # pylint: ignore=forgotten-debug-statement
 
 def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=30, force: bool=False) -> None:
   global _debugger_attached
@@ -62,18 +62,18 @@ def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=3
     debugpy.listen((host, port))
     max_wait_s = max_wait_secs
     while max_wait_s >= 0:
-        if debugpy.is_client_connected():
-            _debugger_attached = True
-            pulumi.log.info("Pulumi debugger attached")
-            breakpoint()
-            break
-        time.sleep(1)
-        max_wait_s -= 1
+      if debugpy.is_client_connected():
+        _debugger_attached = True
+        pulumi.log.info("Pulumi debugger attached")
+        breakpoint()  # pylint: ignore=forgotten-debug-statement
+        break
+      time.sleep(1)
+      max_wait_s -= 1
     else:
       pulumi.log.info("Pulumi debugger did not attach; resuming")
   else:
     pulumi.log.info("Pulumi debugger not activated")
-    
+
 
 
 T = TypeVar('T')
@@ -100,7 +100,7 @@ def future_func(func: Callable[..., T]) -> Callable[..., Output[T]]:
     result = Output.all(*future_args).apply(lambda args: func(*args))
     return result
   return wrapper
-  
+
 
 TTL_SECOND: int = 1
 TTL_MINUTE: int = TTL_SECOND * 60
@@ -277,12 +277,12 @@ def yamlify_promise(
       prefix_text: Input[Optional[str]]=None
     ) -> Output[str]:
   """Convert a Promised Jsonable value to a Promise to yamlify the result of that Promise.
-  
+
   An asyncronous (Promise) version of yaml.dumps() that operates on Pulumi Input
   values that have not yet been evaluated. Sorts keys to provide stability of result strings.
   The result is another Pulumi output value that when evaluated will generate the
   yaml string associated with future_obj
-  
+
   Args:
       future_obj(Input[Jsonable]):       A Pulumi Input Jsonable value that is not yet evaluated
       prefix_text(Input[str], optional): Optional prefix text to insert before yaml. Useful for a header comment.
@@ -305,12 +305,12 @@ def jsonify_promise(
       separators: Input[Optional[Tuple[str, str]]]=None
     ) -> Output[str]:
   """Convert a Promise object to a Promise to jsonify the result of that Promise.
-  
+
   An asyncronous (Promise) version of json.dumps() that operates on Pulumi output
   values that have not yet been evaluated. Sorts keys to provide stability of result strings.
   The result is another Pulumi output value that when evaluated will generate the
   json string associated with future_obj
-  
+
   Args:
       future_obj(Input[Jsonable]):       A Pulumi Input Jsonable value that is not yet evaluated
 
@@ -335,7 +335,7 @@ def jsonify_promise(
 
 def list_of_promises(promises: List[Output[Any]]) -> Output[List[Any]]:
   """Converts a list of promises into a promise to return a list of values
-  
+
   :param promises: A list of promises
   :type promises: List[Output[Any]]
   :return: promise to return list
@@ -375,4 +375,3 @@ def shell_quote_promise(
   else:
     result = Output.all(future_str).apply(lambda args: shlex.quote(*args))  # type: ignore[arg-type]
   return result
-

@@ -109,7 +109,7 @@ class PulumiApiClient:
         resp_data = resp.json()
         if not isinstance(resp_data, dict):
           resp_data = dict(json_content=resp_data)
-      except:
+      except Exception:
         resp_data = dict(code=resp.status_code, message=bin_resp_data.decode('utf-8'))
     else:
       resp_data = {}
@@ -158,7 +158,9 @@ class PulumiApiClient:
       resp = self.get_user_info()
       result = resp.get('githubLogin', None)
       if result is None or not isinstance(result, str) or result == '':
-        raise XPulumiError(f"Unable to retrieve pulumi account name from {self.api_url}: /api/user response has missing or empty githubUser")
+        raise XPulumiError(
+            f"Unable to retrieve pulumi account name from {self.api_url}: "
+            f"/api/user response has missing or empty githubUser")
       self._username = result
     return self._username
 
@@ -183,7 +185,7 @@ class PulumiApiClient:
     params = {}
     if not project is None:
       params['project'] = project
-    
+
     resp = self.api_get("/api/user/stacks", req_params=params)
     assert isinstance(resp, dict)
     result = resp['stacks']
@@ -219,7 +221,9 @@ class PulumiApiClient:
     api_path = self.get_stack_api_path(project, stack, organization=organization)
     resp = self.api_get(api_path)
     if not isinstance(resp, dict):
-      raise XPulumiError(f"Malformed response to stack metadata request for backend={self.api_url}, organization={organization}, project={project}, stack={stack}")
+      raise XPulumiError(
+          f"Malformed response to stack metadata request for backend={self.api_url}, "
+          f"organization={organization}, project={project}, stack={stack}")
     return resp
 
   def export_stack_deployment(self, project: str, stack: str, organization: Optional[str]=None, version: Optional[int]=None) -> JsonableDict:
@@ -228,5 +232,7 @@ class PulumiApiClient:
       api_path += f"/{version}"
     resp = self.api_get(api_path)
     if not isinstance(resp, dict) or not 'deployment' in resp:
-      raise XPulumiError(f"Malformed response to stack export request for backend={self.api_url}, organization={organization}, project={project}, stack={stack}")
+      raise XPulumiError(
+          f"Malformed response to stack export request for backend={self.api_url}, "
+          f"organization={organization}, project={project}, stack={stack}")
     return resp
