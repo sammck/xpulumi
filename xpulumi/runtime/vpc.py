@@ -402,7 +402,7 @@ class VpcEnv:
     internet_gateway_id = cast(str, outputs[f'{import_prefix}internet_gateway_id'])
     assert isinstance(internet_gateway_id, str)
     route_table_id = cast(str, outputs[f'{import_prefix}route_table_id'])
-    assert isinstance(self.route_table_association_ids, list)
+    assert isinstance(route_table_id, str)
     self.vpc_cidr = cast(str, outputs[f'{import_prefix}vpc_cidr'])
     assert isinstance(self.vpc_cidr, str)
     self.azs = cast(List[str], outputs[f'{import_prefix}vpc_azs'])

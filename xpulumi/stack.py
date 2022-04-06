@@ -162,6 +162,8 @@ class XPulumiStack:
       with open(cfg_file_yaml, encoding='utf-8') as f:
         xcfg_text = f.read()
       xcfg_data = cast(JsonableDict, yaml.load(xcfg_text, Loader=Loader))
+    if xcfg_data is None:
+      xcfg_data = {}
     assert isinstance(xcfg_data, dict)
     self._xcfg_data = xcfg_data
     pulumi_cfg_data: Optional[JsonableDict] = None
