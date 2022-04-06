@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: Remote Attach",
             "type": "python",
@@ -50,6 +51,18 @@
                 "local"
             ],
             "justMyCode": false
+        },
+        {
+            "name": "stack output",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi.pulumi_cli",
+            "args": [
+                "stack",
+                "output",
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xp/project/dev-box"
         }
     ]
 }

@@ -51,6 +51,7 @@ class XPulumiProject:
   _pulumi_project_name: str
   _backend_name: str
   _backend: XPulumiBackend
+  _organization: Optional[str]
 
   def __init__(
         self,
@@ -131,10 +132,12 @@ class XPulumiProject:
     cfg_data['project_dir'] = project_dir
     self._cfg_data = cfg_data
     pulumi_project_name = cast(Optional[str], cfg_data.get("pulumi_project_name", None))
+    assert pulumi_project_name is None or isinstance(pulumi_project_name, str)
     if pulumi_project_name is None:
       pulumi_project_name = name
     self._pulumi_project_name = pulumi_project_name
-    organization = cfg_data.get("organization", None)
+    organization = cast(Optional[str], cfg_data.get("organization", None))
+    assert organization is None or isinstance(organization, str)
     self._organization = organization
     if not 'backend' in cfg_data:
       raise XPulumiError(f"Pulumi project in {project_dir} is not configured with an xpulumi backend")
@@ -165,8 +168,7 @@ class XPulumiProject:
     return self._project_dir
 
   @property
-  def organization(self) -> str:
-    assert isinstance(self._organization, str)
+  def organization(self) -> Optional[str]:
     return self._organization
 
   @property

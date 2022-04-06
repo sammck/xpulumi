@@ -99,6 +99,7 @@ class XPulumiBackend:
     assert self._default_organization is None or isinstance(self._default_organization, str)
 
   def init_from_name(self, name: str) -> None:
+    self._name = name
     backend_dir = self._ctx.get_backend_infra_dir(name)
     cfg_file = os.path.join(backend_dir, "backend.json")
     if not os.path.exists(cfg_file):

@@ -216,7 +216,7 @@ class XPulumiStack:
     return self.project.project_dir
 
   @property
-  def organization(self) -> str:
+  def organization(self) -> Optional[str]:
     return self.project.organization
 
   @property
