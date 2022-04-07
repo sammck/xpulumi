@@ -417,7 +417,7 @@ docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=T
 # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
 #
 cloud_config_obj = dict(
-    docversion=7,    # for debugging, a way to force redeployment by incrementing
+    docversion=11,    # for debugging, a way to force redeployment by incrementing
 
     # Define linux user accounts. Note that having ANY entries in this list will
     # disable implicit creation of the default "ubuntu" account. Note that
@@ -586,7 +586,8 @@ cached_host_key = SshCachedHostKey(
     'ec2_instance_cached_host_key',
     ec2_instance.ec2_instance.id,
     ip_address = ec2_instance.eip.public_ip,
-    dns_name = ec2_instance.primary_dns_name
+    dns_name = ec2_instance.primary_dns_name,
+    cloudinit_result=cloud_init_result,
   )
 
 pulumi.export("cached_host_key_log", cached_host_key.cmd_out)

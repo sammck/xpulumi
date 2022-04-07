@@ -10,7 +10,9 @@ from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult,
 from pulumi import ResourceOptions, Input, Output
 import pulumi
 
-_DEBUG_PROVIDER = True
+from .s3_future_object_provider import S3FutureObject
+
+_DEBUG_PROVIDER = False
 
 class CmdError(Exception):
   pass
@@ -21,7 +23,7 @@ def _run_cmd(args: List[str]) -> str:
     stdout_s = stdout_bytes.decode('utf-8')
     exit_code = proc.returncode
   if exit_code != 0:
-    raise CmdError(f"SShHashedHostKey: {args} failed with exit code {exit_code}: {stdout_s}")
+    raise CmdError(f"SShCachedHostKey: {args} failed with exit code {exit_code}: {stdout_s}")
   return stdout_s
 
 def _run_cmd_separate(args: List[str]) -> Tuple[str, str]:
@@ -31,7 +33,7 @@ def _run_cmd_separate(args: List[str]) -> Tuple[str, str]:
     stderr_s = stderr_bytes.decode('utf-8')
     exit_code = proc.returncode
   if exit_code != 0:
-    raise CmdError(f"SShHashedHostKey: {args} failed with exit code {exit_code}: {stderr_s}")
+    raise CmdError(f"SShCachedHostKey: {args} failed with exit code {exit_code}: {stderr_s}")
   return stdout_s, stderr_s
 
 def _remove_entry(name: str) -> str:
@@ -161,6 +163,7 @@ class SshCachedHostKey(Resource):
   instance_id: Output[str]
   ip_address: Output[Optional[str]]
   dns_name: Output[Optional[str]]
+  cloudinit_result_str: Output[str]
   cmd_out: Output[str]
 
   def __init__(
@@ -169,6 +172,7 @@ class SshCachedHostKey(Resource):
         instance_id: Input[str],
         ip_address: Input[Optional[str]]=None,
         dns_name: Input[Optional[str]]=None,
+        cloudinit_result: Optional[S3FutureObject]=None,
         opts: Optional[ResourceOptions]=None,
       ):
 
@@ -180,6 +184,7 @@ class SshCachedHostKey(Resource):
             instance_id=instance_id,
             ip_address=ip_address,
             dns_name=dns_name,
+            cloudinit_result_str='None' if cloudinit_result is None else cloudinit_result.content,
             cmd_out=None,
           ),
         opts=opts
