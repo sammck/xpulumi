@@ -19,5 +19,11 @@
     },
     "python.linting.mypyEnabled": false,
     "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true
+    "python.linting.pylintEnabled": true,
+    "python.linting.ignorePatterns": [
+      ".vscode/*.py",
+      "trash/**/*.py",
+      "**/site-packages/**/*.py",
+      ".venv/**/*.py"
+    ]
   }
