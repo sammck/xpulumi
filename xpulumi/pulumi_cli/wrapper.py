@@ -34,6 +34,11 @@ from mypy_boto3_s3 import Client as S3Client, ServiceResource as S3Resource
 from botocore.exceptions import ClientError
 from colorama import Back, Fore, Style
 from secret_kv import create_kv_store, get_kv_store_passphrase
+from project_init_tools import (
+    file_contents, YamlDumper, YamlLoader, PyprojectToml
+  )
+
+# NOTE: this module runs with -m; do not use relative imports
 from xpulumi.backend import XPulumiBackend
 from xpulumi.project import XPulumiProject
 from xpulumi.base_context import XPulumiContextBase
@@ -42,15 +47,7 @@ from xpulumi.constants import (XPULUMI_CONFIG_DIRNAME,
                                XPULUMI_CONFIG_FILENAME_BASE)
 from xpulumi.context import XPulumiContext
 from xpulumi.exceptions import XPulumiError
-from project_init_tools.installer.util import file_contents
-# NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
-
-try:
-  from yaml import CDumper as YamlDumper
-  from yaml import CLoader as YamlLoader
-except ImportError:
-  from yaml import Loader as YamlLoader, Dumper as YamlDumper  # type: ignore[misc]
 
 class CmdExitError(RuntimeError):
   exit_code: int
