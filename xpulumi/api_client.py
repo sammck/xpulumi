@@ -28,7 +28,7 @@ import requests
 import zlib
 import base64
 
-from .util import file_url_to_pathname, pathname_to_file_url
+from project_init_tools.util import file_url_to_pathname, pathname_to_file_url
 from .exceptions import XPulumiError, PulumiApiError
 from .context import XPulumiContext
 from .constants import PULUMI_STANDARD_BACKEND

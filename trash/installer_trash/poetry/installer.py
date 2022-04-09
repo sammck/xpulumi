@@ -63,7 +63,7 @@ class StandardInstaller:
 def std_installer_module() -> types.ModuleType:
   # TODO: Use up-to-date way of doing this
   import imp  # pylint: disable=deprecated-module
-  module_name = "xpulumi.installer.poetry.std_installer"
+  module_name = "project_init_tools.installer.poetry.std_installer"
   std_installer = imp.new_module(module_name)
   code = download_url_text("https://install.python-poetry.org")
   exec(code, std_installer.__dict__)

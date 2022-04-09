@@ -23,7 +23,7 @@ import boto3.session
 from boto3.session import Session as BotoAwsSession
 from botocore.session import Session as BotocoreSession
 
-from .util import file_url_to_pathname
+from project_init_tools import file_url_to_pathname
 from .exceptions import XPulumiError
 
 class XPulumiContext(ABC):

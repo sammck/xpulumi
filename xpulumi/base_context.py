@@ -26,7 +26,7 @@ import boto3.session
 import json
 from secret_kv import open_kv_store, KvStore
 from .context import XPulumiContext, BotoAwsSession, BotocoreSession
-from .util import file_url_to_pathname
+from project_init_tools import file_url_to_pathname
 from .exceptions import XPulumiError
 from .constants import PULUMI_STANDARD_BACKEND
 from .config import XPulumiConfig

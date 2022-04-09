@@ -42,7 +42,7 @@ from xpulumi.constants import (XPULUMI_CONFIG_DIRNAME,
                                XPULUMI_CONFIG_FILENAME_BASE)
 from xpulumi.context import XPulumiContext
 from xpulumi.exceptions import XPulumiError
-from xpulumi.installer.util import file_contents
+from project_init_tools.installer.util import file_contents
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
 

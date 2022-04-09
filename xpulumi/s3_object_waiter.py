@@ -18,8 +18,8 @@ import concurrent.futures
 
 from xpulumi.exceptions import XPulumiError
 
-from .util import run_once, split_s3_uri
-
+from .util import split_s3_uri
+from project_init_tools import run_once
 
 @run_once
 def get_executor() -> concurrent.futures.ThreadPoolExecutor:

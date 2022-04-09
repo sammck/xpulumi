@@ -668,14 +668,14 @@ plugins = ["setuptools"]
 
 [[package]]
 name = "jeepney"
-version = "0.7.1"
+version = "0.8.0"
 description = "Low-level, pure Python DBus protocol wrapper."
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.7"
 
 [package.extras]
-test = ["pytest", "pytest-trio", "pytest-asyncio", "testpath", "trio", "async-timeout"]
+test = ["pytest", "pytest-trio", "pytest-asyncio (>=0.17)", "testpath", "trio", "async-timeout"]
 trio = ["trio", "async-generator"]
 
 [[package]]
@@ -881,30 +881,6 @@ python-versions = ">=3.7"
 [package.extras]
 docs = ["Sphinx (>=4)", "furo (>=2021.7.5b38)", "proselint (>=0.10.2)", "sphinx-autodoc-typehints (>=1.12)"]
 test = ["appdirs (==1.4.4)", "pytest (>=6)", "pytest-cov (>=2.7)", "pytest-mock (>=3.6)"]
-
-[[package]]
-name = "project-init-tools"
-version = "0.1.0"
-description = "Tools to help initialize/setup github projects, install prerequisites, etc."
-category = "main"
-optional = false
-python-versions = ">=3.8,<4.0"
-
-[package.dependencies]
-boto3 = ">=1.21.37,<2.0.0"
-colorama = ">=0.4.4,<0.5.0"
-jeepney = "0.7.1"
-keyring = ">=23.5.0,<24.0.0"
-packaging = ">=21.3,<22.0"
-PyYAML = ">=6.0,<7.0"
-"ruamel.yaml" = ">=0.17.21,<0.18.0"
-secret-kv = ">=1.3.0,<2.0.0"
-SecretStorage = ">=3.3.1,<4.0.0"
-tomlkit = ">=0.10.1,<0.11.0"
-
-[package.source]
-type = "file"
-url = "../project-init-tools/dist/project-init-tools-0.1.0.tar.gz"
 
 [[package]]
 name = "protobuf"
@@ -1417,7 +1393,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "5ee956290a1079370f21b91fda39d8a065bf6c61fd012ff2a020a729e1451fde"
+content-hash = "11ae6efeee1e8960a297286edcbeb059b5445076c6072baeb7f94d3b5eab19bb"
 
 [metadata.files]
 argcomplete = [
@@ -1664,8 +1640,8 @@ isort = [
     {file = "isort-5.10.1.tar.gz", hash = "sha256:e8443a5e7a020e9d7f97f1d7d9cd17c88bcb3bc7e218bf9cf5095fe550be2951"},
 ]
 jeepney = [
-    {file = "jeepney-0.7.1-py3-none-any.whl", hash = "sha256:1b5a0ea5c0e7b166b2f5895b91a08c14de8915afda4407fb5022a195224958ac"},
-    {file = "jeepney-0.7.1.tar.gz", hash = "sha256:fa9e232dfa0c498bd0b8a3a73b8d8a31978304dcef0515adc859d4e096f96f4f"},
+    {file = "jeepney-0.8.0-py3-none-any.whl", hash = "sha256:c0a454ad016ca575060802ee4d590dd912e35c122fa04e70306de3d076cce755"},
+    {file = "jeepney-0.8.0.tar.gz", hash = "sha256:5efe48d255973902f6badc3ce55e2aa6c5c3b3bc642059ef3a91247bcfcc5806"},
 ]
 jmespath = [
     {file = "jmespath-1.0.0-py3-none-any.whl", hash = "sha256:e8dcd576ed616f14ec02eed0005c85973b5890083313860136657e24784e4c04"},
@@ -1833,9 +1809,6 @@ pkginfo = [
 platformdirs = [
     {file = "platformdirs-2.5.1-py3-none-any.whl", hash = "sha256:bcae7cab893c2d310a711b70b24efb93334febe65f8de776ee320b517471e227"},
     {file = "platformdirs-2.5.1.tar.gz", hash = "sha256:7535e70dfa32e84d4b34996ea99c5e432fa29a708d0f4e394bbcb2a8faa4f16d"},
-]
-project-init-tools = [
-    {file = "project-init-tools-0.1.0.tar.gz", hash = "sha256:39547d9da75e319438c85ab84f1dd5c3f7981be6e085dda601f9bdccce6eda61"},
 ]
 protobuf = [
     {file = "protobuf-3.20.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:9d0f3aca8ca51c8b5e204ab92bd8afdb2a8e3df46bd0ce0bd39065d79aabcaa4"},

@@ -10,8 +10,8 @@
 from typing import Optional, Sequence
 
 # do not use relative imports
-from xpulumi.installer.pulumi import default_pulumi_dir, install_pulumi
-import xpulumi.installer.pulumi.installer
+from project_init_tools.installer.pulumi import default_pulumi_dir, install_pulumi
+import project_init_tools.installer.pulumi.installer
 
 def main(argv: Optional[Sequence[str]]=None):
   import argparse
@@ -42,7 +42,7 @@ def main(argv: Optional[Sequence[str]]=None):
 
   args = parser.parse_args(argv)
 
-  xpulumi.installer.pulumi.installer.verbose = args.verbose
+  project_init_tools.installer.pulumi.installer.verbose = args.verbose
   force: bool = args.force
   upgrade: bool = args.upgrade
   dirname: Optional[str] = args.dirname

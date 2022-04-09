@@ -10,7 +10,7 @@
 from typing import Optional, Sequence
 
 # do not use relative imports
-from xpulumi.installer.gh import install_gh
+from project_init_tools.installer.gh import install_gh
 
 def main(argv: Optional[Sequence[str]]=None):
   import argparse

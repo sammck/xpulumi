@@ -5,17 +5,17 @@
 # MIT License - See LICENSE file accompanying this package.
 #
 
-"""Standard Docker CLI installer/upgrader command-line tool"""
+"""Standard AWS CLI installer/upgrader command-line tool"""
 
 from typing import Optional, Sequence
 
 # do not use relative imports
-from xpulumi.installer.docker import install_docker
+from project_init_tools.installer.aws_cli import install_aws_cli
 
 def main(argv: Optional[Sequence[str]]=None):
   import argparse
 
-  parser = argparse.ArgumentParser(description='Install or upgrade Docker with multiarch support.')
+  parser = argparse.ArgumentParser(description='Install or upgrade AWS CLI.')
   parser.add_argument('--force', '-f', action='store_true', default=False,
                       help='Force installation even if not required.')
 
@@ -23,7 +23,7 @@ def main(argv: Optional[Sequence[str]]=None):
 
   force: bool = args.force
 
-  install_docker(force=force)
+  install_aws_cli(force=force)
 
 if __name__ == "__main__":
   main()

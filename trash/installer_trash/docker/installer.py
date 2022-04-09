@@ -28,7 +28,7 @@ from contextlib import contextmanager
 from threading import Lock
 import glob
 
-from ...exceptions import XPulumiError
+from ..exceptions import XPulumiError
 from ..os_packages.util import os_group_add_user, update_gpg_keyring, PackageList, update_apt_sources_list
 
 from ..util import (

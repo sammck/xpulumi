@@ -41,10 +41,9 @@ from pulumi_aws import (
 from ..base_context import XPulumiContextBase
 from ..project import XPulumiProject
 from ..stack import XPulumiStack, parse_stack_name
-from ..util import (
+from project_init_tools import (
     run_once,
     gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash,
-    split_s3_uri,
     )
 
 initial_cwd = os.getcwd()

@@ -1,5 +1,5 @@
 from ..internal_types import JsonableDict
-from ..util import gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash
+from project_init_tools import gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash
 from typing import Any, Optional, List, cast
 from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult, UpdateResult, CheckResult, CheckFailure
 from pulumi import ResourceOptions, Input, Output

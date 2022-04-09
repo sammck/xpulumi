@@ -26,9 +26,9 @@ from .util import (
     enable_debugging,
     xbreakpoint,
     sync_gen_etc_shadow_password_hash,
-    gen_etc_shadow_password_hash,
-    split_s3_uri,
+    gen_etc_shadow_password_hash
   )
+from ..util import split_s3_uri
 from .s3_object_waiter import (
     sync_wait_and_get_s3_object,
     sync_wait_s3_object,

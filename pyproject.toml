@@ -31,6 +31,10 @@ boto3-type-annotations = "^0.3.1"
 debugpy = "^1.6.0"
 yq = "^2.14.0"
 cloud-init-gen = "^1.1.0"
+#project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
+project-init-tools = { file = "../project-init-tools/dist/project-init-tools-0.1.0.tar.gz" }
+#project-init-tools = { file = "../project-init-tools" }
+#project-init-tools = "../project-init-tools"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.13.4"
@@ -83,7 +87,8 @@ disable=[
 
 [tool.pylint.MASTER]
 ignore=[
-    ".venv"
+    ".venv",
+    "trash"
   ]
 
 [tool.pylint.FORMAT]

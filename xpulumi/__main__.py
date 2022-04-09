@@ -33,7 +33,7 @@ from xpulumi.context import XPulumiContext
 from xpulumi.exceptions import XPulumiError
 from xpulumi.base_context import XPulumiContextBase
 from xpulumi.backend import XPulumiBackend
-from xpulumi.installer.util import file_contents
+from project_init_tools.installer.util import file_contents
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.internal_types import JsonableTypes
@@ -47,7 +47,7 @@ from xpulumi import (
   )
 from xpulumi.project import XPulumiProject
 
-from xpulumi.util import (
+from project_init_tools import (
     full_name_of_type,
     full_type,
     get_git_root_dir,
@@ -249,14 +249,14 @@ class CommandHandler:
     return 0
 
   def cmd_update_pulumi(self) -> int:
-    from xpulumi.installer import install_pulumi
+    from project_init_tools.installer import install_pulumi
     cfg = self.get_config()
     xpulumi_dir = os.path.join(cfg.xpulumi_dir, '.pulumi')
     install_pulumi(xpulumi_dir, min_version='latest')
     return 0
 
   def cmd_run(self) -> int:
-    from xpulumi.installer.util import sudo_call
+    from project_init_tools.installer.util import sudo_call
     args = self._args
     group: Optional[str] = args.run_with_group
     use_sudo: bool = args.use_sudo
@@ -274,13 +274,13 @@ class CommandHandler:
     return exit_code
 
   def cmd_init_env(self) -> int:
-    from xpulumi.installer.docker import install_docker
-    from xpulumi.installer.aws_cli import install_aws_cli
-    from xpulumi.installer.gh import install_gh
-    from xpulumi.installer.pulumi import install_pulumi
-    from xpulumi.installer.poetry import install_poetry
-    from xpulumi.installer.util import sudo_call
-    from xpulumi.installer.os_packages import PackageList
+    from project_init_tools.installer.docker import install_docker
+    from project_init_tools.installer.aws_cli import install_aws_cli
+    from project_init_tools.installer.gh import install_gh
+    from project_init_tools.installer.pulumi import install_pulumi
+    from project_init_tools.installer.poetry import install_poetry
+    from project_init_tools.installer.util import sudo_call
+    from project_init_tools.installer.os_packages import PackageList
 
     #args = self._args
 

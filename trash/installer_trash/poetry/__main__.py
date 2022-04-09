@@ -10,8 +10,8 @@
 from typing import Optional, Sequence
 
 # do not use relative imports
-from xpulumi.installer.poetry import install_poetry
-import xpulumi.installer.poetry.installer
+from project_init_tools.installer.poetry import install_poetry
+import project_init_tools.installer.poetry.installer
 
 def main(argv: Optional[Sequence[str]]=None):
   import argparse
@@ -28,7 +28,7 @@ def main(argv: Optional[Sequence[str]]=None):
 
   args = parser.parse_args(argv)
 
-  xpulumi.installer.poetry.installer.verbose = args.verbose
+  project_init_tools.installer.poetry.installer.verbose = args.verbose
   force: bool = args.force
   upgrade: bool = args.upgrade
   min_version: Optional[str] = args.min_version

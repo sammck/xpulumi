@@ -24,7 +24,7 @@ import tempfile
 import json
 import requests
 
-from .util import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
+from project_init_tools import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
 from .exceptions import XPulumiError
 from .context import XPulumiContext
 from .base_context import XPulumiContextBase

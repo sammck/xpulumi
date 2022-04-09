@@ -29,7 +29,7 @@ from pulumi_aws import (
 
 from xpulumi.exceptions import XPulumiError
 from .util import get_current_xpulumi_project_name, get_xpulumi_context, default_val
-from ..util import get_git_user_email
+from project_init_tools import get_git_user_email
 
 pconfig = pulumi.Config()
 

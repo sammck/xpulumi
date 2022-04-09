@@ -87,7 +87,7 @@ from .vpc import VpcEnv
 from .security_group import FrontEndSecurityGroup
 from .ec2_keypair import Ec2KeyPair
 from .dns import DnsZone
-from ..util import multiline_indent
+from project_init_tools import multiline_indent
 
 UserDataPartConvertible = Union['UserDataPart', Input[CloudInitPartConvertible]]
 
