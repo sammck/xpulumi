@@ -368,7 +368,7 @@ class CmdInitEnv(CommandHandler):
         license_type = self.get_license_type()
         if license_type != 'MIT':
           raise XPulumiError(f"Don't know how to generate license text for license type \"{license_type}\"")
-        year = self.get_license_year
+        year = self.get_license_year()
         legal_name = self.get_legal_name()
         license_text = dedent(f"""
             {license_type} License
