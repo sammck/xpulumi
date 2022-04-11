@@ -323,7 +323,7 @@ class CmdInitEnv(CommandHandler):
       pyproject = self.get_pyproject_toml(create=True)
       t_tool_poetry = pyproject.get_table('tool.poetry', auto_split=True, create=True)
       project_authors = cast(Optional[List[str]], t_tool_poetry.get('authors', None))
-      if not project_authors is None and len(project_authors == 1):
+      if not project_authors is None and len(project_authors) == 1:
         project_author = str(project_author[0])
         friendly_name, _ = split_name_and_email(project_author)
       if friendly_name is None:
