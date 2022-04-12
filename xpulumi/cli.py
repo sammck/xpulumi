@@ -393,6 +393,9 @@ class CommandLineInterface:
 
     parser_init_env = subparsers.add_parser('init-env',
                             description='''Initialize a new overall GitHub project environment.''')
+    parser_init_env.add_argument('--subaccount', default=None,
+                        help='Specify a subaccount name to prevent collision '
+                             'with duplicate stacks running in the same AWS account. Default is None.')
     parser_init_env.set_defaults(func=self.cmd_init_env)
 
     # ======================= run

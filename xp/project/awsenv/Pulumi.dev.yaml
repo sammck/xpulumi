@@ -1,6 +1,6 @@
 encryptionsalt: v1:hcosRBKT7Fw=:v1:f2mbeKtKj8HDYmgw:UIy7D1rGJkKzXXqyFiR1qVrZj5+33Q==
 config:
-  awsenv:vpc_n_azs: "3"
+  awsenv:vpc_n_azs: 3
   awsenv:vpc_n_potential_subnets: "16"
   awsenv:vpc_cidr: 10.78.0.0/16
   awsenv:root_zone_name: mckelvie.org

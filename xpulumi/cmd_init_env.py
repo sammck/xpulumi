@@ -8,10 +8,12 @@
 xpulumi init-env command handler
 """
 import base64
+from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
     Optional, Sequence, List, Union, Dict, TextIO, Mapping, MutableMapping,
-    cast, Any, Iterator, Iterable, Tuple, ItemsView, ValuesView, KeysView
+    cast, Any, Iterator, Iterable, Tuple, ItemsView, ValuesView, KeysView,
+    Callable
   )
 
 import re
@@ -26,6 +28,7 @@ import colorama # type: ignore[import]
 from colorama import Fore, Back, Style
 import subprocess
 from io import TextIOWrapper
+from requests import options
 import yaml
 from secret_kv import create_kv_store
 from urllib.parse import urlparse, ParseResult
@@ -72,58 +75,31 @@ from project_init_tools import (
 
 from .cli import (CmdExitError, CommandLineInterface, CommandHandler)
 
-x='''
-    from project_init_tools.installer.docker import install_docker
-    from project_init_tools.installer.aws_cli import install_aws_cli
-    from project_init_tools.installer.gh import install_gh
-    from project_init_tools.installer.pulumi import install_pulumi
-    from project_init_tools.installer.poetry import install_poetry
-    from project_init_tools.installer.util import sudo_call
-    from project_init_tools.installer.os_packages import PackageList
 
-    #args = self._args
-
-    pl = PackageList()
-    pl.add_packages_if_missing(['build-essential', 'meson', 'ninja-build', 'python3.8', 'python3.8-venv', 'sqlcipher'])
-    pl.add_package_if_cmd_missing('sha256sum', 'coreutils')
-    pl.add_package_if_cmd_missing('curl')
-    pl.add_package_if_cmd_missing('git')
-    pl.install_all()
-
-    install_docker()
-    install_aws_cli()
-    install_gh()
-
-    project_dir = get_git_root_dir(self._cwd)
-    if project_dir is None:
-      raise XPulumiError("Could not locate Git project root directory; please run inside git working directory or use -C")
-
-    install_poetry()
-
-    append_lines_to_file_if_missing(os.path.join(project_dir, ".gitignore"), ['.xpulumi/', '.secret-kv/'], create_file=True)
-    xpulumi_dir = os.path.join(project_dir, XPULUMI_CONFIG_DIRNAME)
-    if not os.path.exists(xpulumi_dir):
-      os.mkdir(xpulumi_dir)
-    xpulumi_config_file_yaml = os.path.join(xpulumi_dir, XPULUMI_CONFIG_FILENAME_BASE + ".yaml")
-    xpulumi_config_file_json = os.path.join(xpulumi_dir, XPULUMI_CONFIG_FILENAME_BASE + ".json")
-    if os.path.exists(xpulumi_config_file_yaml):
-      config_file = xpulumi_config_file_yaml
-    elif os.path.exists(xpulumi_config_file_json):
-      config_file = xpulumi_config_file_json
-    else:
-      config_file = xpulumi_config_file_yaml
-      new_config_data: JsonableDict = {}
-      with open(config_file, 'w', encoding='utf-8') as f:
-        yaml.dump(new_config_data, f)
-    cfg = XPulumiConfig(config_file)
-    xpulumi_dir = os.path.join(cfg.xpulumi_dir, '.pulumi')
-    install_pulumi(xpulumi_dir, min_version='latest')
-    project_root_dir = cfg.project_root_dir
-    secret_kv_dir = os.path.join(project_root_dir, '.secret-kv')
-    if not os.path.exists(secret_kv_dir):
-      create_kv_store(project_root_dir)
-
-'''
+aws_region_names = [
+    "us-east-2",
+    "us-east-1",
+    "us-west-1",
+    "us-west-2",
+    "af-south-1",
+    "ap-east-1",
+    "ap-southeast-3",
+    "ap-south-1",
+    "ap-northeast-3",
+    "ap-northeast-2",
+    "ap-southeast-1",
+    "ap-southeast-2",
+    "ap-northeast-1",
+    "ca-central-1",
+    "eu-central-1",
+    "eu-west-1",
+    "eu-west-2",
+    "eu-south-1",
+    "eu-west-3",
+    "eu-north-1",
+    "me-south-1",
+    "sa-east-1",
+  ]
 
 class XPulumiProjectInitConfig(ProjectInitConfig):
   pass
@@ -184,8 +160,110 @@ class CmdInitEnv(CommandHandler):
   _aws_session: Optional[boto3.Session] = None
   _aws_account: Optional[str] = None
   _aws_region: Optional[str] = None
-  _aws_venv_suffix: Optional[str] = None
+  _cloud_subaccount: Optional[str] = None
+  _have_cloud_subaccount: bool = False
   _pylint_disable_list: Optional[List[str]] = None
+  _round_trip_config: Optional[RoundTripConfig] = None
+  _root_zone_name: Optional[str] = None
+
+  def prompt_val(
+        self,
+        prompt: str,
+        default: Optional[str] = None,
+        converter: Optional[Callable[[str], Jsonable]] = None
+      ) -> Jsonable:
+    if not default is None:
+      prompt += f" [{default}]"
+    have_result = False
+    while not have_result:
+      have_result = True
+      s = input(f"{self.cli.ecolor(Fore.GREEN)}\n{prompt}: {self.cli.ecolor(Style.RESET_ALL)}")
+      if not default is None and s == '':
+        s = default
+      if converter is None:
+        v: Jsonable = s
+      else:
+        try:
+          v = converter(s)
+        except Exception as e:
+          print(f"Invalid input: {e}")
+          have_result = False
+    return v
+
+  def get_or_prompt_config_val(
+        self,
+        key: str,
+        prompt: Optional[str] = None,
+        default: Optional[str] = None,
+        converter: Optional[Callable[[str], Jsonable]] = None
+      ) -> Jsonable:
+    v: Optional[str] = None
+    cfg = self.get_round_trip_config()
+    if key in cfg:
+      v = cast(Jsonable, cfg[key])
+    else:
+      if prompt is None:
+        prompt = f"Enter configuration value \"{key}\""
+      v = self.prompt_val(prompt, default=default, converter=converter)
+      cfg[key] = v
+      cfg.save()
+    return v
+
+  def get_cloud_subaccount(self) -> Optional[str]:
+    if not self._have_cloud_subaccount:
+      def validate(v: str) -> Jsonable:
+        v = v.strip()
+        if v == '':
+          return None
+
+        if not re.match(r'^[a-zA-Z][a-zA-Z0-9]*$', v):
+          raise ValueError("Subaccount name must start with a letter and be alphanumeric")
+
+        return v
+
+      self._cloud_subaccount = cast(Optional[str], self.get_or_prompt_config_val(
+        'cloud_subaccount',
+        prompt=dedent('''
+            Enter an optional "cloud subaccount" name. If provided, this
+            name will be used to uniqueify account-wide resources created in
+            your AWS account that would otherwise collide with other identical
+            xpulumi projects deployed in the same account; e.g., DNS names,
+            S3 bucket names, etc. Normally you will leave this blank
+          ''').rstrip(),
+          converter=validate
+      ))
+      self._have_cloud_subaccount = True
+    return self._cloud_subaccount
+
+  def get_root_zone_name(self) -> str:
+    import dns.resolver
+    if self._root_zone_name is None:
+      def validate_dns(v: str) -> Jsonable:
+        if v == '':
+          raise ValueError('DNS name cannot be an empty string')
+        entries = dns.resolver.resolve(v, 'NS')
+        if len(entries) == 0:
+          raise ValueError(f"NS record for {v} has no entries")
+        ns_servers = [ x.target.to_text() for x in entries ]
+        for ns_server in ns_servers:
+          if not '.awsdns-' in ns_server:
+            raise ValueError('Domain name {v} has nameserver {ns_server} which is not hosted by Route53')
+        print(f"Domain name {v} is valid and hosted by Route53...", file=sys.stderr)
+
+        return v
+
+      root_zone_name = self.get_or_prompt_config_val(
+        'root_zone_name',
+        prompt=dedent('''
+            Enter the name of an existing DNS domain that is already hosted by
+            AWS Route53 in your AWS account. This domain will become the root
+            for new subzones created by your xpulumi project.
+            (e.g., mydomain.com)
+          ''').rstrip(),
+          converter=validate_dns
+      )
+      self._root_zone_name = root_zone_name
+    return self._root_zone_name
 
   def get_project_name(self) -> str:
     if self._project_name is None:
@@ -302,24 +380,51 @@ class CmdInitEnv(CommandHandler):
     return datetime.date.today().year if self._license_year is None else self._license_year
 
   def get_email_address(self) -> str:
-    email_address = self._email_address
-    if email_address is None:
+    if self._email_address is None:
+      def validate(v: str) -> Jsonable:
+        v = v.strip()
+        parts = v.rsplit('@', 1)
+        if len(parts) == 2:
+          if '.' in parts[1]:
+            return v
+        raise ValueError(f"Invalid email address: {v}")
+
+      email_address: Optional[str] = None
       pyproject = self.get_pyproject_toml(create=True)
       t_tool_poetry = pyproject.get_table('tool.poetry', auto_split=True, create=True)
       project_authors = cast(Optional[List[str]], t_tool_poetry.get('authors', None))
-      if not project_authors is None and len(project_authors == 1):
-        project_author = str(project_author[0])
+      if not project_authors is None and len(project_authors) == 1:
+        project_author = str(project_authors[0])
         _, email_address = split_name_and_email(project_author)
       if email_address is None:
-        email_address = get_git_user_email()
-      if email_address is None:
-        email_address = 'john@public.com'
-      self._email_address = email_address
-    return email_address
+        try:
+          email_address = get_git_user_email()
+        except subprocess.CalledProcessError:
+          pass
+
+      self._email_address = cast(str, self.get_or_prompt_config_val(
+        'email_address',
+        prompt=dedent('''
+            Enter your email address, to be used for Python package
+            configuration
+          ''').rstrip(),
+          converter=validate,
+          default=email_address
+      ))
+
+    return self._email_address
 
   def get_friendly_name(self) -> str:
-    friendly_name = self._friendly_name
-    if friendly_name is None:
+    if self._friendly_name is None:
+      def validate(v: str) -> Jsonable:
+        v = v.strip()
+        parts = [ x for x in v.split(' ') if x != '' ]
+        if len(parts) < 2:
+          raise ValueError(f"A first and last name are required: {v}")
+        v = ' '.join(parts)
+        return v
+
+      friendly_name: Optional[str] = None
       pyproject = self.get_pyproject_toml(create=True)
       t_tool_poetry = pyproject.get_table('tool.poetry', auto_split=True, create=True)
       project_authors = cast(Optional[List[str]], t_tool_poetry.get('authors', None))
@@ -327,22 +432,56 @@ class CmdInitEnv(CommandHandler):
         project_author = str(project_authors[0])
         friendly_name, _ = split_name_and_email(project_author)
       if friendly_name is None:
-        friendly_name = get_git_user_friendly_name()
-      if friendly_name is None:
-        friendly_name = 'John Q. Public'
-      self._friendly_name = friendly_name
-    return friendly_name
+        try:
+          friendly_name = get_git_user_friendly_name()
+        except subprocess.CalledProcessError:
+          pass
+
+      self._friendly_name = cast(str, self.get_or_prompt_config_val(
+        'friendly_name',
+        prompt=dedent('''
+            Enter your friendly full name (e.g., "John Doe"), to be used for Python package
+            configuration
+          ''').rstrip(),
+          converter=validate,
+          default=friendly_name
+      ))
+
+    return self._friendly_name
 
   def get_legal_name(self) -> str:
-    return self.get_friendly_name() if self._legal_name is None else self._legal_name
+    if self._legal_name is None:
+      def validate(v: str) -> Jsonable:
+        v = v.strip()
+        parts = [ x for x in v.split(' ') if x != '' ]
+        if len(parts) < 2:
+          raise ValueError(f"A first and last name are required: {v}")
+        v = ' '.join(parts)
+        return v
 
-  def get_license_filename(self) -> str:
-    if self._license_filename is None:
-      self._license_filename = os.path.join(self.get_project_root_dir(), 'LICENSE')
-    return self._license_filename
+
+      self._legal_name = cast(str, self.get_or_prompt_config_val(
+        'friendly_name',
+        prompt=dedent('''
+            Enter your friendly full name (e.g., "John Doe"), to be used for Python package
+            configuration
+          ''').rstrip(),
+          converter=validate,
+          default=self.get_friendly_name()
+      ))
+
+    return self._legal_name
 
   def get_license_type(self) -> str:
     if self._license_type is None:
+      def validate(v: str) -> Jsonable:
+        v = v.strip().upper()
+        if v == '':
+          v = 'MIT'
+        if v != 'MIT':
+          raise ValueError("Unrecognized license type (only MIT is currently supported): {v}")
+        return v
+
       pyproject = self.get_pyproject_toml(create=True)
       t_tool_poetry = pyproject.get_table('tool.poetry', auto_split=True, create=True)
       license_type = cast(Optional[str], t_tool_poetry.get('license', None))
@@ -352,12 +491,62 @@ class CmdInitEnv(CommandHandler):
           license_first_line = license_text.split('\n', 1)[0].strip().lower()
           if license_first_line == 'mit license':
             license_type = 'MIT'
-          else:
-            raise XPulumiError(f"Could not determine license type from first line of license: {license_first_line}")
       if license_type is None:
         license_type = 'MIT'
-      self._license_type = license_type
+
+      self._license_type = cast(str, self.get_or_prompt_config_val(
+        'license_type',
+        prompt=dedent('''
+            Enter the type of license to use for this project (e.g., MIT)
+          ''').rstrip(),
+          converter=validate,
+          default=license_type
+      ))
+
     return self._license_type
+
+  def get_aws_session(self):
+    if self._aws_session is None:
+      self._aws_session = get_aws_session()
+    return self._aws_session
+
+  def get_aws_account(self):
+    if self._aws_account is None:
+      self._aws_account = get_aws_account(self.get_aws_session())
+    return self._aws_account
+
+  def get_aws_region(self) -> str:
+    if self._aws_region is None:
+      def validate(v: str) -> Jsonable:
+        v = v.strip().lower()
+        if not v in aws_region_names:
+          raise ValueError("Unrecognized AWS region name: {v}")
+        return v
+
+      aws_region: Optional[str] = None
+      try:
+        aws_region = cast(Optional[str], get_aws_region(self.get_aws_session()))
+      except Exception:
+        pass
+      if aws_region is None:
+        aws_region = 'us-west-2'
+
+      self._aws_region = cast(str, self.get_or_prompt_config_val(
+        'aws_region',
+        prompt=dedent('''
+            Enter the AWS region you would like to deploy to (e.g., "us-west-2").
+            "us-west-2" is in Oregon and offers the lowest ping latencies to
+            Seattle
+          ''').rstrip(),
+          converter=validate,
+          default=aws_region,
+      ))
+    return self._aws_region
+
+  def get_license_filename(self) -> str:
+    if self._license_filename is None:
+      self._license_filename = os.path.join(self.get_project_root_dir(), 'LICENSE')
+    return self._license_filename
 
   def get_license_text(self) -> str:
     if self._license_text is None:
@@ -471,7 +660,7 @@ class CmdInitEnv(CommandHandler):
 
             ### From PyPi
 
-            The current released version of `{project_name}` can be installed with 
+            The current released version of `{project_name}` can be installed with
 
             ```bash
             pip3 install {project_name}
@@ -662,6 +851,26 @@ class CmdInitEnv(CommandHandler):
   def get_package_dir(self) -> str:
     return os.path.join(self.get_project_root_dir(), self.get_package_import_name())
 
+  def get_xp_dir(self) -> str:
+    xp_dir = os.path.join(self.get_project_root_dir(), 'xp')
+    return xp_dir
+
+  def get_xp_project_parent_dir(self) -> str:
+    xp_project_parent_dir = os.path.join(self.get_xp_dir(), 'project')
+    return xp_project_parent_dir
+
+  def get_xp_backend_parent_dir(self) -> str:
+    xp_backend_parent_dir = os.path.join(self.get_xp_dir(), 'backend')
+    return xp_backend_parent_dir
+
+  def get_xp_project_dir(self, project_name: str) -> str:
+    xp_project_dir = os.path.join(self.get_xp_project_parent_dir(), project_name)
+    return xp_project_dir
+
+  def get_xp_backend_dir(self, backend_name: str) -> str:
+    xp_backend_dir = os.path.join(self.get_xp_backend_parent_dir(), backend_name)
+    return xp_backend_dir
+
   def write_pyfile(self, filename: str, content: str, executable: bool = False) -> None:
     filename = os.path.join(self.get_package_dir(), filename)
     if not os.path.exists(filename):
@@ -669,7 +878,193 @@ class CmdInitEnv(CommandHandler):
         if executable:
           f.write("#!/usr/bin/env python3\n")
         f.write(self.get_pyfile_header()+dedent(content))
+        if executable:
+          subprocess.call(['chmod','+x', filename], stderr=subprocess.DEVNULL)
 
+  def write_standard_xp_project_main(self, project_name: str, standard_stack_name: str) -> None:
+    xp_project_dir = self.get_xp_project_dir(project_name)
+    if not os.path.isdir(xp_project_dir):
+      os.makedirs(xp_project_dir)
+    filename = os.path.join(xp_project_dir, '__main__.py')
+    self.write_pyfile(filename, dedent(f'''
+        from xpulumi.standard_stacks.{standard_stack_name} import load_stack
+
+        load_stack()
+      '''))
+
+  def create_yaml_file(self, filename: str, content: Jsonable) -> None:
+    filename = os.path.join(self.get_project_root_dir(), filename)
+    if not os.path.exists(filename):
+      with open(filename, 'w', encoding='utf-8') as f:
+        yaml.dump(content, f)
+
+  def create_xp_backend(
+        self,
+        backend_name: str,
+        config: Optional[JsonableDict] = None,
+        uri: Optional[str] = None,
+        options: Optional[JsonableDict] = None,   #pylint: disable=redefined-outer-name
+        includes_organization: Optional[bool] = None,
+        includes_project: Optional[bool] = None,
+        default_organization: Optional[str] = None,
+        backend_xstack: Optional[str] = None,
+      ) -> None:
+    xp_backend_dir = self.get_xp_backend_dir(backend_name)
+
+    if config is None:
+      config = {}
+    else:
+      config = deepcopy(config)
+
+    coptions = cast(Optional[JsonableDict], config.get('options', None))
+    if coptions is None:
+      coptions = {}
+      config['options'] = coptions
+
+    if not options is None:
+      coptions.update(deepcopy(options))
+
+    options = coptions
+
+    if not uri is None:
+      config['uri'] = uri
+
+    config['name'] = backend_name
+    if not backend_xstack is None:
+      coptions['backend_xstack'] = backend_xstack
+
+    uri = cast(Optional[str], config.get('uri', None))
+
+    if uri is None:
+      raise XPulumiError("A URI is required for backend config")
+
+    parts = urlparse(uri)
+    is_blob_backend = parts.scheme in ('file', 's3')
+    includes_organization = not is_blob_backend if includes_organization is None else includes_organization
+    includes_project = not is_blob_backend if includes_project is None else includes_project
+    default_organization = 'g' if default_organization is None else default_organization
+
+    if not 'includes_organization' in options:
+      options['includes_organization'] = includes_organization
+    if not 'includes_project' in options:
+      options['includes_project'] = includes_project
+    if not options['includes_organization']:
+      if not 'default_organization' in options:
+        options['default_organization'] = default_organization
+    if parts.scheme == 's3':
+      if not 'aws_region' in options:
+        options['aws_region'] = self.get_aws_region()
+      if not 'aws_account' in options:
+        options['aws_account'] = self.get_aws_account()
+
+    if not os.path.isdir(xp_backend_dir):
+      os.makedirs(xp_backend_dir)
+    self.create_yaml_file(os.path.join(xp_backend_dir, "backend.yaml"), config)
+
+  def create_local_xp_backend(
+        self,
+        backend_name: str,
+        config: Optional[JsonableDict] = None,
+        options: Optional[JsonableDict] = None,     #pylint: disable=redefined-outer-name
+        includes_organization: Optional[bool] = None,
+        includes_project: Optional[bool] = None,
+        default_organization: Optional[str] = None,
+      ) -> None:
+    self.create_xp_backend(
+        backend_name,
+        config=config,
+        options=options,
+        includes_organization=includes_organization,
+        includes_project=includes_project,
+        default_organization=default_organization,
+        uri="file://./state"
+      )
+
+    xp_backend_dir = self.get_xp_backend_dir(backend_name)
+    state_dir = os.path.join(xp_backend_dir, 'state')
+    if not os.path.isdir(state_dir):
+      os.makedirs(state_dir)
+    gitignore_file = os.path.join(state_dir, '.gitignore')
+    if not os.path.exists(gitignore_file):
+      with open(gitignore_file, 'w', encoding='utf-8') as f:
+        f.write("!.pulumi/\n")
+
+  def create_xp_project(
+        self,
+        project_name: str,
+        standard_stack_name: Optional[str]=None,
+        main_script_content: Optional[str]=None,
+        xpulumi_config: Optional[JsonableDict]=None,
+        pulumi_config: Optional[JsonableDict]=None,
+        pulumi_stack_configs: Optional[Dict[str, JsonableDict]]=None,
+        organization: Optional[str]='g',
+        backend: str='s3',
+        description: Optional[str] = None,
+      ) -> None:
+    if standard_stack_name is None and main_script_content is None:
+      raise XPulumiError("Either standard_stack_name or main_script_content must be provided")
+
+    xp_project_dir = self.get_xp_project_dir(project_name)
+
+    if xpulumi_config is None:
+      xpulumi_config = {}
+    else:
+      xpulumi_config = deepcopy(xpulumi_config)
+    if not organization is None and not 'organization' in xpulumi_config:
+      xpulumi_config['organization'] = organization
+    if not 'backend' in xpulumi_config:
+      xpulumi_config['backend'] = backend
+
+    if pulumi_config is None:
+      pulumi_config = {}
+    else:
+      pulumi_config = deepcopy(pulumi_config)
+    if not 'name' in pulumi_config:
+      pulumi_config['name'] = project_name
+    pulumi_project_name = pulumi_config['name']
+    if not 'runtime' in pulumi_config:
+      pulumi_config['runtime'] = dict(
+          name = "python",
+          options = dict(
+              virtualenv = "../../../.venv"
+            )
+        )
+    if not 'description' in pulumi_config:
+      if description is None:
+        if standard_stack_name is None:
+          description = f"XPulumi project {project_name}"
+        else:
+          description = f"Standard {standard_stack_name} xpulumi project {project_name}"
+      pulumi_config['description'] = description
+
+    if pulumi_stack_configs is None:
+      pulumi_stack_configs = {}
+
+    for stack_name, stack_config in list(pulumi_stack_configs.items()):
+      if stack_config is None:
+        stack_config = {}
+      else:
+        stack_config = deepcopy(stack_config)
+      pulumi_stack_configs[stack_name] = stack_config
+      for k, v in list(stack_config.items()):
+        if not ':' in k:
+          # For convenience, replace any bare config property_name
+          # with <project_name>:<property_name>
+          del stack_config[k]
+          k = f"{pulumi_project_name}:{k}"
+          stack_config[k] = v
+
+        if v is None:
+          del stack_config[k]
+
+      if not 'aws:region' in stack_config:
+        stack_config['aws:region'] = self.get_aws_region()
+
+    self.write_standard_xp_project_main(project_name, standard_stack_name)
+    self.create_yaml_file(os.path.join(xp_project_dir, "xpulumi-project.yaml"), xpulumi_config)
+    self.create_yaml_file(os.path.join(xp_project_dir, "Pulumi.yaml"), pulumi_config)
+    for stack_name, stack_config in pulumi_stack_configs.items():
+      self.create_yaml_file(os.path.join(xp_project_dir, f"Pulumi.{stack_name}.yaml"), stack_config)
 
   def set_pyproject_default(self, table: Union[str, Table, OutOfOrderTableProxy, Container], key, value) -> None:
     if isinstance(table, str):
@@ -678,25 +1073,9 @@ class CmdInitEnv(CommandHandler):
     if not value is None and not key in table:
       table[key] = value
 
-  def get_aws_session(self):
-    if self._aws_session is None:
-      self._aws_session = get_aws_session()
-    return self._aws_session
-
-  def get_aws_account(self):
-    if self._aws_account is None:
-      self._aws_account = get_aws_account(self.get_aws_session())
-    return self._aws_account
-
-  def get_aws_region(self) -> str:
-    if self._aws_region is None:
-      self._aws_region = cast(str, get_aws_region(self.get_aws_session(), 'us-west-2'))
-    return self._aws_region
-
-  def get_aws_venv_suffix(self) -> str:
-    if self._aws_venv_suffix is None:
-      self._aws_venv_suffix = '-2'
-    return self._aws_venv_suffix
+  def get_cloud_subaccount_prefix(self) -> str:
+    cloud_subaccount = self.get_cloud_subaccount()
+    return '' if cloud_subaccount is None else f"{cloud_subaccount}-"
 
   def __call__(self) -> int:
     from project_init_tools.installer.docker import install_docker
@@ -846,140 +1225,62 @@ class CmdInitEnv(CommandHandler):
     # ================================================================
     # Everything from here down can be done after xpulumi is installed
 
-    xp_dir = os.path.join(project_root_dir, 'xp')
-    xp_project_parent_dir = os.path.join(xp_dir, 'project')
-    xp_backend_parent_dir = os.path.join(xp_dir, 'backend')
     # aws_session = self.get_aws_session()
     aws_account = self.get_aws_account()
     aws_region = self.get_aws_region()
     # allows us to create multiple parallel installations in the same AWS account
-    aws_venv_suffix = self.get_aws_venv_suffix()
+    cloud_subaccount_prefix = self.get_cloud_subaccount_prefix()
 
     local_backend_name = 'local'
-    local_backend_dir = os.path.join(xp_backend_parent_dir, local_backend_name)
-    local_backend_config_file = os.path.join(local_backend_dir, 'backend.json')
-    local_backend_org_dir = os.path.join(local_backend_dir, 'state', 'g')
-    local_backend_config: JsonableDict = dict(
-        options = dict(
-            includes_organization = False,
-            includes_project = False,
-            default_organization = "g",
-          ),
-        name = local_backend_name,
-        uri = "file://./state",
-      )
 
     s3_backend_project_name = "s3_backend"
     s3_backend_stack_name = "global"
 
     s3_backend_name = 's3'
-    s3_backend_dir = os.path.join(xp_backend_parent_dir, s3_backend_name)
-    s3_backend_bucket_name = f"{aws_account}-{aws_region}-xpulumi{aws_venv_suffix}"
-    s3_backend_subkey = f"xpulumi-be{aws_venv_suffix}"
+    s3_backend_bucket_name = f"{cloud_subaccount_prefix}{aws_account}-{aws_region}-xpulumi"
+    s3_backend_subkey = f"{cloud_subaccount_prefix}xpulumi-be"
     s3_backend_uri = f"s3://{s3_backend_bucket_name}/{s3_backend_subkey}"
-    s3_backend_config_file = os.path.join(s3_backend_dir, 'backend.json')
-    s3_backend_config: JsonableDict = dict(
-        options = dict(
-            includes_organization = False,
-            includes_project = False,
-            default_organization = "g",
-            aws_region = aws_region,
-            aws_account = aws_account,
-            s3_bucket_stack = f"{s3_backend_project_name}:{s3_backend_stack_name}",
-          ),
-        name = s3_backend_name,
-        uri = s3_backend_uri,
-      )
 
-    s3_backend_project_dir = os.path.join(xp_project_parent_dir, s3_backend_project_name)
-    s3_backend_pulumi_project_name = f"be-{aws_account}-{aws_region}{aws_venv_suffix}"
-    s3_backend_project_state_dir = os.path.join(local_backend_org_dir, s3_backend_pulumi_project_name)
-    s3_backend_project_main_py_file = os.path.join(s3_backend_project_dir, '__main__.py')
-    s3_backend_project_xpulumi_config_file = os.path.join(s3_backend_project_dir, 'xpulumi-project.json')
-    s3_backend_project_pulumi_config_file = os.path.join(s3_backend_project_dir, 'Pulumi.yaml')
-    s3_backend_project_pulumi_stack_config_file = os.path.join(s3_backend_project_dir, f'Pulumi.{s3_backend_stack_name}.yaml')
-    s3_backend_project_xpulumi_config: JsonableDict = dict(
-        pulumi_project_name = s3_backend_pulumi_project_name,
-        organization = "g",
-        backend = local_backend_name
-      )
-    s3_backend_project_pulumi_config: JsonableDict = dict(
-        description = "Simple locally-backed pulumi project that manages an S3 backend used by all other projects",
-        name = s3_backend_pulumi_project_name,
-        runtime = dict(
-            name = "python",
-            options = dict(
-                virtualenv = "../../../.venv"
-              )
-          )
-      )
-    s3_backend_project_pulumi_stack_config: JsonableDict = dict(
-        config = {
-            'aws:region': aws_region,
-            f'{s3_backend_pulumi_project_name}:backend_url': s3_backend_uri,
-          }
-      )
-
+    dev_stack_name = 'dev'
+    root_zone_name = 'mckelvie.org'
+    subzone_name = f"{cloud_subaccount_prefix}dev"
 
     # ------
 
-    if not os.path.isdir(xp_project_parent_dir):
-      os.makedirs(xp_project_parent_dir)
-    if not os.path.isdir(xp_backend_parent_dir):
-      os.makedirs(xp_backend_parent_dir)
-    if not os.path.exists(s3_backend_project_state_dir):
-      os.makedirs(s3_backend_project_state_dir)
-    if not os.path.exists(local_backend_config_file):
-      with open(local_backend_config_file, 'w', encoding='utf-8') as f:
-        json.dump(local_backend_config, f, indent=2, sort_keys=True)
-    if not os.path.exists(s3_backend_project_state_dir):
-      os.makedirs(s3_backend_project_state_dir)
-    if not os.path.exists(local_backend_config_file):
-      with open(local_backend_config_file, 'w', encoding='utf-8') as f:
-        json.dump(local_backend_config, f, indent=2, sort_keys=True)
-    if not os.path.exists(s3_backend_dir):
-      os.makedirs(s3_backend_dir)
-    if not os.path.exists(s3_backend_config_file):
-      with open(s3_backend_config_file, 'w', encoding='utf-8') as f:
-        json.dump(s3_backend_config, f, indent=2, sort_keys=True)
-    if not os.path.exists(s3_backend_project_dir):
-      os.makedirs(s3_backend_project_dir)
-    if not os.path.exists(s3_backend_project_xpulumi_config_file):
-      with open(s3_backend_project_xpulumi_config_file, 'w', encoding='utf-8') as f:
-        json.dump(s3_backend_project_xpulumi_config, f, indent=2, sort_keys=True)
-    if not os.path.exists(s3_backend_project_pulumi_config_file):
-      with open(s3_backend_project_pulumi_config_file, 'w', encoding='utf-8') as f:
-        yaml.dump(s3_backend_project_pulumi_config, f)
-    if not os.path.exists(s3_backend_project_pulumi_stack_config_file):
-      with open(s3_backend_project_pulumi_stack_config_file, 'w', encoding='utf-8') as f:
-        yaml.dump(s3_backend_project_pulumi_stack_config, f)
+    self.create_local_xp_backend(local_backend_name)
+    self.create_xp_project(
+        s3_backend_project_name,
+        standard_stack_name = 's3_backend_v1',
+        backend = local_backend_name,
+        description = "Simple locally-backed pulumi project that manages an S3 backend used by all other projects",
+        pulumi_stack_configs = {
+            s3_backend_stack_name: dict(
+                backend_url = s3_backend_uri,
+            )
+          }
+      )
 
+    self.create_xp_backend(
+        s3_backend_name,
+        uri=s3_backend_uri,
+        backend_xstack=f"{s3_backend_project_name}:{s3_backend_stack_name}"
+      )
 
-    self.write_pyfile(s3_backend_project_main_py_file, '''
-        import pulumi
-        import pulumi_aws as aws
-        from xpulumi.runtime import pconfig, aws_provider, split_s3_uri
-
-        backend_uri = pconfig.require("backend_uri")
-        bucket_name, backend_subkey = split_s3_uri(backend_uri)
-        while backend_subkey.endswith('/'):
-          backend_subkey = backend_subkey[:-1]
-
-        slash_backend_subkey = '' if backend_subkey == '' else '/' + backend_subkey
-
-        bucket = aws.s3.Bucket("bucket",
-            bucket=bucket_name,
-            opts=pulumi.ResourceOptions(
-                provider=aws_provider,
+    self.create_xp_project(
+        'awsenv',
+        standard_stack_name = 's3_aws_env_v1',
+        backend = s3_backend_name,
+        description = "AWS project core resources (VPC etc)",
+        pulumi_stack_configs = {
+            dev_stack_name: dict(
+                vpc_n_azs = 3,
+                vpc_n_potential_subnets = 16,
+                vpc_cidr = "10.78.0.0/16",
+                root_zone_name = root_zone_name,
+                subzone_name = subzone_name,
               )
-          )
-
-        pulumi.export("backend_bucket", bucket_name)
-        pulumi.export("backend_subkey", backend_subkey)
-        pulumi.export("backend_uri", backend_uri)
-      ''')
-
-
+          },
+      )
 
     install_docker()
     install_aws_cli()
@@ -1013,6 +1314,19 @@ class CmdInitEnv(CommandHandler):
     if self._cfg is None:
       self._cfg = XPulumiProjectInitConfig(starting_dir=self.cwd)
     return self._cfg
+
+  def get_round_trip_config(self) -> RoundTripConfig:
+    if self._round_trip_config is None:
+      cfg = self.get_or_create_config()
+      self._round_trip_config = RoundTripConfig(cfg.config_file)
+    return self._round_trip_config
+
+  def save_round_trip_config(self) -> None:
+    if not self._round_trip_config is None:
+      config_file = self._round_trip_config._config_file   # pylint: disable=protected-access
+      changed = self._round_trip_config.save()
+      if changed:
+        self._cfg = XPulumiProjectInitConfig(config_file=config_file)
 
   def get_config_file(self) -> str:
     return self.get_config().config_file

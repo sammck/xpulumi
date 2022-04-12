@@ -77,14 +77,14 @@ dev = ["pip-tools (==6.5.1)", "pytest (==7.1.1)", "flake8 (==4.0.1)", "tox (==3.
 
 [[package]]
 name = "boto3"
-version = "1.21.37"
+version = "1.21.39"
 description = "The AWS SDK for Python"
 category = "main"
 optional = false
 python-versions = ">= 3.6"
 
 [package.dependencies]
-botocore = ">=1.24.37,<1.25.0"
+botocore = ">=1.24.39,<1.25.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.5.0,<0.6.0"
 
@@ -93,8 +93,8 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "boto3-stubs"
-version = "1.21.37"
-description = "Type annotations for boto3 1.21.37 generated with mypy-boto3-builder 7.5.8"
+version = "1.21.39"
+description = "Type annotations for boto3 1.21.39 generated with mypy-boto3-builder 7.5.8"
 category = "main"
 optional = false
 python-versions = ">=3.6"
@@ -427,7 +427,7 @@ python-versions = "*"
 
 [[package]]
 name = "botocore"
-version = "1.24.37"
+version = "1.24.39"
 description = "Low-level, data-driven core of boto 3."
 category = "main"
 optional = false
@@ -443,8 +443,8 @@ crt = ["awscrt (==0.13.8)"]
 
 [[package]]
 name = "botocore-stubs"
-version = "1.24.37"
-description = "Type annotations for botocore 1.24.37 generated with mypy-boto3-builder 7.5.8"
+version = "1.24.39"
+description = "Type annotations for botocore 1.24.39 generated with mypy-boto3-builder 7.5.8"
 category = "main"
 optional = false
 python-versions = ">=3.6"
@@ -560,6 +560,22 @@ python-versions = ">=2.7, !=3.0.*"
 
 [package.extras]
 graph = ["objgraph (>=1.7.2)"]
+
+[[package]]
+name = "dnspython"
+version = "2.2.1"
+description = "DNS toolkit"
+category = "main"
+optional = false
+python-versions = ">=3.6,<4.0"
+
+[package.extras]
+dnssec = ["cryptography (>=2.6,<37.0)"]
+curio = ["curio (>=1.2,<2.0)", "sniffio (>=1.1,<2.0)"]
+doh = ["h2 (>=4.1.0)", "httpx (>=0.21.1)", "requests (>=2.23.0,<3.0.0)", "requests-toolbelt (>=0.9.1,<0.10.0)"]
+idna = ["idna (>=2.1,<4.0)"]
+trio = ["trio (>=0.14,<0.20)"]
+wmi = ["wmi (>=1.5.1,<2.0.0)"]
 
 [[package]]
 name = "docutils"
@@ -780,8 +796,8 @@ typing-extensions = ">=4.1.0"
 
 [[package]]
 name = "mypy-boto3-ec2"
-version = "1.21.34"
-description = "Type annotations for boto3.EC2 1.21.34 service generated with mypy-boto3-builder 7.5.8"
+version = "1.21.39"
+description = "Type annotations for boto3.EC2 1.21.39 service generated with mypy-boto3-builder 7.5.8"
 category = "main"
 optional = false
 python-versions = ">=3.6"
@@ -895,7 +911,7 @@ test = ["appdirs (==1.4.4)", "pytest (>=6)", "pytest-cov (>=2.7)", "pytest-mock 
 
 [[package]]
 name = "project-init-tools"
-version = "0.1.3"
+version = "0.1.5"
 description = "Tools to help initialize/setup github projects, install prerequisites, etc."
 category = "main"
 optional = false
@@ -918,7 +934,7 @@ tomlkit = "^0.10.1"
 type = "git"
 url = "https://github.com/sammck/project-init-tools.git"
 reference = "main"
-resolved_reference = "a271fd9e8fd390cae2de52939b296754b3a66f34"
+resolved_reference = "8e91a30bccb8bd23e2c380d8d1e289b3fce77b70"
 
 [[package]]
 name = "protobuf"
@@ -1439,7 +1455,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "8c973e898cef7908a1588c5118679f5181b9eefb0a268ce39f2189474c2938f0"
+content-hash = "4cc1d263881e7d27bc8d998924198673056e709400a6ebe4ad2343f97a4b1074"
 
 [metadata.files]
 argcomplete = [
@@ -1466,24 +1482,24 @@ bleach = [
     {file = "bleach-5.0.0.tar.gz", hash = "sha256:c6d6cc054bdc9c83b48b8083e236e5f00f238428666d2ce2e083eaa5fd568565"},
 ]
 boto3 = [
-    {file = "boto3-1.21.37-py3-none-any.whl", hash = "sha256:1e845aa92b3ad70b954329b98835135c28b3000e322ff8d3fc46a956bdb6e94b"},
-    {file = "boto3-1.21.37.tar.gz", hash = "sha256:013ba57295f05da141e364191dd46f4086e8fe3eb83a3cd09730eeb684ffbab3"},
+    {file = "boto3-1.21.39-py3-none-any.whl", hash = "sha256:b709cb65ffc4e3f78c590145e2dee40758056c9edafb9ee692f67d170855dfc3"},
+    {file = "boto3-1.21.39.tar.gz", hash = "sha256:56425debf5f1fd2cf5494d9cb110b2a977453888f071898a12e6ab64bdd41796"},
 ]
 boto3-stubs = [
-    {file = "boto3-stubs-1.21.37.tar.gz", hash = "sha256:1fa208a4a2d91550b031e82037397eb9a5fcfd0295f4795bc412219e86be1e8b"},
-    {file = "boto3_stubs-1.21.37-py3-none-any.whl", hash = "sha256:df790210ef992dfcee47d4d83a848f017380b58266cba6a50cfd8fbe6e6839ef"},
+    {file = "boto3-stubs-1.21.39.tar.gz", hash = "sha256:ad5c8f67e77e71f54ef0e036dd6f00aa65090a5f151c7978fd3a0cff107dca8b"},
+    {file = "boto3_stubs-1.21.39-py3-none-any.whl", hash = "sha256:3324592b223c6b2fb75c614d7b2042851b413087ec19e9f3a835a588903126df"},
 ]
 boto3-type-annotations = [
     {file = "boto3_type_annotations-0.3.1-py3-none-any.whl", hash = "sha256:52e007ac2ab792abee42aaac3019c2acc9781a84e79e1283a5bc64164225435e"},
     {file = "boto3_type_annotations-0.3.1.tar.gz", hash = "sha256:e5682093d035e935c8189f24c601ef6eaccedfcd1e642ba7922429d093b1b885"},
 ]
 botocore = [
-    {file = "botocore-1.24.37-py3-none-any.whl", hash = "sha256:21e164a213beca36033c46026bffa62f2ee2cd2600777271f9a551fb34dba006"},
-    {file = "botocore-1.24.37.tar.gz", hash = "sha256:70c48c4ae3c2b9ec0ca025385979d01f4c7dae4d9a61c82758d4cf7caa7082cd"},
+    {file = "botocore-1.24.39-py3-none-any.whl", hash = "sha256:94f50a544003918270ba726eb5652b2c31f6cb34accbf25e053ed6ea97ecf1fd"},
+    {file = "botocore-1.24.39.tar.gz", hash = "sha256:a0883dfe8b81689060af7bb2ca4ce3048b954b25bef4ed712c6760ce3da51485"},
 ]
 botocore-stubs = [
-    {file = "botocore-stubs-1.24.37.tar.gz", hash = "sha256:4221071ea3fea9b5f6840ea848c74fd1ab04d64b9e7acd4371b30468d21fbc9f"},
-    {file = "botocore_stubs-1.24.37-py3-none-any.whl", hash = "sha256:beec7e6a6dee17d70519a1cd7446738eeaf78009362b394ff9f075a0e6229fae"},
+    {file = "botocore-stubs-1.24.39.tar.gz", hash = "sha256:6f560d60380927a61d478c0261ba50c37c2b1137dc3265e959167b13c23ee6fc"},
+    {file = "botocore_stubs-1.24.39-py3-none-any.whl", hash = "sha256:f0941eae4ad44d6fa5d00fd75df9f707c220f30c5327f70b591c9ca48691040e"},
 ]
 certifi = [
     {file = "certifi-2021.10.8-py2.py3-none-any.whl", hash = "sha256:d62a0163eb4c2344ac042ab2bdf75399a71a2d8c7d47eac2e2ee91b9d6339569"},
@@ -1606,6 +1622,10 @@ debugpy = [
 dill = [
     {file = "dill-0.3.4-py2.py3-none-any.whl", hash = "sha256:7e40e4a70304fd9ceab3535d36e58791d9c4a776b38ec7f7ec9afc8d3dca4d4f"},
     {file = "dill-0.3.4.zip", hash = "sha256:9f9734205146b2b353ab3fec9af0070237b6ddae78452af83d2fca84d739e675"},
+]
+dnspython = [
+    {file = "dnspython-2.2.1-py3-none-any.whl", hash = "sha256:a851e51367fb93e9e1361732c1d60dab63eff98712e503ea7d92e6eccb109b4f"},
+    {file = "dnspython-2.2.1.tar.gz", hash = "sha256:0f7569a4a6ff151958b64304071d370daa3243d15941a7beedf0c9fe5105603e"},
 ]
 docutils = [
     {file = "docutils-0.18.1-py2.py3-none-any.whl", hash = "sha256:23010f129180089fbcd3bc08cfefccb3b890b0050e1ca00c867036e9d161b98c"},
@@ -1820,8 +1840,8 @@ mypy-boto3-dynamodb = [
     {file = "mypy_boto3_dynamodb-1.21.34-py3-none-any.whl", hash = "sha256:3edfdd25befc8efccba9807bf720d54d06dc948e434976ae3dd7f47189d3319c"},
 ]
 mypy-boto3-ec2 = [
-    {file = "mypy-boto3-ec2-1.21.34.tar.gz", hash = "sha256:1cd73077adef376e824e0ae4949d010e0b8678c04fd5b7f9aec0ecdcfed5b9e3"},
-    {file = "mypy_boto3_ec2-1.21.34-py3-none-any.whl", hash = "sha256:86f43e7d0d44987ef69c755058dadefc95aebf23b9e13c899512c913121211ca"},
+    {file = "mypy-boto3-ec2-1.21.39.tar.gz", hash = "sha256:3066d26ec8adf027fe4c990ef308e15ba21886ddf0d3ea09b68d0a175ff4ecf4"},
+    {file = "mypy_boto3_ec2-1.21.39-py3-none-any.whl", hash = "sha256:e7b4672912e5ea5fa84deaaac1613fbd25ed94a228cfacae5d0cef3256d8a6ff"},
 ]
 mypy-boto3-lambda = [
     {file = "mypy-boto3-lambda-1.21.35.tar.gz", hash = "sha256:ea5c6f39875ffc705053f5e08230f26b05b85eff33c88aac25981e4e2747dcea"},
