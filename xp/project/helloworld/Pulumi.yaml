@@ -1,7 +1,7 @@
 # AUTO-GENERATED--DO NOT EDIT! Main Pulumi config file for project cloud-dev-boxbackend:
 #url: s3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj/test-project
 description: A trivial ec2 webserver
-name: test-project
+name: helloworld
 runtime:
   name: python
   options:
