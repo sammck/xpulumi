@@ -1,0 +1,4 @@
+encryptionsalt: v1:f9MJAvBc3mA=:v1:dDJF1/ekQLjYfOhs:k/ZppTzu1kDvbLZ3IYdPjYLLx+BouA==
+config:
+  aws:region: us-west-2
+  s3_backend:backend_url: s3://${aws_full_subaccount_account_id}-${aws_region}-xpulumi/${cloud_subaccount_prefix}xpulumi-be

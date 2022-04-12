@@ -340,12 +340,18 @@ class PulumiWrapper:
   def abspath(self, path: str) -> str:
     return os.path.abspath(os.path.join(self._cwd, os.path.expanduser(path)))
 
+  def precreate_project_backend(self) -> None:
+    self.project.precreate_project_backend()
+
   def get_environ(self, stack_name: Optional[str]=None) -> Dict[str, str]:
     ctx = self.ctx
     if stack_name is None:
       stack_name = self.stack_name
     env = dict(self._base_env)
-    env['PULUMI_HOME'] = ctx.get_pulumi_home()
+    pulumi_home = ctx.get_pulumi_home()
+    env['PULUMI_HOME'] = pulumi_home
+    # Pulumi dynamic resource plugins *must* be in the path to work.
+    env['PATH'] = os.path.join(pulumi_home, 'bin') + ':' + env['PATH']
     project = self.project
     backend = self.backend
     if not backend is None and (backend.scheme in [ 'http', 'https' ]):
@@ -399,6 +405,8 @@ class PulumiWrapper:
     else:
       cwd = project.project_dir
     kwargs['cwd'] = cwd
+    if len(pc.pos_args) > 0 and pc.pos_args[0] == 'up':
+      self.precreate_project_backend()
     if self._debug:
       print(f"Invoking raw pulumi: {arglist}", file=sys.stderr)
     return arglist

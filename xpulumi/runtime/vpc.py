@@ -52,6 +52,7 @@ from .common import (
     get_availability_zones,
     with_default_tags,
     long_xstack,
+    long_subaccount_stack,
   )
 
 class SubnetInfo:
@@ -270,7 +271,7 @@ class VpcEnv:
       cidr_block=vpc_cidr,
       enable_dns_hostnames=True,
       enable_dns_support=True,
-      tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}"),
+      tags=with_default_tags(Name=f"{resource_prefix}{long_subaccount_stack}"),
       opts=ro,
     )
     self.vpc = vpc
@@ -284,7 +285,7 @@ class VpcEnv:
           vpc_id=vpc.id,
           cidr_block=cidr,
           map_public_ip_on_launch=True,
-          tags=with_default_tags(Name=f"pub-{resource_prefix}{long_xstack}-{azs[i]}"),
+          tags=with_default_tags(Name=f"{resource_prefix}{long_subaccount_stack}-{azs[i]}"),
           opts=ro,
         )
       public_subnets.append(subnet)
@@ -310,7 +311,7 @@ class VpcEnv:
           vpc_id=vpc.id,
           cidr_block=cidr,
           map_public_ip_on_launch=True,   # review: probably want to use NAT gateway for private subnets...?
-          tags=with_default_tags(Name=f"prv-{resource_prefix}{long_xstack}-{azs[i]}"),
+          tags=with_default_tags(Name=f"prv-{resource_prefix}{long_subaccount_stack}-{azs[i]}"),
           opts=ro,
         )
       )
@@ -332,7 +333,7 @@ class VpcEnv:
     # Create an internet gateway to route internet traffic to/from public IPs attached to the VPC
     internet_gateway = ec2.InternetGateway(
         f'{resource_prefix}vpc-gateway',
-        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}"),
+        tags=with_default_tags(Name=f"{resource_prefix}{long_subaccount_stack}"),
         vpc_id=vpc.id,
         opts=ro
       )
@@ -347,7 +348,7 @@ class VpcEnv:
       routes=[
         dict(cidr_block="0.0.0.0/0", gateway_id=internet_gateway.id)
       ],
-      tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}"),
+      tags=with_default_tags(Name=f"{resource_prefix}{long_subaccount_stack}"),
       opts=ro,
     )
     self.route_table = route_table

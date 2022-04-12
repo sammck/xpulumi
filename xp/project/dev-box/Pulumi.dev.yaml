@@ -1,5 +1,0 @@
-encryptionsalt: v1:hcosRBKT7Fw=:v1:f2mbeKtKj8HDYmgw:UIy7D1rGJkKzXXqyFiR1qVrZj5+33Q==
-config:
-  dev-box:ec2_user_password:
-    secure: v1:1oYc3PH+ZMeo4tnX:YSvWr/lw7/m50l9ZQT/sFy5LpkQjamnMeCKdLxQ=
-  xpulumi:backend: s3

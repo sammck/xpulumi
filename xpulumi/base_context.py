@@ -108,6 +108,8 @@ class XPulumiContextBase(XPulumiContext):
 
   _default_stack_name: Optional[str] = None
 
+  _default_cloud_subaccount: Optional[str] = None
+
   def __init__(self, config: Optional[XPulumiConfig]=None, cwd: Optional[str]=None):
     super().__init__()
     self._aws_account_region_map = {}
@@ -137,6 +139,14 @@ class XPulumiContextBase(XPulumiContext):
     self._pulumi_home = config.pulumi_home
     self._default_backend_name = config.default_backend_name
     self._default_stack_name = config.default_stack_name
+    self._default_cloud_subaccount = config.default_cloud_subaccount
+
+  @property
+  def default_cloud_subaccount(self) -> Optional[str]:
+    return self._default_cloud_subaccount
+
+  def get_default_cloud_subaccount(self) -> Optional[str]:
+    return self.default_cloud_subaccount
 
   @property
   def default_backend_name(self) -> Optional[str]:

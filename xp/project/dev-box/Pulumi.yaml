@@ -1,9 +1,0 @@
-# AUTO-GENERATED--DO NOT EDIT! Main Pulumi config file for project cloud-dev-boxbackend:
-#url: s3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj/test-project
-description: EC2 dev box
-name: dev-box
-runtime:
-  name: python
-  options:
-    virtualenv: ../../../.venv
-options: {}

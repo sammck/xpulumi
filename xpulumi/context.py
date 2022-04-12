@@ -58,3 +58,6 @@ class XPulumiContext(ABC):
 
   @abstractmethod
   def get_cwd(self) -> str: ...
+
+  @abstractmethod
+  def get_default_cloud_subaccount(self) -> Optional[str]: ...

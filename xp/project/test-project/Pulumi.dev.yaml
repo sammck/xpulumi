@@ -1,8 +1,0 @@
-encryptionsalt: v1:hcosRBKT7Fw=:v1:f2mbeKtKj8HDYmgw:UIy7D1rGJkKzXXqyFiR1qVrZj5+33Q==
-config:
-  xpulumi:backend: s3
-  aws:region: us-west-2
-  test-project:vpc_import_stack: aws-env:dev
-  test-project:instance_type: t2.micro
-  test-project:secret_input:
-    secure: v1:M3CpNT+j9DhxO6yP:pagI9y/K6xDueCXkV48VnsdX0jxn/ChMMhU1GZc=

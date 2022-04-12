@@ -1,0 +1,9 @@
+# AUTO-GENERATED--DO NOT EDIT! Main Pulumi config file for project cloud-dev-boxbackend:
+#url: s3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj/test-project
+description: AWS project core resources (VPC etc)
+name: awsenv
+runtime:
+  name: python
+  options:
+    virtualenv: ../../../.venv
+options: {}

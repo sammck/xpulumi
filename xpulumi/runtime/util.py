@@ -44,6 +44,7 @@ from ..stack import XPulumiStack, parse_stack_name
 from project_init_tools import (
     run_once,
     gen_etc_shadow_password_hash as sync_gen_etc_shadow_password_hash,
+    dedent,
     )
 
 initial_cwd = os.getcwd()
@@ -187,6 +188,16 @@ def get_current_xpulumi_stack_name() -> str:
 def get_current_xpulumi_stack() -> XPulumiStack:
   return get_xpulumi_stack(get_current_xpulumi_stack_name())
 
+def get_current_cloud_subaccount() -> Optional[str]:
+  result = get_current_xpulumi_stack().cloud_subaccount
+  if result == '':
+    result = None
+  return result
+  
+def get_current_cloud_subaccount_prefix() -> str:
+  subaccount = get_current_cloud_subaccount()
+  return '' if (subaccount is None or subaccount == '') else subaccount + '-' 
+  
 def sync_get_processor_arches_from_instance_type(instance_type: str, region_name: Optional[str]=None) -> List[str]:
   """Returns a list of processor architectures supported by the given EC2 instance type
 
@@ -374,3 +385,11 @@ def shell_quote_promise(
   else:
     result = Output.all(future_str).apply(lambda args: shlex.quote(*args))  # type: ignore[arg-type]
   return result
+
+def future_dedent(s: Input[str], **kwargs) -> Output[str]:
+  result: Output[str] = Output.all(s, kwargs).apply(lambda args: dedent(args[0], **(args[1])))
+  return result
+
+def concat_and_dedent(*args: str, **kwargs) -> Output[str]:
+  return future_dedent(Output.concat(*args), **kwargs)
+

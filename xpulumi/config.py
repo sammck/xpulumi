@@ -83,6 +83,7 @@ class XPulumiConfig:
   _pulumi_home: str
   _default_backend_name: Optional[str] = None
   _default_stack_name: Optional[str] = None
+  _default_cloud_subaccount: Optional[str] = None
 
   def __init__(self, config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True):
     self._config_file = locate_xpulumi_config_file(config_path=config_path, starting_dir=starting_dir, scan_parent_dirs=scan_parent_dirs)
@@ -103,6 +104,7 @@ class XPulumiConfig:
     self._pulumi_home = os.path.join(xpulumi_dir, '.pulumi')
     self._default_backend_name = cast(Optional[str], self._config_data.get('default_backend', None))
     self._default_stack_name = cast(Optional[str], self._config_data.get('default_stack', None))
+    self._default_cloud_subaccount = cast(Optional[str], self._config_data.get('default_cloud_subaccount', None))
 
   @property
   def config_file(self) -> str:
@@ -131,6 +133,10 @@ class XPulumiConfig:
   @property
   def default_stack_name(self) -> Optional[str]:
     return self._default_stack_name
+
+  @property
+  def default_cloud_subaccount(self) -> Optional[str]:
+    return self._default_cloud_subaccount
 
   def create_context(self, cwd: Optional[str]=None) -> 'XPulumiContextBase':
     from .base_context import XPulumiContextBase

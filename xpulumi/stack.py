@@ -100,6 +100,7 @@ class XPulumiStack:
   _pulumi_cfg_data: JsonableDict
   _cached_stack_outputs_lock: Lock
   _cached_stack_outputs: Dict[Tuple[bool, bool], JsonableDict]
+  _cloud_subaccount: Optional[str] = None
 
   def __init__(
         self,
@@ -183,6 +184,11 @@ class XPulumiStack:
       cfg_data.update(xcfg_data)
     cfg_data['project_dir'] = project_dir
     self._cfg_data = cfg_data
+    cloud_subaccount = cast(Optional[str], cfg_data.get('cloud_subaccount', None))
+    if cloud_subaccount is None:
+      cloud_subaccount = project.cloud_subaccount
+    self._cloud_subaccount = cloud_subaccount
+
 
   @property
   def ctx(self) -> XPulumiContextBase:
@@ -204,6 +210,10 @@ class XPulumiStack:
   @property
   def full_stack_name(self) -> str:
     return f"{self.project_name}:{self.stack_name}"
+
+  @property
+  def cloud_subaccount(self) -> Optional[str]:
+    return self._cloud_subaccount
 
   @property
   def backend(self) -> XPulumiBackend:

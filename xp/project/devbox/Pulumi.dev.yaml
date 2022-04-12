@@ -1,0 +1,4 @@
+encryptionsalt: v1:+/mheOUjSR4=:v1:yGGSx/CHWwIEKfAt:Ej0J6OUdf/lH+BiH/PBZJXVlcxsdFw==
+config:
+  devbox:ec2_user_password:
+    secure: v1:VaCq+1n8cUNKxuKP:u1k8dj9HHwyE1tbmaP5SSxi8l8C+m4dZKcREVc4=

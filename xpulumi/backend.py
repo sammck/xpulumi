@@ -182,6 +182,12 @@ class XPulumiBackend:
       result += project
     return result
 
+  def precreate_project_backend(self, organization: Optional[str]=None, project: Optional[str]=None) -> None:
+    if self.scheme == 'file':
+      pathname = file_url_to_pathname(self.get_project_backend_url(organization=organization, project=project))
+      if not os.path.isdir(pathname):
+        os.makedirs(pathname)
+
   def get_project_backend_url_parts(self, organization: Optional[str]=None, project: Optional[str]=None) -> ParseResult:
     return urlparse(self.get_project_backend_url(organization=organization, project=project))
 

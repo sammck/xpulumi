@@ -4,8 +4,9 @@
     "includes_project": false,
     "aws_region": "us-west-2",
     "aws_account": "492598163938",
+    "cloud_subaccount": "test",
     "s3_bucket_stack": "s3-backend-bucket:global"
   },
   "name": "s3",
-  "uri": "s3://492598163938-us-west-2-cloud-dev/cloud-dev/pulumi/prj"
+  "uri": "s3://test-492598163938-us-west-2-xpulumi/test-xpulumi-be"
  }

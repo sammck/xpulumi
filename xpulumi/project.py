@@ -51,7 +51,8 @@ class XPulumiProject:
   _pulumi_project_name: str
   _backend_name: str
   _backend: XPulumiBackend
-  _organization: Optional[str]
+  _organization: Optional[str] = None
+  _cloud_subaccount: Optional[str] = None
 
   def __init__(
         self,
@@ -131,6 +132,10 @@ class XPulumiProject:
       cfg_data['name'] = name
     cfg_data['project_dir'] = project_dir
     self._cfg_data = cfg_data
+    cloud_subaccount = cast(Optional[str], cfg_data.get("cloud_subaccount", None))
+    if cloud_subaccount is None:
+      cloud_subaccount = ctx.get_default_cloud_subaccount()
+    self._cloud_subaccount = cloud_subaccount
     pulumi_project_name = cast(Optional[str], cfg_data.get("pulumi_project_name", None))
     assert pulumi_project_name is None or isinstance(pulumi_project_name, str)
     if pulumi_project_name is None:
@@ -158,6 +163,10 @@ class XPulumiProject:
   @property
   def backend(self) -> XPulumiBackend:
     return self._backend
+
+  @property
+  def cloud_subaccount(self) -> Optional[str]:
+    return self._cloud_subaccount
 
   @property
   def pulumi_project_name(self) -> str:
@@ -236,6 +245,9 @@ class XPulumiProject:
         decrypt_secrets=decrypt_secrets,
         bypass_pulumi=bypass_pulumi
       )
+
+  def precreate_project_backend(self) -> None:
+    self.backend.precreate_project_backend(organization=self.organization, project=self.pulumi_project_name)
 
   def __str__(self) -> str:
     return f"<XPulumi project {self.name}>"

@@ -44,17 +44,10 @@ from .util import (
 
 from ..util import XPulumiError
 
-from .stack_outputs import SyncStackOutputs
 from .common import (
-    aws_default_region,
-    get_aws_region_data,
-    pconfig,
     default_tags,
-    get_availability_zones,
     aws_resource_options,
-    long_stack,
-    with_default_tags,
-    long_xstack,
+    long_subaccount_stack,
   )
 
 class CloudWatch:
@@ -75,7 +68,7 @@ class CloudWatch:
       create = log_group_id is None
     if create:
       if log_group_name is None:
-        log_group_name = f"{resource_prefix}{long_stack}-log-group"
+        log_group_name = f"{resource_prefix}{long_subaccount_stack}-log-group"
       # create a CloudWatch log group for all our logging needs
       log_group = cloudwatch.LogGroup(
           'cloudwatch_log_group',

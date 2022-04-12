@@ -1,0 +1,29 @@
+{
+    "kind": "update",
+    "startTime": 1649711194,
+    "message": "tweak",
+    "environment": {
+        "exec.kind": "cli",
+        "git.author": "Sam McKelvie",
+        "git.author.email": "dev@mckelvie.org",
+        "git.committer": "Sam McKelvie",
+        "git.committer.email": "dev@mckelvie.org",
+        "git.dirty": "true",
+        "git.head": "d62e4ba0d293604cc17f19afb1031d70aeb706d0",
+        "git.headName": "refs/heads/main",
+        "vcs.kind": "github.com",
+        "vcs.owner": "sammck",
+        "vcs.repo": "xpulumi"
+    },
+    "config": {
+        "aws:region": "us-west-2",
+        "s3_backend:backend_url": "s3://${aws_full_subaccount_account_id}-${aws_region}-xpulumi/${cloud_subaccount_prefix}xpulumi-be"
+    },
+    "version": 0,
+    "result": "succeeded",
+    "endTime": 1649711199,
+    "resourceChanges": {
+        "same": 3,
+        "update": 1
+    }
+}

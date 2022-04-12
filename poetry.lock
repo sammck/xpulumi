@@ -918,7 +918,7 @@ tomlkit = "^0.10.1"
 type = "git"
 url = "https://github.com/sammck/project-init-tools.git"
 reference = "main"
-resolved_reference = "e893758b1667549d408d7658afc589ef1cf34212"
+resolved_reference = "a271fd9e8fd390cae2de52939b296754b3a66f34"
 
 [[package]]
 name = "protobuf"
@@ -1020,14 +1020,14 @@ testutil = ["gitpython (>3)"]
 
 [[package]]
 name = "pyparsing"
-version = "3.0.7"
-description = "Python parsing module"
+version = "3.0.8"
+description = "pyparsing module - Classes and methods to define and execute parsing grammars"
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.6.8"
 
 [package.extras]
-diagrams = ["jinja2", "railroad-diagrams"]
+diagrams = ["railroad-diagrams", "jinja2"]
 
 [[package]]
 name = "python-dateutil"
@@ -1058,7 +1058,7 @@ yaml = ["PyYaml (>=5.2)"]
 
 [[package]]
 name = "python-semantic-release"
-version = "7.27.1"
+version = "7.28.0"
 description = "Automatic Semantic Versioning for Python projects"
 category = "main"
 optional = false
@@ -1941,8 +1941,8 @@ pylint = [
     {file = "pylint-2.13.5.tar.gz", hash = "sha256:dab221658368c7a05242e673c275c488670144123f4bd262b2777249c1c0de9b"},
 ]
 pyparsing = [
-    {file = "pyparsing-3.0.7-py3-none-any.whl", hash = "sha256:a6c06a88f252e6c322f65faf8f418b16213b51bdfaece0524c1c1bc30c63c484"},
-    {file = "pyparsing-3.0.7.tar.gz", hash = "sha256:18ee9022775d270c55187733956460083db60b37d0d0fb357445f3094eed3eea"},
+    {file = "pyparsing-3.0.8-py3-none-any.whl", hash = "sha256:ef7b523f6356f763771559412c0d7134753f037822dad1b16945b7b846f7ad06"},
+    {file = "pyparsing-3.0.8.tar.gz", hash = "sha256:7bf433498c016c4314268d95df76c81b842a4cb2b276fa3312cfb1e1d85f6954"},
 ]
 python-dateutil = [
     {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
@@ -1953,8 +1953,8 @@ python-gitlab = [
     {file = "python_gitlab-3.3.0-py3-none-any.whl", hash = "sha256:ab1fd4c98a206f22f01f832bc58f24a09952089b7bbf67cdaee6308e7797503f"},
 ]
 python-semantic-release = [
-    {file = "python-semantic-release-7.27.1.tar.gz", hash = "sha256:a7a11a9250e392ee699408dca916b11789be07656143746084331b4b1d88bde5"},
-    {file = "python_semantic_release-7.27.1-py3-none-any.whl", hash = "sha256:20c804784a3e64a5d072704e2d18e0c858092e95c4a98b385e93fcab30998439"},
+    {file = "python-semantic-release-7.28.0.tar.gz", hash = "sha256:3f80f6a66d195ddd2e5a43c18d42174ee038d4dd77f959c00ab1df9bb9ccf654"},
+    {file = "python_semantic_release-7.28.0-py3-none-any.whl", hash = "sha256:446fdf4143648b7ef6d791233dcce01b1e46c6aa9fc9fd4b48f8ef5b49580a30"},
 ]
 pywin32-ctypes = [
     {file = "pywin32-ctypes-0.2.0.tar.gz", hash = "sha256:24ffc3b341d457d48e8922352130cf2644024a4ff09762a2261fd34c36ee5942"},

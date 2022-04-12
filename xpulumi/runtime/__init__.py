@@ -26,7 +26,10 @@ from .util import (
     enable_debugging,
     xbreakpoint,
     sync_gen_etc_shadow_password_hash,
-    gen_etc_shadow_password_hash
+    gen_etc_shadow_password_hash,
+    dedent,
+    concat_and_dedent,
+    future_dedent,
   )
 from ..util import split_s3_uri
 from .s3_object_waiter import (
@@ -42,6 +45,8 @@ from .s3_object_waiter import (
 
 from .common import (
     pconfig,
+    tconfig,
+    template_env,
     xpulumi_ctx,
     stack_name,
     long_stack,
@@ -64,6 +69,10 @@ from .common import (
     default_tags,
     with_default_tags,
     get_availability_zones,
+    with_subaccount_prefix,
+    cloud_subaccount,
+    aws_full_subaccount_account_id,
+    aws_global_full_subaccount_account_id,
   )
 
 from .vpc import VpcEnv
