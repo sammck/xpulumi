@@ -714,7 +714,8 @@ class CmdInitEnv(CommandHandler):
     if not os.path.exists(local_dir):
       os.makedirs(local_dir)
 
-    #args = self._args
+    # Install hard prerequites needed before we create
+    # the virtualenv and install xpulumi into it
 
     pl = PackageList()
     pl.add_packages_if_missing(['build-essential', 'meson', 'ninja-build', 'python3.8', 'python3.8-venv', 'sqlcipher'])
@@ -749,6 +750,102 @@ class CmdInitEnv(CommandHandler):
     project_readme_text = self.get_project_readme_text()
     gitignore_file = os.path.join(project_root_dir, ".gitignore")
     gitignore_add_lines = self.get_gitignore_add_lines()
+    pylint_disable_list = self.get_pylint_disable_list()
+
+    append_lines_to_file_if_missing(gitignore_file, gitignore_add_lines, create_file=True)
+
+    self.set_pyproject_default(t_tool_poetry, 'name', project_name)
+    self.set_pyproject_default(t_tool_poetry, 'version', project_version)
+    self.set_pyproject_default(t_tool_poetry, 'description', project_description)
+    self.set_pyproject_default(t_tool_poetry, 'authors', project_authors)
+    self.set_pyproject_default(t_tool_poetry, 'license', license_type)
+    self.set_pyproject_default(t_tool_poetry, 'keywords', project_keywords)
+    self.set_pyproject_default(t_tool_poetry, 'readme', project_readme_rel_filename)
+    self.set_pyproject_default(t_tool_poetry, 'homepage', project_homepage)
+    self.set_pyproject_default(t_tool_poetry, 'repository', project_repository_https)
+
+    t_tool_poetry_dependencies = pyproject.get_table('tool.poetry.dependencies', auto_split=True, create=True)
+    self.set_pyproject_default(t_tool_poetry_dependencies, 'python', "^3.8")
+    self.set_pyproject_default(t_tool_poetry_dependencies,
+        'xpulumi', dict(git="https://github.com/sammck/xpulumi.git", branch='main'))
+
+    t_tool_poetry_dev_dependencies = pyproject.get_table('tool.poetry.dev-dependencies', auto_split=True, create=True)
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'mypy', "^0.931")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'dunamai', "^1.9.0")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'python-semantic-release', "^7.25.2")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-urllib3', "^1.26.11")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-PyYAML', "^6.0.5")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'pylint', "^2.13.5")
+
+    t_build_system = pyproject.get_table('build-system', auto_split=True, create=True)
+    self.set_pyproject_default(t_build_system, 'requires', ["poetry-core>=1.0.0"])
+    self.set_pyproject_default(t_build_system, 'build-backend', "poetry.core.masonry.api")
+
+    # Create an empty table for convenience
+    pyproject.get_table('tool.poetry.scripts', auto_split=True, create=True)
+
+    t_tool_semantic_release = pyproject.get_table('tool.semantic_release', auto_split=True, create=True)
+    self.set_pyproject_default(t_tool_semantic_release, 'version_variable', f'{package_import_name}/version.py:__version__')
+    self.set_pyproject_default(t_tool_semantic_release, 'version_toml', 'pyproject.toml:tool.poetry.version')
+    self.set_pyproject_default(t_tool_semantic_release, 'upload_to_pypi', False)
+    self.set_pyproject_default(t_tool_semantic_release, 'upload_to_release', True)
+    self.set_pyproject_default(t_tool_semantic_release, 'build_command', "pip install poetry && poetry build")
+    t_tool_pylint_messages_control = pyproject.get_table(['tool', 'pylint', 'MESSAGES CONTROL'], create=True)
+    self.set_pyproject_default(
+        t_tool_pylint_messages_control,
+        'disable',
+        toml_item(pylint_disable_list).multiline(True),
+      )
+    t_tool_pylint_format = pyproject.get_table('tool.pylint.FORMAT', auto_split = True, create=True)
+    self.set_pyproject_default(t_tool_pylint_format, 'indent-after-paren', 4)
+    self.set_pyproject_default(t_tool_pylint_format, 'indent-string', '  ')
+    self.set_pyproject_default(t_tool_pylint_format, 'max-line-length', 200)
+
+    pyproject.save()
+
+    package_dir = os.path.join(project_root_dir, package_import_name)
+    if not os.path.exists(package_dir):
+      os.mkdir(package_dir)
+
+    self.write_pyfile("__init__.py", f'''
+            """
+            Package {package_import_name}: {project_description}
+            """
+
+            from .version import __version__
+          ''')
+    self.write_pyfile("version.py", f'''
+            """
+            Automatically updated version information for this package
+            """
+
+            # The following line is automatically updated with "semantic-release version"
+            __version__ =  "{project_version}"
+
+            __all__ = [ '__version__' ]
+          ''')
+
+    pytyped_file = os.path.join(package_dir, 'py.typed')
+    if not os.path.exists(pytyped_file):
+      with open(pytyped_file, 'w', encoding='utf-8') as f:
+        pass
+
+    if not license_text is None and not os.path.exists(license_filename):
+      with open(license_filename, 'w', encoding='utf-8') as f:
+        f.write(license_text)
+
+    if not project_readme_text is None and not os.path.exists(project_readme_filename):
+      with open(project_readme_filename, 'w', encoding='utf-8') as f:
+        f.write(project_readme_text)
+
+    no_venv_environ = dict(os.environ)
+    deactivate_virtualenv(no_venv_environ)
+
+    subprocess.check_call(['poetry', 'install'], cwd=project_root_dir, env=no_venv_environ)
+
+    # ================================================================
+    # Everything from here down can be done after xpulumi is installed
+
     xp_dir = os.path.join(project_root_dir, 'xp')
     xp_project_parent_dir = os.path.join(xp_dir, 'project')
     xp_backend_parent_dir = os.path.join(xp_dir, 'backend')
@@ -823,9 +920,6 @@ class CmdInitEnv(CommandHandler):
           }
       )
 
-    pylint_disable_list = self.get_pylint_disable_list()
-
-    pyfile_header = self.get_pyfile_header()
 
     # ------
 
@@ -860,60 +954,6 @@ class CmdInitEnv(CommandHandler):
       with open(s3_backend_project_pulumi_stack_config_file, 'w', encoding='utf-8') as f:
         yaml.dump(s3_backend_project_pulumi_stack_config, f)
 
-    append_lines_to_file_if_missing(gitignore_file, gitignore_add_lines, create_file=True)
-
-    self.set_pyproject_default(t_tool_poetry, 'name', project_name)
-    self.set_pyproject_default(t_tool_poetry, 'version', project_version)
-    self.set_pyproject_default(t_tool_poetry, 'description', project_description)
-    self.set_pyproject_default(t_tool_poetry, 'authors', project_authors)
-    self.set_pyproject_default(t_tool_poetry, 'license', license_type)
-    self.set_pyproject_default(t_tool_poetry, 'keywords', project_keywords)
-    self.set_pyproject_default(t_tool_poetry, 'readme', project_readme_rel_filename)
-    self.set_pyproject_default(t_tool_poetry, 'homepage', project_homepage)
-    self.set_pyproject_default(t_tool_poetry, 'repository', project_repository_https)
-
-    t_tool_poetry_dependencies = pyproject.get_table('tool.poetry.dependencies', auto_split=True, create=True)
-    self.set_pyproject_default(t_tool_poetry_dependencies, 'python', "^3.8")
-    self.set_pyproject_default(t_tool_poetry_dependencies,
-        'xpulumi', dict(git="https://github.com/sammck/xpulumi.git", branch='main'))
-
-    t_tool_poetry_dev_dependencies = pyproject.get_table('tool.poetry.dev-dependencies', auto_split=True, create=True)
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'mypy', "^0.931")
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'dunamai', "^1.9.0")
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'python-semantic-release', "^7.25.2")
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-urllib3', "^1.26.11")
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-PyYAML', "^6.0.5")
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'pylint', "^2.13.5")
-
-    t_build_system = pyproject.get_table('build-system', auto_split=True, create=True)
-    self.set_pyproject_default(t_build_system, 'requires', ["poetry-core>=1.0.0"])
-    self.set_pyproject_default(t_build_system, 'build-backend', "poetry.core.masonry.api")
-
-    # Create an empty table for convenience
-    pyproject.get_table('tool.poetry.scripts', auto_split=True, create=True)
-
-    t_tool_semantic_release = pyproject.get_table('tool.semantic_release', auto_split=True, create=True)
-    self.set_pyproject_default(t_tool_semantic_release, 'version_variable', f'{package_import_name}/version.py:__version__')
-    self.set_pyproject_default(t_tool_semantic_release, 'version_toml', 'pyproject.toml:tool.poetry.version')
-    self.set_pyproject_default(t_tool_semantic_release, 'upload_to_pypi', False)
-    self.set_pyproject_default(t_tool_semantic_release, 'upload_to_release', True)
-    self.set_pyproject_default(t_tool_semantic_release, 'build_command', "pip install poetry && poetry build")
-    t_tool_pylint_messages_control = pyproject.get_table(['tool', 'pylint', 'MESSAGES CONTROL'], create=True)
-    self.set_pyproject_default(
-        t_tool_pylint_messages_control,
-        'disable',
-        toml_item(pylint_disable_list).multiline(True),
-      )
-    t_tool_pylint_format = pyproject.get_table('tool.pylint.FORMAT', auto_split = True, create=True)
-    self.set_pyproject_default(t_tool_pylint_format, 'indent-after-paren', 4)
-    self.set_pyproject_default(t_tool_pylint_format, 'indent-string', '  ')
-    self.set_pyproject_default(t_tool_pylint_format, 'max-line-length', 200)
-
-    pyproject.save()
-
-    package_dir = os.path.join(project_root_dir, package_import_name)
-    if not os.path.exists(package_dir):
-      os.mkdir(package_dir)
 
     self.write_pyfile(s3_backend_project_main_py_file, '''
         import pulumi
@@ -940,36 +980,6 @@ class CmdInitEnv(CommandHandler):
       ''')
 
 
-    self.write_pyfile("__init__.py", f'''
-            """
-            Package {package_import_name}: {project_description}
-            """
-
-            from .version import __version__
-          ''')
-    self.write_pyfile("version.py", f'''
-            """
-            Automatically updated version information for this package
-            """
-
-            # The following line is automatically updated with "semantic-release version"
-            __version__ =  "{project_version}"
-
-            __all__ = [ '__version__' ]
-          ''')
-
-    pytyped_file = os.path.join(package_dir, 'py.typed')
-    if not os.path.exists(pytyped_file):
-      with open(pytyped_file, 'w', encoding='utf-8') as f:
-        pass
-
-    if not license_text is None and not os.path.exists(license_filename):
-      with open(license_filename, 'w', encoding='utf-8') as f:
-        f.write(license_text)
-
-    if not project_readme_text is None and not os.path.exists(project_readme_filename):
-      with open(project_readme_filename, 'w', encoding='utf-8') as f:
-        f.write(project_readme_text)
 
     install_docker()
     install_aws_cli()
@@ -980,11 +990,6 @@ class CmdInitEnv(CommandHandler):
     secret_kv_dir = os.path.join(project_root_dir, '.secret-kv')
     if not os.path.exists(secret_kv_dir):
       create_kv_store(project_root_dir)
-
-    no_venv_environ = dict(os.environ)
-    deactivate_virtualenv(no_venv_environ)
-
-    subprocess.check_call(['poetry', 'install'], cwd=project_root_dir, env=no_venv_environ)
 
     return 0
 
