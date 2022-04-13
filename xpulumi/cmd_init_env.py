@@ -29,6 +29,7 @@ from colorama import Fore, Back, Style
 import subprocess
 from io import TextIOWrapper
 from requests import options
+import tomlkit
 import yaml
 import secrets
 from secret_kv import (
@@ -1218,11 +1219,20 @@ class CmdInitEnv(CommandHandler):
           os.path.join(xp_project_dir, f"Pulumi.{stack_name}.yaml"), dict(config=stack_config)
         )
 
-  def set_pyproject_default(self, table: Union[str, Table, OutOfOrderTableProxy, Container], key, value) -> None:
+  def set_pyproject_default(
+        self,
+        table: Union[str, Table, OutOfOrderTableProxy, Container],
+        key: str,
+        value: Union[Item, Jsonable]) -> None:
     if isinstance(table, str):
       pyproject = self.get_pyproject_toml(create=True)
       table = pyproject.get_table(table, auto_split=True, create=True)
     if not value is None and not key in table:
+      if not isinstance(value, Item) and isinstance(value, Mapping):
+        v2 = tomlkit.inline_table()
+        v2.update(value)
+        value = v2
+
       table[key] = value
 
   def get_cloud_subaccount_prefix(self) -> str:
