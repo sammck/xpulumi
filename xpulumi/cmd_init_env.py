@@ -1420,7 +1420,7 @@ class CmdInitEnv(CommandHandler):
 
     self.create_xp_project(
         awsenv_project_name,
-        standard_stack_name = 's3_aws_env_v1',
+        standard_stack_name = 'aws_env_v1',
         backend = s3_backend_name,
         description = "AWS project core resources (VPC etc)",
         pulumi_stack_configs = {
@@ -1436,7 +1436,7 @@ class CmdInitEnv(CommandHandler):
 
     self.create_xp_project(
         devbox_project_name,
-        standard_stack_name = 's3_dev_box_v1',
+        standard_stack_name = 'dev_box_v1',
         backend = s3_backend_name,
         description = "EC2 Dev box",
         pulumi_stack_configs = {
