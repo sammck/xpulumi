@@ -11,7 +11,7 @@
 
 
 # The following line is automatically updated with "semantic-release version"
-__version__ =  "1.0.13"
+__version__ =  "1.0.14"
 
 
 __all__ = [ '__version__' ]
