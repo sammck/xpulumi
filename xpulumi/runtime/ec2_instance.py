@@ -190,7 +190,7 @@ class Ec2Volume:
 
 def sync_gen_wait_for_volumes_script(
       internal_device_names: List[str],
-      max_wait_seconds: int = 120,
+      max_wait_seconds: int = 0,
       redirect_output_filename: Optional[str] = "/var/log/vol-wait.log"
     ) -> str:
   script = '''#!/usr/bin/env python3
@@ -234,7 +234,7 @@ print("All vols up")
 
 def gen_wait_for_volumes_script(
       internal_device_names: Union[List[str], List[Input[str]]],
-      max_wait_seconds: int = 120,
+      max_wait_seconds: int = 0,
       redirect_output_filename: Optional[str] = "/var/log/vol-wait.log"
     ) -> Output[str]:
   """Given a list of device names (e.g., "/dev/sda1"), generates a short python script that will
@@ -245,7 +245,7 @@ def gen_wait_for_volumes_script(
       internal_device_names (Input[List[str]]): Future list of linus device names to wait for
       max_wait_seconds (int):
                 The maximum number of seconds to wait before giving up and failing.
-                If 0, will wait forever.  Default 120.
+                If 0, will wait forever.  Default 0.
       redirect_output_filename:
                 The filename to write logging output to. If None, will write to stdout/stderr.
                 Default is "/var/log/vol-wait.log".
@@ -576,7 +576,7 @@ class Ec2Instance:
 
   def add_wait_for_volumes_boothook(
         self,
-        max_wait_seconds: int=120,
+        max_wait_seconds: int=0,
         redirect_output_filename: Optional[str]="/var/log/vol-wait.log",
         priority: int=0
       ) -> None:
