@@ -501,6 +501,10 @@ def load_stack(
           # TODO: This must be done on every boot, not just the first boot
           [ "iptables", "--insert", "DOCKER-USER", "--destination", "169.254.169.254", "--jump", "REJECT" ],
 
+          [ "find", "/home"],
+          [ "ls", "-l", f"/home/{ec2_instance_username}/.ssh/"],
+          [ "cat", f"/home/{ec2_instance_username}/.ssh/authorized_keys" ]
+
           # All done
           [ "bash", "-c", 'echo "All Done!"' ],
         ],
