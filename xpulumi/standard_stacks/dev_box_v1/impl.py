@@ -436,6 +436,11 @@ def load_stack(
 
       # Mount entries correspond exactly to entries in /etc/fstab:
       mounts = [
+          # a bind mount to give access to the original home directory before it was replaced
+          # this allows us to move the created home directory if /home is mounted after the user
+          # home directory is created
+          [ '/home', '/oldhome', 'none', 'bind', '0', '0' ],
+
           # We mount our data volume as /data
           [ 'datavol', '/data', 'auto', 'defaults,discard', '0', '0' ],
 
@@ -502,11 +507,11 @@ def load_stack(
               f"touch /home/{ec2_instance_username}/.ssh/authorized_keys && "
               f"chmod 600 /home/{ec2_instance_username}/.ssh/authorized_keys && "
               f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/authorized_keys && "
-              f"echo -n {shlex.quote(ec2_instance.keypair.public_key)} > /home/{ec2_instance_username}/.ssh/ci_auth_key && "
+              f"echo {shlex.quote(ec2_instance.keypair.public_key)} > /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f"chmod 600 /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f'''( grep -qF "$(head -1 /home/{ec2_instance_username}/.ssh/ci_auth_key)" /home/{ec2_instance_username}/.ssh/authorized_keys || '''
-                f"cat /home/{ec2_instance_username}/.ssh/ci_auth_key >> /home/{ec2_instance_username}/.ssh/authorized_keys )"
+                f'''echo "$(cat /home/{ec2_instance_username}/.ssh/ci_auth_key)" >> /home/{ec2_instance_username}/.ssh/authorized_keys )'''
             ],
 
           # Install a recent version of aws-cli/boto3/botocore systemwide that supports configuration of
