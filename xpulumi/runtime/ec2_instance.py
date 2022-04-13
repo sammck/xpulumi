@@ -19,6 +19,8 @@ from pulumi import (
   Input,
 )
 
+import pulumi_random
+
 from pulumi_aws import (
   ec2,
   route53,
@@ -55,6 +57,7 @@ from .stack_outputs import SyncStackOutputs
 from .common import (
     aws_default_region,
     get_aws_region_data,
+    get_stack_random_alphanumeric_id,
     pconfig,
     default_tags,
     get_availability_zones,
@@ -645,13 +648,15 @@ class Ec2Instance:
       )
 
     # Create an IAM role for our EC2 instance to run in.
+    # The role "name" must be unique in the AWS account so
+    # we will append a random stack identifier.
     self.role = iam.Role(
         f'{resource_prefix}ec2-instance-role',
         assume_role_policy=json.dumps(self.assume_role_policy_obj, sort_keys=True),
         description=f"Role for {self.description}",
         # force_detach_policies=None,
         max_session_duration=12*TTL_HOUR,
-        name=f'{resource_prefix}{long_xstack.replace(":", "-")}-ec2-role',
+        name=Output.concat(f'{resource_prefix}{long_xstack.replace(":", "-")}-ec2-', get_stack_random_alphanumeric_id()),
         # name_prefix=None,
         path=f'/pstack={long_stack}/',
         # permissions_boundary=None,

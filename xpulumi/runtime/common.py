@@ -9,8 +9,9 @@ from typing import Optional, Dict, Callable
 import string
 import pulumi
 import threading
-from pulumi import ( InvokeOptions, ResourceOptions, get_stack )
+from pulumi import ( InvokeOptions, ResourceOptions, get_stack, Output )
 import pulumi_aws
+import pulumi_random
 from pulumi_aws import (
   ec2,
   route53,
@@ -35,7 +36,7 @@ from .util import (
     get_current_cloud_subaccount,
     enable_debugging
   )
-from project_init_tools import get_git_user_email
+from project_init_tools import get_git_user_email, run_once
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
 # will cause the program to stall waiting for vscode to
@@ -171,6 +172,16 @@ if not cloud_subaccount is None:
 def with_default_tags(*args, **kwargs):
   result = dict(default_tags)
   result.update(*args, **kwargs)
+  return result
+
+@run_once
+def get_stack_pulumi_random_id() -> pulumi_random.RandomId:
+  result = pulumi_random.RandomId('xstack-random-id', byte_length=64)
+  return result
+
+def get_stack_random_alphanumeric_id(numchars: int=16) -> Output[str]:
+  pulumi_id = get_stack_pulumi_random_id()
+  result = pulumi_id.b64_url.apply(lambda x: x.replace('_','').replace('-', '')[:numchars])
   return result
 
 template_env.update(

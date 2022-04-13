@@ -73,6 +73,7 @@ from .common import (
     cloud_subaccount,
     aws_full_subaccount_account_id,
     aws_global_full_subaccount_account_id,
+    get_stack_random_alphanumeric_id,
   )
 
 from .vpc import VpcEnv

@@ -974,6 +974,19 @@ pulumi = ">=3.0.0,<4.0.0"
 semver = ">=2.8.1"
 
 [[package]]
+name = "pulumi-random"
+version = "4.4.2"
+description = "A Pulumi package to safely use randomness in Pulumi programs."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+parver = ">=0.2.1"
+pulumi = ">=3.0.0,<4.0.0"
+semver = ">=2.8.1"
+
+[[package]]
 name = "pycparser"
 version = "2.21"
 description = "C parser in Python"
@@ -1455,7 +1468,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "4cc1d263881e7d27bc8d998924198673056e709400a6ebe4ad2343f97a4b1074"
+content-hash = "69f2785a312611c507c50910bb3ad55b2008cc0d5c1f49a7ba67217def1b7763"
 
 [metadata.files]
 argcomplete = [
@@ -1911,6 +1924,9 @@ pulumi = [
 ]
 pulumi-aws = [
     {file = "pulumi_aws-4.38.1.tar.gz", hash = "sha256:0cd807241e574c726bc8355c545ed2f04bf8c84c1f6c4d5f13afd715a599bf8d"},
+]
+pulumi-random = [
+    {file = "pulumi_random-4.4.2.tar.gz", hash = "sha256:5e970099a292d8f15e649b890795221992990335ae60336675e1005302b5cdf5"},
 ]
 pycparser = [
     {file = "pycparser-2.21-py2.py3-none-any.whl", hash = "sha256:8ee45429555515e1f6b185e78100aea234072576aa43ab53aefcae078162fca9"},
