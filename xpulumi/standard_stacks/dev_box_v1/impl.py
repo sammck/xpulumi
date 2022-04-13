@@ -436,11 +436,6 @@ def load_stack(
 
       # Mount entries correspond exactly to entries in /etc/fstab:
       mounts = [
-          # a bind mount to give access to the original home directory before it was replaced
-          # this allows us to move the created home directory if /home is mounted after the user
-          # home directory is created
-          [ '/', '/oldroot', 'none', 'bind', '0', '0' ],
-
           # We mount our data volume as /data
           [ 'datavol', '/data', 'auto', 'defaults,discard', '0', '0' ],
 
@@ -460,6 +455,11 @@ def load_stack(
           # and GIDs stable across configuration changes. Also, if you change EC2 instance architecture
           # between x86_64 and arm64, any binaries you have under your home directory will have to be rebuilt.
           [ '/data/home', '/home', 'none', 'x-systemd.requires=/data,x-systemd.automount,bind', '0', '0' ],
+
+          # a bind mount to give access to the original home directory before it was replaced
+          # this allows us to move the created home directory if /home is mounted after the user
+          # home directory is created
+          [ '/', '/data/rootfs', 'none', 'x-systemd.requires=/data/home,x-systemd.automount,bind', '0', '0' ],
         ],
       fqdn = dns_zone.zone_name,  # Our host's fully qualified name
       repo_update = True,
