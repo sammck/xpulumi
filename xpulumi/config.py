@@ -101,7 +101,7 @@ class XPulumiConfig:
     assert isinstance(project_root_dir, str)
     project_root_dir = os.path.abspath(os.path.join(xpulumi_dir, os.path.expanduser(project_root_dir)))
     self._project_root_dir = project_root_dir
-    self._pulumi_home = os.path.join(xpulumi_dir, '.pulumi')
+    self._pulumi_home = os.path.join(project_root_dir, '.local', '.pulumi')
     self._default_backend_name = cast(Optional[str], self._config_data.get('default_backend', None))
     self._default_stack_name = cast(Optional[str], self._config_data.get('default_stack', None))
     self._default_cloud_subaccount = cast(Optional[str], self._config_data.get('default_cloud_subaccount', None))

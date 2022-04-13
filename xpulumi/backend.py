@@ -10,6 +10,8 @@ Allows the application to work with a particular backend configuration.
 """
 
 from typing import Optional, cast, Dict
+
+import yaml
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -24,7 +26,7 @@ import tempfile
 import json
 import requests
 
-from project_init_tools import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
+from project_init_tools import YamlLoader, file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
 from .exceptions import XPulumiError
 from .context import XPulumiContext
 from .base_context import XPulumiContextBase
@@ -39,6 +41,7 @@ class XPulumiBackend:
   _url: str
   _url_parts: ParseResult
   _scheme: str
+  _cfg_filename: str
   _cfg_data: JsonableDict
   _options: JsonableDict
   _requests_session: Optional[requests.Session] = None
@@ -101,11 +104,20 @@ class XPulumiBackend:
   def init_from_name(self, name: str) -> None:
     self._name = name
     backend_dir = self._ctx.get_backend_infra_dir(name)
-    cfg_file = os.path.join(backend_dir, "backend.json")
-    if not os.path.exists(cfg_file):
-      raise XPulumiError(f"XPulumi backend does not exist: {name}")
-    with open(cfg_file, encoding='utf-8') as f:
-      cfg_data = json.load(f)
+    cfg_file_yaml = os.path.join(backend_dir, "backend.yaml")
+    if os.path.exists(cfg_file_yaml):
+      cfg_file = cfg_file_yaml
+      with open(cfg_file_yaml, encoding='utf-8') as f:
+        cfg_data = yaml.load(f, YamlLoader)
+    else:
+      cfg_file_json = os.path.join(backend_dir, "backend.json")
+      if os.path.exists(cfg_file_json):
+        cfg_file = cfg_file_json
+        with open(cfg_file_json, encoding='utf-8') as f:
+          cfg_data = json.load(f)
+      else:
+        raise XPulumiError(f"XPulumi backend does not exist: {name}")
+    self._cfg_filename = cfg_file
     self._cfg_data = cfg_data
     url: Optional[str] = cfg_data.get('uri', None)
     options: Optional[JsonableDict] = cfg_data.get('options', None)

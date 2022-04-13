@@ -30,7 +30,15 @@ import subprocess
 from io import TextIOWrapper
 from requests import options
 import yaml
-from secret_kv import create_kv_store
+import secrets
+from secret_kv import (
+    KvStore,
+    create_kv_store,
+    get_kv_store_default_passphrase,
+    set_kv_store_default_passphrase,
+    open_kv_store,
+    KvNoPassphraseError,
+  )
 from urllib.parse import urlparse, ParseResult
 import ruamel.yaml # type: ignore[import]
 from io import StringIO
@@ -49,6 +57,7 @@ from .internal_types import JsonableTypes, Jsonable, JsonableDict, JsonableList
 from .constants import XPULUMI_CONFIG_DIRNAME, XPULUMI_CONFIG_FILENAME_BASE
 from .version import __version__ as pkg_version
 from .project import XPulumiProject
+from .passphrase import PassphraseCipher
 
 from project_init_tools import (
     full_name_of_type,
@@ -165,6 +174,109 @@ class CmdInitEnv(CommandHandler):
   _pylint_disable_list: Optional[List[str]] = None
   _round_trip_config: Optional[RoundTripConfig] = None
   _root_zone_name: Optional[str] = None
+  _kv_store: Optional[KvStore] = None
+  _default_pulumi_stack_passphrase: Optional[str] = None
+  _no_venv_environ: Optional[Dict[str, str]] = None
+  _venv_environ: Optional[Dict[str, str]] = None
+  _xpulumi_config: Optional[RoundTripConfig] = None
+  _xp_stack_configs: Optional[Dict[Tuple[str, str], RoundTripConfig]] = None
+  _pulumi_passphrase: Optional[str] = None
+
+  def get_no_venv_eviron(self) -> Dict[str, str]:
+    if self._no_venv_environ is None:
+      no_venv_environ = dict(os.environ)
+      deactivate_virtualenv(no_venv_environ)
+      self._no_venv_environ = no_venv_environ
+    return self._no_venv_environ
+
+  def get_venv_eviron(self) -> Dict[str, str]:
+    if self._venv_environ is None:
+      no_venv_environ = self.get_no_venv_eviron()
+      env = dict(no_venv_environ)
+      venv_dir = os.path.join(self.get_project_root_dir(), '.venv')
+      venv_bin_dir = os.path.join(venv_dir, 'bin')
+      env['VIRTUAL_ENV'] = venv_dir
+      env['PATH'] = f"{venv_bin_dir}:{env['PATH']}"
+      self._venv_environ = env
+    return self._venv_environ
+
+  def get_pulumi_prog(self) -> str:
+    return os.path.join(self.get_project_root_dir(), '.venv', 'bin', 'pulumi')
+
+  def get_xp_stack_config(self, project_name:str, stack_name: str, create: bool=True) -> RoundTripConfig:
+    if self._xp_stack_configs is None:
+      self._xp_stack_configs = {}
+    result = self._xp_stack_configs.get((project_name, stack_name), None)
+    if result is None:
+      filename = os.path.join(self.get_xp_project_dir(project_name), f"Pulumi.{stack_name}.yaml")
+      if create and not os.path.exists(filename):
+        with open(filename, 'w', encoding='utf-8') as f:
+          f.write('{}\n')
+      result = RoundTripConfig(filename)
+      self._xp_stack_configs[(project_name, stack_name)] = result
+    return result
+
+  def get_stack_config_val(
+        self,
+        project_name:str,
+        stack_name: str,
+        key:str,
+        show_secrets: bool=False
+    ) -> Jsonable:
+    if not ':' in key:
+      key = f"{project_name}:{key}"
+    cfg = self.get_xp_stack_config(project_name, stack_name)
+    cfg_config = cast(Optional[MutableMapping], cfg.data.get('config'))
+    if cfg_config is None:
+      cfg_config = {}
+    else:
+      assert isinstance(cfg_config, MutableMapping)
+    result = cfg_config.get(key, None)
+    if show_secrets and isinstance(result, MutableMapping) and 'secure' in result:
+      encrypted = result['secure']
+      assert isinstance(encrypted, str)
+      encryption_salt = cast(Optional[str], cfg.data.get('encryptionsalt', None))
+      if encryption_salt is None:
+        raise XPulumiError(f"Config value {key} is encrypted, but there is no encryptionsalt in {cfg.filename}")
+      cipher = PassphraseCipher(
+        passphrase = self.get_pulumi_passphrase(),
+        salt_state=encryption_salt)
+      decrypted_json = cipher.decrypt(encrypted)
+      result = json.loads(decrypted_json)
+      
+    return result
+
+  def set_stack_config_val(
+        self,
+        project_name:str,
+        stack_name: str,
+        key:str,
+        value: Jsonable,
+        secret: bool = False
+      ) -> None:
+    if not ':' in key:
+      key = f"{project_name}:{key}"
+    cfg = self.get_xp_stack_config(project_name, stack_name)
+    cfg_config = cast(Optional[MutableMapping], cfg.data.get('config'))
+    if cfg_config is None:
+      cfg['config'] = {}
+      cfg_config = cfg['config']
+    else:
+      assert isinstance(cfg_config, MutableMapping)
+
+    if secret:
+      encryption_salt = cast(Optional[str], cfg.data.get('encryptionsalt', None))
+      cipher = PassphraseCipher(
+        passphrase = self.get_pulumi_passphrase(),
+        salt_state=encryption_salt)
+      encrypted = cipher.encrypt(json.dumps(value, sort_keys=True, separators=(',', ':')))
+      if encryption_salt is None:
+        encryption_salt = cipher.salt_state
+        cfg.data['encryptionsalt'] = encryption_salt
+      cfg_config[key] = dict(secure=encrypted)
+    else:
+      cfg[key] = value
+    cfg.save()
 
   def prompt_val(
         self,
@@ -207,6 +319,25 @@ class CmdInitEnv(CommandHandler):
       v = self.prompt_val(prompt, default=default, converter=converter)
       cfg[key] = v
       cfg.save()
+    return v
+
+  def get_or_prompt_kv_secret_val(
+        self,
+        key: str,
+        prompt: Optional[str] = None,
+        default: Optional[str] = None,
+        converter: Optional[Callable[[str], Jsonable]] = None
+      ) -> Jsonable:
+    v: Optional[str] = None
+    kv_store = self.get_kv_store()
+    kv = kv_store.get_value(key)
+    if not kv is None:
+      v = kv.as_simple_jsonable()
+    else:
+      if prompt is None:
+        prompt = f"Enter secret configuration value \"{key}\""
+      v = self.prompt_val(prompt, default=default, converter=converter)
+      kv_store.set_value(key, v)
     return v
 
   def get_cloud_subaccount(self) -> Optional[str]:
@@ -799,7 +930,7 @@ class CmdInitEnv(CommandHandler):
           dmypy.json
           .pyre/
           /trash/
-          /.xppulumi/
+          /.xpulumi/
           /.secret-kv/
           /.local/
         ''').rstrip().split('\n')
@@ -870,6 +1001,25 @@ class CmdInitEnv(CommandHandler):
   def get_xp_backend_dir(self, backend_name: str) -> str:
     xp_backend_dir = os.path.join(self.get_xp_backend_parent_dir(), backend_name)
     return xp_backend_dir
+
+  def get_xpulumi_config_dir(self) -> str:
+    return os.path.join(self.get_project_root_dir(), '.xpulumi')
+
+  def get_xpulumi_config_filename(self) -> str:
+    return os.path.join(self.get_xpulumi_config_dir(), 'xpulumi.yaml')
+
+  def get_xpulumi_config(self) -> RoundTripConfig:
+    if self._xpulumi_config is None:
+      cfg_dir = self.get_xpulumi_config_dir()
+      if not os.path.isdir(cfg_dir):
+        os.makedirs(cfg_dir)
+      cfg_filename = self.get_xpulumi_config_filename()
+      if not os.path.exists(cfg_filename):
+        with open(cfg_filename, 'w', encoding='utf-8') as f:
+          f.write('{}\n')
+      cfg = RoundTripConfig(cfg_filename)
+      self._xpulumi_config = cfg
+    return self._xpulumi_config
 
   def write_pyfile(self, filename: str, content: str, executable: bool = False) -> None:
     filename = os.path.join(self.get_package_dir(), filename)
@@ -1217,10 +1367,7 @@ class CmdInitEnv(CommandHandler):
       with open(project_readme_filename, 'w', encoding='utf-8') as f:
         f.write(project_readme_text)
 
-    no_venv_environ = dict(os.environ)
-    deactivate_virtualenv(no_venv_environ)
-
-    subprocess.check_call(['poetry', 'install'], cwd=project_root_dir, env=no_venv_environ)
+    subprocess.check_call(['poetry', 'install'], cwd=project_root_dir, env=self.get_no_venv_eviron())
 
     # ================================================================
     # Everything from here down can be done after xpulumi is installed
@@ -1240,6 +1387,9 @@ class CmdInitEnv(CommandHandler):
     s3_backend_bucket_name = f"{cloud_subaccount_prefix}{aws_account}-{aws_region}-xpulumi"
     s3_backend_subkey = f"{cloud_subaccount_prefix}xpulumi-be"
     s3_backend_uri = f"s3://{s3_backend_bucket_name}/{s3_backend_subkey}"
+
+    awsenv_project_name = 'awsenv'
+    devbox_project_name = 'devbox'
 
     dev_stack_name = 'dev'
     root_zone_name = 'mckelvie.org'
@@ -1267,7 +1417,7 @@ class CmdInitEnv(CommandHandler):
       )
 
     self.create_xp_project(
-        'awsenv',
+        awsenv_project_name,
         standard_stack_name = 's3_aws_env_v1',
         backend = s3_backend_name,
         description = "AWS project core resources (VPC etc)",
@@ -1282,17 +1432,162 @@ class CmdInitEnv(CommandHandler):
           },
       )
 
+    self.create_xp_project(
+        devbox_project_name,
+        standard_stack_name = 's3_dev_box_v1',
+        backend = s3_backend_name,
+        description = "EC2 Dev box",
+        pulumi_stack_configs = {
+            dev_stack_name: dict(
+                # ec2_user_password = <secret>
+              )
+          },
+      )
+
+    xpulumi_config = self.get_xpulumi_config()
+    if not 'default_backend' in xpulumi_config.data:
+      xpulumi_config.data['default_backend'] = s3_backend_name
+    if not 'default_stack' in xpulumi_config.data:
+      xpulumi_config.data['default_stack'] = dev_stack_name
+    if not 'default_cloud_subaccount' in xpulumi_config.data:
+      xpulumi_config.data['default_cloud_subaccount'] = self.get_cloud_subaccount()
+    xpulumi_config.save()
+
     install_docker()
     install_aws_cli()
     install_gh()
 
     project_init_pulumi_dir = os.path.join(local_dir, '.pulumi')
     install_pulumi(project_init_pulumi_dir, min_version='latest')
-    secret_kv_dir = os.path.join(project_root_dir, '.secret-kv')
-    if not os.path.exists(secret_kv_dir):
-      create_kv_store(project_root_dir)
+
+    try:
+      self.get_pulumi_passphrase()
+      sudo_password = self.get_stack_config_val(
+          devbox_project_name,
+          dev_stack_name,
+          'ec2_user_password'
+        )
+      if sudo_password is None:
+        def validate_sudo_password(v: str) -> Jsonable:
+          v = v.strip()
+          if v == '':
+            raise ValueError('sudo password cannot be blank')
+          return v
+
+        sudo_password = cast(str, self.prompt_val(
+            dedent('''
+                  Enter an account password to be used for the main user account on
+                  the dev box EC2 instance. This password will required for that user
+                  to access sudo priviliges. The cleartext password will be encrypted
+                  with the Pulumi stack passphrase. In addition, a hashed form of
+                  the password will be passed to the EC2 instance via userdata, in
+                  the same form used by /etc/shadow. Any code running on the EC2 instance,
+                  and anyone with AWS credentials to your AWS account, will
+                  be able to read this hashed form of the password. For this reason,
+                  it should be a strong password to be resistant to dictionary
+                  attacks
+              ''').rstrip(),
+            converter=validate_sudo_password
+          ))
+        self.set_stack_config_val(
+            devbox_project_name,
+            dev_stack_name,
+            'ec2_user_password',
+            sudo_password,
+            secret=True
+          )
+
+    finally:
+      self.close_kv_store()
+
 
     return 0
+
+  def get_pulumi_passphrase(self) -> str:
+    if self._pulumi_passphrase is None:
+      def validate_pulumi_passphrase(v: str) -> Jsonable:
+        v = v.strip()
+        if v == '':
+          v = self.gen_passphrase()
+          print(f"Generated Pulumi passphrase=\"{v}\"", file=sys.stderr)
+        return v
+
+      self._pulumi_passphrase = self.get_or_prompt_kv_secret_val(
+          "pulumi/passphrase",
+          dedent('''
+                Enter a passphrase to be used for encryption of secrets held by
+                all Pulumi stacks created in this project. This includes secret
+                stack configuration input values as well as secret state saved
+                in the Pulumi backend. This passphrase will encrypted and saved
+                in this project's secret_kv store. The kv_store is private to this
+                user and is not committed to Git. It is important to remember
+                this passphrase, in case your user keychain or the project kv_store
+                is lost. It can be a very strong passphrase--you will not have to
+                type it in again. If you leave it blank, then a random passphrase
+                will be chosen
+            ''').rstrip(),
+          converter=validate_pulumi_passphrase
+        )
+    return self._pulumi_passphrase
+
+  def gen_passphrase(self) -> str:
+    return secrets.token_hex(32)
+
+  def get_kv_store(self) -> KvStore:
+    project_root_dir = self.get_project_root_dir()
+    if self._kv_store is None:
+      secret_kv_dir = os.path.join(project_root_dir, '.secret-kv')
+      if not os.path.exists(secret_kv_dir):
+        default_kvstore_passphrase: Optional[str] = None
+        try:
+          default_kvstore_passphrase = get_kv_store_default_passphrase()
+        except KvNoPassphraseError:
+          pass
+        if default_kvstore_passphrase is None:
+          def validate_passphrase(v: str) -> Jsonable:
+            if v == '':
+              raise ValueError('An empty passphrase is not permitted')
+            return v
+          default_kvstore_passphrase = cast(str, self.prompt_val(
+              dedent('''
+                  Enter a default passphrase to be used by default for future creation of all secret_kv
+                  stores by this user on this host. These stores are local to this user and
+                  are not committed to Git. This passphrase will be saved in your user's keychain.
+                  It is important that you remember it, in case your system keyring is lost
+                  or you move your secret_kv stores to a new host. It can be a very strong
+                  passphrase--you will not have to type it in again
+                ''').rstrip(),
+              converter=validate_passphrase))
+          set_kv_store_default_passphrase(default_kvstore_passphrase)
+
+        kvstore_passphrase = cast(Optional[str], self.prompt_val(
+            dedent('''
+                Enter a passphrase to be used with this project's local secret_kv store.
+                The store will be encrypted with this passphrase. The store is local
+                to this user and will not be committed to Git. This passphrase will be saved
+                in your user's keychain. It is important that you remember it, in case
+                your user keychain is lost or you move your secret_kv store to a
+                new host. It can be a very strong passphrase--you will not have to
+                type it in again. If you leave it blank, then your default
+                secret_kv store password (which you set previously) will be used. Note
+                that the passphrase for a secret-kv store is set when the store is
+                created and does not change just because you change the default
+                passphrase. In most cases, you will want to leave this blank
+              ''').rstrip()
+          ))
+        if kvstore_passphrase.strip() == '':
+          kvstore_passphrase = None
+
+        kv_store = create_kv_store(project_root_dir, passphrase=kvstore_passphrase)
+      else:
+        kv_store = open_kv_store(project_root_dir)
+      self._kv_store = kv_store
+    return self._kv_store
+
+  def close_kv_store(self) -> None:
+    if not self._kv_store is None:
+      self._kv_store.close()
+      self._kv_store = None
 
   def get_or_create_config(self) -> XPulumiProjectInitConfig:
     if self._cfg is None and self._config_file is None:
