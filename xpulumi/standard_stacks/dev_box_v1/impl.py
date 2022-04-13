@@ -281,9 +281,11 @@ def load_stack(
     ),
   )
 
+  cloud_init_self_timeout_seconds = 8*60
+
   cloud_init_watch_script=concat_and_dedent('''
       #!/usr/bin/env python3
-      import subprocess, os, time
+      import subprocess, os, time, json
       iid=os.environ.get('INSTANCE_ID','')
       dd="/var/lib/cloud/data"
       ur="''', stack_s3_uri, '''"
@@ -299,9 +301,14 @@ def load_stack(
             subprocess.check_call(['aws','s3', 'cp', '--region', "''', aws_region, '''", fn, ur+'/'+un])
             return c2
         return c
-      cas(dd+'/instance-id', '', 'instance-id')
+      cas(dd+'/instance-id', '', 'instance-id.txt')
+      st = time.monotonic()
       while True:
-        sfc2=cas(sf,sfc,f'cloud-init-status-{iid}.json')
+        if time.monotonic() - st > ''', cloud_init_self_timeout_seconds, ''':
+          with open(rf, 'w') as f:
+            json.dump({'v1': {'errors': ['Timeout waiting for cloud-init done'] }}, f)
+            
+        sfc2=cas(sf,sfc,f'cloud-init-status.json')
         rfc2=cas(rf,rfc,f'cloud-init-result-{iid}.json')
         if rfc2 != '':
           break
@@ -322,7 +329,7 @@ def load_stack(
   #     that pushes cloud-init status updates to S3. We will use that in our 
   #     provisioning code to determine when the instance is ready.
   #
-  # NOTE: The single quotes around 'CWCFGEOF' are essential, since they suppres "${var}"
+  # NOTE: The single quotes around 'CWCFGEOF' are essential, since they suppress "${var}"
   #       expansion in the HERE document, which would mess up ${aws:...} in
   #       the cloudwatch config file...
   ec2_instance.add_user_data(Output.concat(concat_and_dedent('''
@@ -332,7 +339,6 @@ def load_stack(
       if ! cloud-init-per instance xpre-init false; then
       exec >>/var/log/xpre-init.log
       exec 2>&1
-      mkdir -p -m 755 /oldroot
       mkdir -p -m 755 /home
       which aws || true
       apt-get update
