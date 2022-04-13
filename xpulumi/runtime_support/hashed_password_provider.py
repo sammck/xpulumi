@@ -5,11 +5,11 @@ from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult,
 from pulumi import ResourceOptions, Input, Output
 import pulumi
 
-_DEBUG_PROVIDER = False
+_DEBUG_PROVIDER = True
 
 class HashedPasswordProvider(ResourceProvider):
   def _gen_outs(self, name: str, password: str) -> JsonableDict:
-    if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider._gen_outs(name={name}, password={password})")
+    if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider._gen_outs(name={name}, password={''.join(password)})")
     hashed_password = sync_gen_etc_shadow_password_hash(password)
     result: JsonableDict = dict(
         name=name,
@@ -23,6 +23,7 @@ class HashedPasswordProvider(ResourceProvider):
     old_name = oldProps.get('name', None)
     name = newProps.get('name', None)
     password = newProps.get('password', None)
+    if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.check(): password={None if password is None else ' '.join(password)}")
     failures: List[CheckFailure] = []
     if not isinstance(name, str):
       failures.append(CheckFailure('name', f'name must be a string: {name}'))
@@ -30,6 +31,7 @@ class HashedPasswordProvider(ResourceProvider):
       failures.append(CheckFailure('name', f'name property cannot be changed: {name}'))
     if not isinstance(password, str) or password == '':
       failures.append(CheckFailure('password', f'Password must be a nonempty string: {password}'))
+
     if password == '[secret]':
       failures.append(CheckFailure('password', f'Password is set to the literal string "[secret]", which indicates a pulumi property serialization bug: {password}'))
 
