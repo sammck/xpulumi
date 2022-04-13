@@ -392,7 +392,6 @@ def load_stack(
       users = [
           {
               'name': ec2_instance_username,
-              'ssh-authorized-keys': ec2_instance.keypair.public_key,
               'uid': 1001,
               'gid': 1001,
               'shell': '/bin/bash',
@@ -400,6 +399,13 @@ def load_stack(
               'groups': [ 'sudo', 'adm', 'docker', ],
               'hashed_passwd': hashed_password_str,
               'lock_passwd': False,
+              # Because users are created before volume mounts are created (!), and
+              # we are mounting over /home, any home directory created here will be
+              # obliterated by our mount. This includes the SSH authorized_keys
+              # file. So we suppress homedir creation here, and do it manually in our
+              # final init scripts...
+              'no-create-home': True,
+              # 'ssh-authorized-keys': ec2_instance.keypair.public_key,
             },
         ],
       device_aliases = dict(
@@ -484,6 +490,23 @@ def load_stack(
       runcmd = [
           # start the cloudwatch agent if it could not start in the boot script,
           [ "service", "amazon-cloudwatch-agent", "start" ],
+
+          # create the user's home directory now that we have mounted /home. Note: the directory
+          # will already exist if this is a reused data volume from a previous EC2 instance. We always
+          # make sure the SSH key is added to authorized_keys in case it has been changed. We do not
+          # remove existing keys, though, in case the user has added others.
+          [ "bash", "-c",
+              f"( [ -e /home/{ec2_instance_username} ] || mkhomedir_helper {ec2_instance_username} ) && "
+              f"mkdir -p -m 700 /home/{ec2_instance_username}/.ssh && "
+              f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh && "
+              f"touch /home/{ec2_instance_username}/.ssh/authorized_keys && "
+              f"chmod 600 /home/{ec2_instance_username}/.ssh/authorized_keys && "
+              f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/authorized_keys && "
+              f"echo -n {shlex.quote(ec2_instance.keypair.public_key)} > /home/{ec2_instance_username}/.ssh/ci_auth_key && "
+              f"chmod 600 /home/{ec2_instance_username}/.ssh/ci_auth_key && "
+              f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/ci_auth_key && "
+              f"( grep -qF `head -1 /home/{ec2_instance_username}/.ssh/ci_auth_key` || cat /home/{ec2_instance_username}/.ssh/ci_auth_key >> /home/{ec2_instance_username}/.ssh/authorized_keys )"
+            ],
 
           # Install a recent version of aws-cli/boto3/botocore systemwide that supports configuration of
           # EC2 metadata endpoint (the version provided by Ubuntu is quite old).
