@@ -223,7 +223,7 @@ class CmdInitEnv(CommandHandler):
         stack_name: str,
         key:str,
         show_secrets: bool=False
-    ) -> Jsonable:
+    ) -> str:
     if not ':' in key:
       key = f"{project_name}:{key}"
     cfg = self.get_xp_stack_config(project_name, stack_name)
@@ -242,8 +242,7 @@ class CmdInitEnv(CommandHandler):
       cipher = PassphraseCipher(
         passphrase = self.get_pulumi_passphrase(),
         salt_state=encryption_salt)
-      decrypted_json = cipher.decrypt(encrypted)
-      result = json.loads(decrypted_json)
+      result = cipher.decrypt(encrypted)
       
     return result
 
@@ -270,7 +269,9 @@ class CmdInitEnv(CommandHandler):
       cipher = PassphraseCipher(
         passphrase = self.get_pulumi_passphrase(),
         salt_state=encryption_salt)
-      encrypted = cipher.encrypt(json.dumps(value, sort_keys=True, separators=(',', ':')))
+      if not isinstance(value, str):
+        value = json.dumps(value, sort_keys=True, separators=(',', ':'))
+      encrypted = cipher.encrypt(value)
       if encryption_salt is None:
         encryption_salt = cipher.salt_state
         cfg.data['encryptionsalt'] = encryption_salt
