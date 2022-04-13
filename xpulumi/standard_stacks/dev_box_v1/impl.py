@@ -77,7 +77,7 @@ def load_stack(
   # password in the clear (the hashed password will appear in the EC2 instance's
   # UserData, which is readable by anyone with AWS EC2 privileges on this AWS
   # account. This is not ideal but much better than passing a password in the clear.)
-  hashed_password = HashedPassword(f'{resource_prefix}ec2_user_hashed_password', ec2_user_password)
+  hashed_password = HashedPassword(f'{resource_prefix}devbox-ec2_user_hashed_password', ec2_user_password)
   hashed_password_str = hashed_password.hashed_password
 
   #Output.all(hashed_password_str).apply(lambda args: pulumi.log.info(f"hashed_password={args[0]}"))
@@ -332,6 +332,7 @@ def load_stack(
       if ! cloud-init-per instance xpre-init false; then
       exec >>/var/log/xpre-init.log
       exec 2>&1
+      mkdir -p -m 755 /home
       which aws || true
       apt-get update
       apt-get install -y unzip || true
