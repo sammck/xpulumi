@@ -332,6 +332,7 @@ def load_stack(
       if ! cloud-init-per instance xpre-init false; then
       exec >>/var/log/xpre-init.log
       exec 2>&1
+      mkdir -p -m 755 /oldroot
       mkdir -p -m 755 /home
       which aws || true
       apt-get update
@@ -402,10 +403,9 @@ def load_stack(
               # Because users are created before volume mounts are created (!), and
               # we are mounting over /home, any home directory created here will be
               # obliterated by our mount. This includes the SSH authorized_keys
-              # file. So we suppress homedir creation here, and do it manually in our
-              # final init scripts...
-              'no-create-home': True,
-              # 'ssh-authorized-keys': ec2_instance.keypair.public_key,
+              # file. We will work around this by copying the home dir in our init script...
+              #'no-create-home': True,
+              'ssh-authorized-keys': ec2_instance.keypair.public_key,
             },
         ],
       device_aliases = dict(
@@ -439,7 +439,7 @@ def load_stack(
           # a bind mount to give access to the original home directory before it was replaced
           # this allows us to move the created home directory if /home is mounted after the user
           # home directory is created
-          [ '/home', '/oldhome', 'none', 'bind', '0', '0' ],
+          [ '/', '/oldroot', 'none', 'bind', '0', '0' ],
 
           # We mount our data volume as /data
           [ 'datavol', '/data', 'auto', 'defaults,discard', '0', '0' ],
