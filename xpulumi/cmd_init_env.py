@@ -1214,7 +1214,9 @@ class CmdInitEnv(CommandHandler):
     self.create_yaml_file(os.path.join(xp_project_dir, "xpulumi-project.yaml"), xpulumi_config)
     self.create_yaml_file(os.path.join(xp_project_dir, "Pulumi.yaml"), pulumi_config)
     for stack_name, stack_config in pulumi_stack_configs.items():
-      self.create_yaml_file(os.path.join(xp_project_dir, f"Pulumi.{stack_name}.yaml"), stack_config)
+      self.create_yaml_file(
+          os.path.join(xp_project_dir, f"Pulumi.{stack_name}.yaml"), dict(config=stack_config)
+        )
 
   def set_pyproject_default(self, table: Union[str, Table, OutOfOrderTableProxy, Container], key, value) -> None:
     if isinstance(table, str):
