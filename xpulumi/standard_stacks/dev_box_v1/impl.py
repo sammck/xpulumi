@@ -505,7 +505,8 @@ def load_stack(
               f"echo -n {shlex.quote(ec2_instance.keypair.public_key)} > /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f"chmod 600 /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/ci_auth_key && "
-              f"( grep -qF `head -1 /home/{ec2_instance_username}/.ssh/ci_auth_key` || cat /home/{ec2_instance_username}/.ssh/ci_auth_key >> /home/{ec2_instance_username}/.ssh/authorized_keys )"
+              f'''( grep -qF "$(head -1 /home/{ec2_instance_username}/.ssh/ci_auth_key)" /home/{ec2_instance_username}/.ssh/authorized_keys || '''
+                f"cat /home/{ec2_instance_username}/.ssh/ci_auth_key >> /home/{ec2_instance_username}/.ssh/authorized_keys )"
             ],
 
           # Install a recent version of aws-cli/boto3/botocore systemwide that supports configuration of
