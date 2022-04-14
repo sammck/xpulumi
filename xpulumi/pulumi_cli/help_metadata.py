@@ -78,6 +78,8 @@ class TopicInfo:
   usage: str
   aliases: List[str]
   subtopics: Dict[str, 'TopicInfo']
+  subtopic_aliases: Dict[str, 'TopicInfo']
+  merged_subtopics: Dict[str, 'TopicInfo']
   option_list: List[OptionInfo]
   global_option_list: List[OptionInfo]
   epilog: str
@@ -138,6 +140,8 @@ class TopicInfo:
         i += 1
 
       self.subtopics = {}
+      self.subtopic_aliases = {}
+      self.merged_subtopics = {}
       if lines[i] == 'Available Commands:':
         i += 1
         while lines[i] != '':
@@ -147,8 +151,14 @@ class TopicInfo:
           subcmd_name = m.group('subcmd_name')
           subcmd_description = m.group('subcmd_description')
           subtopic = TopicInfo(self.metadata, self.subcmds + [ subcmd_name ], parent=self, parent_description=subcmd_description)
-          assert not subcmd_name in self.subtopics
+          assert not subcmd_name in self.merged_subtopics
+          self.merged_subtopics[subcmd_name] = subtopic
           self.subtopics[subcmd_name] = subtopic
+          for alias in subtopic.aliases:
+            assert not alias in self.merged_subtopics
+            self.merged_subtopics[alias] = subtopic
+            self.subtopic_aliases[alias] = subtopic
+
           i += 1
         i += 1
 
@@ -236,6 +246,8 @@ class TopicInfo:
       option = OptionInfo(json_data=opt_data)
       self.global_option_list.append(option)
     self.subtopics = {}
+    self.merged_subtopics = {}
+    self.subtopic_aliases = {}
     json_subcommands = json_data.get('subcommands', {})
     assert isinstance(json_subcommands, dict)
     for subtopic_name, subtopic_data in json_subcommands.items():
@@ -246,7 +258,13 @@ class TopicInfo:
           subcmd = self.subcmds + [ subtopic_name ],
           parent = self,
           json_data=subtopic_data)
-      self.subtopics[subtopic_name] =subtopic
+      assert not subtopic_name in self.merged_subtopics
+      self.merged_subtopics[subtopic_name] = subtopic
+      self.subtopics[subtopic_name] = subtopic
+      for alias in subtopic.aliases:
+        assert not alias in self.merged_subtopics
+        self.merged_subtopics[alias] = subtopic
+        self.subtopic_aliases[alias] = subtopic
 
   def dump(self, include_children: bool=False) -> None:
     print(f"========= Subcommand [{self.full_subcmd}] ================")
@@ -393,6 +411,8 @@ class PulumiMetadata:
     print(f"pulumi version: {self.pulumi_version}")
     self.main_topic.dump(include_children=True)
 
+  
+
 if __name__ == '__main__':
   import argparse
 
@@ -425,8 +445,13 @@ if __name__ == '__main__':
       json.dump(odata, sys.stdout, sort_keys=True, indent=2)
     else:
       import tabulate
-      otable = [ topic_tuple(x) for x in pulumi_metadata.iter_topics() ]
-      print(tabulate.tabulate(otable, headers=['Command', 'Description']))
+      otable: List[Tuple[str, str]] = []
+      for topic in pulumi_metadata.iter_topics():
+        tt = topic_tuple(topic)
+        otable.append(tt)
+        for alias in topic.aliases:
+          otable.append((' '.join(topic.subcmds[:-1] + [alias]), f"Alias for '{topic.full_subcmd}'"))
+      print(tabulate.tabulate(sorted(otable), headers=['Command', 'Description']))
 
 
   parser = argparse.ArgumentParser(description="Manage pulumi-based projects.")
@@ -447,6 +472,6 @@ if __name__ == '__main__':
   parser_subcommands = subparsers.add_parser('subcommands', description="List all subcommands with a brief description.")
   parser_subcommands.set_defaults(func=cmd_subcommands)
 
-  args = parser.parse_args()
-  os.chdir(args.cwd)
-  args.func(args)
+  cmd_args = parser.parse_args()
+  os.chdir(cmd_args.cwd)
+  cmd_args.func(cmd_args)
