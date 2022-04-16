@@ -908,14 +908,18 @@ class PulumiMetadata:
       env = os.environ
     prog_env = dict(env)
     prog_env['PATH'] = searchpath_prepend(prog_env['PATH'], self.pulumi_bin_dir)
+    prog_env['PULUMI_SKIP_UPDATE_CHECK']='1'
+    prog_env['XPULUMI_RAW_PULUMI']='1'
     self.prog_env = prog_env
     if json_data is None:
-      # Initialize from cache or pulumi help if cache is stale
+      # Initialize from pulumi help if cache is stale
       pulumi_version = subprocess.check_output(
           [self.pulumi_prog, 'version'],
           env=self.prog_env,
           stderr=subprocess.DEVNULL
         ).decode('utf-8').strip()
+      if pulumi_version.startswith('v'):
+        pulumi_version = pulumi_version[1:]
       assert pulumi_version != ''
       self.pulumi_version = pulumi_version
       cache_filename = os.path.join(pulumi_dir, 'pulumi_help_metadata.json')
@@ -1024,8 +1028,9 @@ if __name__ == '__main__':
   def cmd_bare(args: argparse.Namespace) -> None:
     use_json = cast(bool, args.json)
     fail_on_cache_error = cast(bool, args.fail_on_cache_error)
+    pulumi_dir = cast(Optional[str], args.pulumi_dir)
 
-    pulumi_metadata = PulumiMetadata(clean=args.clean, raise_on_cache_error=fail_on_cache_error)
+    pulumi_metadata = PulumiMetadata(pulumi_dir=pulumi_dir, clean=args.clean, raise_on_cache_error=fail_on_cache_error)
     if use_json:
       json.dump(pulumi_metadata.as_jsonable(), sys.stdout, sort_keys=True, indent=2)
     else:
@@ -1033,7 +1038,8 @@ if __name__ == '__main__':
 
   def cmd_subcommands(args: argparse.Namespace) -> None:
     fail_on_cache_error = cast(bool, args.fail_on_cache_error)
-    pulumi_metadata = PulumiMetadata(clean=args.clean, raise_on_cache_error=fail_on_cache_error)
+    pulumi_dir = cast(Optional[str], args.pulumi_dir)
+    pulumi_metadata = PulumiMetadata(pulumi_dir=pulumi_dir, clean=args.clean, raise_on_cache_error=fail_on_cache_error)
     use_json = args.json
     def topic_tuple(topic: TopicInfo) -> Tuple[str, str]:
       cmd_name = topic.full_subcmd
@@ -1066,7 +1072,8 @@ if __name__ == '__main__':
     pulumi_cmd = cast(List[str], args.pulumi_cmd)
     if len(pulumi_cmd) > 0 and pulumi_cmd[0] == '--':
       pulumi_cmd = pulumi_cmd[1:]
-    pulumi_metadata = PulumiMetadata(clean=args.clean, raise_on_cache_error=fail_on_cache_error)
+    pulumi_dir = cast(Optional[str], args.pulumi_dir)
+    pulumi_metadata = PulumiMetadata(pulumi_dir=pulumi_dir, clean=args.clean, raise_on_cache_error=fail_on_cache_error)
     cmd = pulumi_metadata.parse_command(pulumi_cmd)
     cmd.dump()
 
@@ -1074,6 +1081,8 @@ if __name__ == '__main__':
 
   parser.add_argument('-C', '--cwd', default='.',
                       help="Change the effective directory used to search for configuration")
+  parser.add_argument('-d', '--pulumi-dir', default=None,
+                      help="The location of the pulumi installation. Default is <git-project-dir>/.local/.pulumi")
   parser.add_argument('-j', '--json', action='store_true', default=False,
                       help='''Output the metadata as json.''')
   parser.add_argument('--clean', action='store_true', default=False,
