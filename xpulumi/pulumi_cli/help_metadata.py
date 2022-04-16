@@ -11,6 +11,7 @@ import json
 import sys
 from queue import Queue
 import shlex
+import tabulate
 
 from project_init_tools import (
     get_git_root_dir,
@@ -24,7 +25,7 @@ from xpulumi.exceptions import XPulumiError
 from xpulumi.internal_types import Jsonable, JsonableDict
 
 if TYPE_CHECKING:
-  TopicQueue = Queue['TopicInfo']
+  TopicQueue = Queue["TopicInfo"] # type: ignore # pylint: disable=unsubscriptable-object
 else:
   TopicQueue = Queue
 
@@ -32,7 +33,7 @@ class OptionInfo:
   option_regex = re.compile(
       r'\A  '
       r'(((?P<short_flag>-[a-zA-Z0-9]), )|(    ))'
-      r'(?P<long_flag>--[a-zA-Z0-9_.\-]+)( (?P<value_name>[a-zA-Z0-9_]+)(\[=(?P<default_value>[^\]]+)\])?:?)?'
+      r'(?P<long_flag>--[a-zA-Z0-9_.\-]+)( (?P<value_name>[a-zA-Z0-9_]+:?)(\[=(?P<default_value>[^\]]+)\])?:?)?'
       r'  \s*'
       r'(?P<description>[^ ].*)\Z',
       flags=re.MULTILINE | re.DOTALL
@@ -42,20 +43,39 @@ class OptionInfo:
   value_name: Optional[str] = None
   description: str
 
-  def __init__(self, help_line: Optional[str]=None, json_data: Optional[JsonableDict] = None):
+  def __init__(self,
+        flags: Optional[Union[str, List[str]]]=None,
+        value_name: Optional[str] = None,
+        description: Optional[str] = None,
+        help_line: Optional[str]=None,
+        json_data: Optional[JsonableDict] = None
+      ):
     if json_data is None:
-      assert not help_line is None
-      m = self.option_regex.match(help_line)
-      if not m:
-        raise XPulumiError(f"Invalid flag description line: {json.dumps(help_line)}")
-      self.flags = [ m.group('long_flag') ]
-      short_flag = m.group('short_flag')
-      if not short_flag is None and short_flag != '':
-        self.flags.append(short_flag)
-      self.description = m.group('description')
-      value_name = m.group('value_name')
-      if value_name != '':
+      if help_line is None:
+        assert not flags is None
+        if isinstance(flags, str):
+          flags = [ flags ]
+        assert isinstance(flags, list) and len(flags) > 0
+        if description is None or description == '':
+          if len(flags) <= 1:
+            description = f"Option flag '{flags[0]}'"
+          else:
+            description = f"Option flags {flags}"
+        self.flags = flags[:]
         self.value_name = value_name
+        self.description = description
+      else:
+        m = self.option_regex.match(help_line)
+        if not m:
+          raise XPulumiError(f"Invalid flag description line: {json.dumps(help_line)}")
+        self.flags = [ m.group('long_flag') ]
+        short_flag = m.group('short_flag')
+        if not short_flag is None and short_flag != '':
+          self.flags.append(short_flag)
+        self.description = m.group('description')
+        value_name = m.group('value_name')
+        if not value_name is None and value_name != '' and value_name.lower() != 'false':
+          self.value_name = value_name
     else:
       assert isinstance(json_data, dict)
       self.flags = json_data.get('flags', [])
@@ -117,13 +137,13 @@ class TopicInfo:
   """The subset of added_options that is persistent. Represents persistent_options that
      were added by this subcommand--not inherited from the parent."""
 
-  persistent_options: Dict[str, OptionInfo]
-  """The parent's persistent options, if any, merged with added_persistent_options.
-     Represents all persistent options available for use in this subcommand"""
+  #persistent_options: Dict[str, OptionInfo]
+  #"""The parent's persistent options, if any, merged with added_persistent_options.
+  #   Represents all persistent options available for use in this subcommand"""
 
-  options: Dict[str, OptionInfo]
-  """Persistent_options merged with added_options. Represents all options available
-     in this subcommand"""
+  #options: Dict[str, OptionInfo]
+  #"""Persistent_options merged with added_options. Represents all options available
+  #   in this subcommand"""
 
   _inherited_option_list: List[OptionInfo]
   """Persistent options inherited from the parent or previous generation. provided as "Global Flags"
@@ -131,9 +151,12 @@ class TopicInfo:
      from pulumi help, to determine which options on the parent are persistent. Undefined
      when loaded from cache."""
 
-
-
   epilog: str
+  """Any help text that follows everything else in the help output"""
+
+  topic_path: List[TopicInfo]
+  """A list of TopicInfo objects starting with the main topic and ending with this topic,
+     representing the hierarchical tree path to this topic"""
 
   def __init__(
         self,
@@ -145,17 +168,18 @@ class TopicInfo:
       ):
     self.metadata = metadata
     self.parent = parent
-    self.parent_description = parent_description
     self.subcmds = metadata.normalize_subcmd(subcmd)
-    self.persistent_options = {}
+    #self.persistent_options = {}
     self.added_persistent_options = {}
     self.added_options = {}
-    self.options = {}
+    #self.options = {}
+    self.topic_path = self._gen_topic_path()
 
     if not json_data is None:
       self._init_from_json_data(json_data)
       return
 
+    self.parent_description = parent_description
     help_text = metadata.get_help(self.subcmds)
     lines = [ x.rstrip() for x in help_text.rstrip().split('\n') ]
     i = 0
@@ -224,7 +248,7 @@ class TopicInfo:
         while i + 1 < len(lines) and lines[i + 1].startswith("        "):
           i += 1
           oline += '\n' + lines[i].lstrip()
-        optinfo = OptionInfo(oline)
+        optinfo = OptionInfo(help_line=oline)
         #self.added_option_list.append(optinfo)
         for flag in optinfo.flags:
           assert not flag in self.added_options
@@ -241,7 +265,7 @@ class TopicInfo:
           while i + 1 < len(lines) and lines[i + 1].startswith("        "):
             i += 1
             oline += '\n' + lines[i].lstrip()
-          optinfo = OptionInfo(oline)
+          optinfo = OptionInfo(help_line=oline)
           self._inherited_option_list.append(optinfo)
           self.inherited_option_names.update(optinfo.flags)
           i += 1
@@ -250,25 +274,49 @@ class TopicInfo:
     except Exception as e:
       if i >= len(lines):
         raise RuntimeError(f"[{self.full_subcmd}]: Error in line {i}: {e}") from e
-      else:
-        raise RuntimeError(f"[{self.full_subcmd}]: Error in line {i} ({json.dumps(lines[i])}): {e}") from e
+      raise RuntimeError(f"[{self.full_subcmd}]: Error in line {i} ({json.dumps(lines[i])}): {e}") from e
     if self.parent is None:
       # After the whole tree has been built, we can now derive persistent options:
-      for topic in self.iter_subtopics(include_self=True):
-        if not topic.parent is None:
-          topic.persistent_options.update(topic.parent.persistent_options)
-        for subtopic in topic.subtopics.values():
-          for opt in subtopic._inherited_option_list:
-            for flag in opt.flags:
-              if flag in topic.persistent_options:
-                existing_opt = topic.persistent_options[flag]
-                if existing_opt != opt:
-                  raise RuntimeError(f"Persistent option {flag} redefined by {subtopic.full_subcmd}; inherited={existing_opt}, new={opt}")
-              else:
-                topic.added_persistent_options[flag] = opt
-                topic.persistent_options[flag] = opt
-                if not flag in topic.options:
-                  topic.options[flag] = opt
+      self._derive_added_persistent_options({})
+
+  def gen_all_persistent_options(self) -> Dict[str, OptionInfo]:
+    if self.parent is None:
+      result = self.added_persistent_options
+    else:
+      parent_persistent_options = self.parent.gen_all_persistent_options()
+      if len(self.added_persistent_options) == 0:
+        result = parent_persistent_options
+      else:
+        result = parent_persistent_options.copy()
+        result.update(self.added_persistent_options)
+    return result
+
+  def _derive_added_persistent_options(self, parent_persistent_options: Dict[str, OptionInfo]) -> None:
+    added_persistent_options: Dict[str, OptionInfo] = {}
+    persistent_options: Dict[str, OptionInfo] = parent_persistent_options.copy()
+    for subtopic in self.subtopics.values():
+      for opt in subtopic._inherited_option_list:  # pylint: disable=protected-access
+        for flag in opt.flags:
+          if flag in persistent_options:
+            existing_opt = persistent_options[flag]
+            if existing_opt != opt:
+              raise RuntimeError(f"Persistent option {flag} redefined by {self.full_subcmd}; inherited={existing_opt}, new={opt}")
+          else:
+            added_persistent_options[flag] = opt
+            persistent_options[flag] = opt
+    self.added_persistent_options = added_persistent_options
+    for subtopic in self.subtopics.values():
+      subtopic._derive_added_persistent_options(persistent_options)  # pylint: disable=protected-access
+
+  def _gen_topic_path(self) -> List[TopicInfo]:
+    result: List[TopicInfo] = [ self ]
+    if not self.parent is None:
+      result = self.parent._gen_topic_path() + result  # pylint: disable=protected-access
+    return result
+
+  @property
+  def main_topic(self) -> TopicInfo:
+    return self.topic_path[0]
 
   @property
   def full_subcmd(self) -> str:
@@ -277,6 +325,16 @@ class TopicInfo:
   @property
   def short_subcmd(self) -> str:
     return '<main>' if len(self.subcmds) == 0 else self.subcmds[-1]
+
+  def topic_from_subcmds(self, subcmds: List[str]) -> TopicInfo:
+    topic = self.main_topic
+    for short_subcmd in subcmds:
+      topic = topic.subtopics[short_subcmd]
+    return topic
+
+  def topic_from_full_subcmd(self, full_subcmd: str) -> TopicInfo:
+    subcmds = [] if full_subcmd in ('', '<main>') else full_subcmd.split(' ')
+    return self.topic_from_subcmds(subcmds)
 
   def iter_unique_added_options(self) -> Generator[OptionInfo, None, None]:
     seen: Set[int] = set()
@@ -391,8 +449,9 @@ class TopicInfo:
       plabel = 'PERSISTENT' if flag in self.added_persistent_options else '          '
       print(f"    {plabel} {flag}: {opt}")
     if include_inherited:
+      persistent_options = self.gen_all_persistent_options()
       inherited_persistent_options = dict(
-          (x, y) for x, y in self.persistent_options.items()
+          (x, y) for x, y in persistent_options.items()
             if not x in self.added_persistent_options
         )
       if len(inherited_persistent_options) > 0:
@@ -438,6 +497,153 @@ class TopicInfo:
       for subtopic_name in sorted(topic.subtopics.keys()):
         subtopic = self.subtopics[subtopic_name]
         q.put(subtopic)
+
+  def get_persistent_option(self, flag: str) -> Optional[OptionInfo]:
+    result = self.added_persistent_options.get(flag, None)
+    if result is None and not self.parent is None:
+      result = self.parent.get_persistent_option(flag)
+    return result
+
+  def get_local_or_persistent_option(self, flag: str) -> Optional[OptionInfo]:
+    result = self.added_options.get(flag, None)
+    if result is None and not self.parent is None:
+      result = self.parent.get_persistent_option(flag)
+    return result
+
+  def get_local_or_child_option_candidates(self, flag: str, topic_path: Optional[List[TopicInfo]]=None) -> Dict[str, OptionInfo]:
+    # Returns a map from full subcmd name to OptionInfo
+    result: Dict[str, OptionInfo] = {}
+    if topic_path is None:
+      topic_path = []
+    topic_path_match_len = min(len(topic_path), len(self.topic_path))
+    if topic_path[:topic_path_match_len] == self.topic_path[:topic_path_match_len]:
+      opt = self.added_options.get(flag)
+      if not opt is None:
+        result[self.full_subcmd] = opt
+      result.update(self.get_child_option_candidates(flag, topic_path=topic_path))
+    return result
+
+  def get_child_option_candidates(
+        self,
+        flag: str,
+        topic_path: Optional[List[TopicInfo]]=None
+      ) -> Dict[str, OptionInfo]:
+    # Returns a map from full subcmd name to OptionInfo
+    result: Dict[str, OptionInfo] = {}
+    for subtopic in self.subtopics.values():
+      result.update(subtopic.get_local_or_child_option_candidates(flag, topic_path=topic_path))
+    return result
+
+  def filter_child_option_candidates(
+        self,
+        flag: str,
+        ignore_description: bool=True,
+        ignore_value_name: bool=True,
+        ignore_flaglist: bool=True,
+        topic_path: Optional[List[TopicInfo]]=None
+      ) -> Dict[str, OptionInfo]:
+    unfiltered = self.get_child_option_candidates(flag, topic_path=topic_path)
+    if len(unfiltered) < 2:
+      return unfiltered
+    filtered: Dict[str, OptionInfo] = {}
+    for full_subcmd, opt in unfiltered.items():
+      for existing_opt in filtered.values():
+        if (
+            opt.has_value == existing_opt.has_value and
+            (ignore_value_name or opt.value_name == existing_opt.value_name) and
+            (ignore_description or opt.description == existing_opt.description) and
+            (ignore_flaglist or opt.flags == existing_opt.flags)):
+          break
+      else:
+        filtered[full_subcmd] = opt
+    return filtered
+
+  def get_child_option(
+        self,
+        flag: str,
+        ignore_description: bool=True,
+        ignore_value_name: bool=True,
+        ignore_flaglist: bool=True,
+        topic_path: Optional[List[TopicInfo]]=None
+      ) -> Optional[OptionInfo]:
+    options = self.filter_child_option_candidates(
+        flag,
+        ignore_description=ignore_description,
+        ignore_value_name=ignore_value_name,
+        ignore_flaglist=ignore_flaglist,
+        topic_path=topic_path
+      )
+    if len(options) > 1:
+      conflict_list = ', '.join(f"'{x}'" for x in options.keys())   # pylint: disable=consider-iterating-dictionary
+      raise XPulumiError(f"Commandline option '{flag}' is ambiguous to subcommand '{self.full_subcmd}'; conflicting definitions in {conflict_list}")
+    if len(options) > 0:
+      result = list(options.values())[0]
+    else:
+      result = None
+    return result
+
+  def get_option(
+        self,
+        flag: str,
+        ignore_description: bool=True,
+        ignore_value_name: bool=True,
+        ignore_flaglist: bool=True,
+        require_allowed: bool=False,
+        topic_path: Optional[List[TopicInfo]]=None,
+      ) -> Optional[OptionInfo]:
+    result = self.get_local_or_persistent_option(flag)
+    if result is None:
+      result = self.get_child_option(
+          flag,
+          ignore_description=ignore_description,
+          ignore_value_name=ignore_value_name,
+          ignore_flaglist=ignore_flaglist,
+          topic_path=topic_path
+        )
+      if result is None and require_allowed:
+        raise XPulumiError(f"Commandline option '{flag}' is not recognized by subcommand '{self.full_subcmd}'")
+    return result
+
+  def get_allowed_option(
+        self,
+        flag: str,
+        ignore_description: bool=True,
+        ignore_value_name: bool=True,
+        ignore_flaglist: bool=True,
+        topic_path: Optional[List[TopicInfo]]=None
+      ) -> OptionInfo:
+    result = self.get_option(
+        flag,
+        ignore_description=ignore_description,
+        ignore_value_name=ignore_value_name,
+        ignore_flaglist=ignore_flaglist,
+        require_allowed=True,
+        topic_path=topic_path
+      )
+    assert not result is None
+    return result
+
+  def option_has_value(
+        self,
+        flag: str,
+        default: Optional[bool]=None,
+        topic_path: Optional[List[TopicInfo]]=None
+      ) -> bool:
+    opt = self.get_option(
+        flag,
+        ignore_description=True,
+        ignore_value_name=True,
+        ignore_flaglist=True,
+        topic_path = topic_path
+      )
+    if opt is None:
+      if default is None:
+        raise XPulumiError(f"Commandline option '{flag}' is not known to subcommand '{self.full_subcmd}'")
+      result = default
+    else:
+      result = opt.has_value
+
+    return result
 
 class OptionValue:
   option_name: str
@@ -498,31 +704,32 @@ class ParseResult:
   def rescan(self) -> None:
     md = self.metadata
     topic = md.main_topic
-    subcmd_token_index = 0
-    looking_for_subtopics = True
-    # make one pass through just to determine the subcommand
+    # make one pass through just to determine the final subcmd and full topic path
     for itoken, token in enumerate(self.all_tokens):
       if not isinstance(token, OptionValue):
         subtopic = topic.merged_subtopics.get(token)
         if subtopic is None:
           break
         topic = subtopic
-        subcmd_token_index = itoken + 1
+    final_topic = topic
+    topic_path = final_topic.topic_path
 
-    # now go through again knowning the full set of options recognized
+    # now go through again knowning the full topic path
+    topic = md.main_topic
+    looking_for_subtopics = True
+    subcmd_token_index = 0
     option_values: Dict[str, OptionValue] = {}
     for itoken, token in enumerate(self.all_tokens):
       if isinstance(token, OptionValue):
-        if token.option_info is None:
-          option_info = topic.options.get(token.option_name, None)
-          if option_info is None:
-            if self.require_allowed:
-              raise XPulumiError(f"Commandline option '{token.option_name}' is not recognized for subcommand '{topic.full_subcmd}'")
-          else:
-            new_token = OptionValue(token.option_name, token.value, option_info)
-            token = new_token
-            self.all_tokens[itoken] = token
-
+        option_info = topic.get_option(
+            token.option_name,
+            require_allowed=self.require_allowed,
+            topic_path=topic_path
+          )
+        if not option_info is None:
+          new_token = OptionValue(token.option_name, token.value, option_info)
+          token = new_token
+          self.all_tokens[itoken] = token
         flags = [ token.option_name ] if token.option_info is None else token.option_info.flags
         for flag in flags:
           if flag in option_values:
@@ -535,6 +742,7 @@ class ParseResult:
         else:
           topic = subtopic
           subcmd_token_index = itoken + 1
+    assert topic is final_topic
     self.option_values = option_values
     self.topic = topic
     self.subcmd_token_index = subcmd_token_index
@@ -622,21 +830,19 @@ class ParseResult:
         else:
           flag_names = [ '-' + c for c in arg[1:] ]
         for iflag, flag in enumerate(flag_names):
-          option_info = topic.added_options.get(flag, None)
-          if option_info is None:
-            option_info = topic.persistent_options.get(flag, None)
-          if option_info is None:
-            option_info = md.global_options.get(flag)
-          has_value = value_known if option_info is None else option_info.has_value
-          if value_known and not has_value:
-            raise XPulumiError(f"Commandline option {flag} does not accept a value for subcommand {topic.full_subcmd}")
-          value: Optional[str] = known_value
-          if has_value and not value_known:
-            if iflag + 1 < len(flag_names) or i + 1 > len(arglist):
-              raise XPulumiError(f"Commandline option {flag} requires a value for subcommand {topic.full_subcmd}")
-            value = arglist[i]
-            i += 1
-          option_value = OptionValue(flag, value, option_info=option_info)
+          if value_known:
+            value = known_value
+            has_value = not known_value is None
+          else:
+            has_value = topic.option_has_value(flag)
+            if has_value:
+              if iflag + 1 < len(flag_names) or i + 1 > len(arglist):
+                raise XPulumiError(f"Commandline option {flag} requires a value for subcommand {topic.full_subcmd}")
+              value = arglist[i]
+              i += 1
+            else:
+              value = None
+          option_value = OptionValue(flag, value)
           all_tokens.append(option_value)
       else:
         all_tokens.append(arg)
@@ -671,12 +877,12 @@ class PulumiMetadata:
   pulumi_version: str
   main_topic: TopicInfo
 
-  global_options: Dict[str, OptionInfo]
-  """Options defined as persistent by some subcommand. These must be parsed
-     anywhere in the commandline even if they may not be used, because
-     if they require a value, we need to skip an arg. The same OptionsInfo
-     may appear twice in this dict--once each for the short and long
-     flag names. """
+  #global_options: Dict[str, OptionInfo]
+  #"""Options defined as persistent by some subcommand. These must be parsed
+  #   anywhere in the commandline even if they may not be used, because
+  #   if they require a value, we need to skip an arg. The same OptionsInfo
+  #   may appear twice in this dict--once each for the short and long
+  #   flag names. """
 
   topic_by_full_name: Dict[str, TopicInfo]
   """Map from space-delimted subcommand name (e.g., "stack export") to
@@ -723,7 +929,7 @@ class PulumiMetadata:
               md = PulumiMetadata(pulumi_dir=pulumi_dir, env=env, json_data=json_data)
               assert md.pulumi_version == self.pulumi_version
               self.main_topic = md.main_topic
-              self.global_options = md.global_options
+              #self.global_options = md.global_options
               self.topic_by_full_name = md.topic_by_full_name
               self.main_topic.update_metadata(self)
               #print(f"Loaded Pulumi help metadata from cache: {cache_filename}", file=sys.stderr)
@@ -746,23 +952,23 @@ class PulumiMetadata:
       assert isinstance(self.pulumi_version, str)
       self.main_topic = TopicInfo(self, json_data=json_data['help_data'])
     self.topic_by_full_name = {}
-    global_options: Dict[str, OptionInfo] = {}
+    #global_options: Dict[str, OptionInfo] = {}
     for topic in self.iter_topics():
       self.topic_by_full_name[topic.full_subcmd] = topic
-      for flag, option in topic.added_persistent_options.items():
-        if flag in global_options:
-          old_option = global_options[flag]
-          if option.flags != old_option.flags or option.has_value != old_option.has_value:
-            raise RuntimeError(f"Command '{topic.full_subcmd}' redefines global option '{flag}' from {old_option} to {option}")
-        else:
-          global_options[flag] = option
-    self.global_options = global_options
-    for topic in self.iter_topics():
-      for flag, option in topic.added_options.items():
-        if flag in global_options:
-          old_option = global_options[flag]
-          if option.flags != old_option.flags or option.has_value != old_option.has_value:
-            raise RuntimeError(f"Command '{topic.full_subcmd}' redefines global option '{flag}' from {old_option} to local option {option}")
+      #for flag, option in topic.added_persistent_options.items():
+      #  if flag in global_options:
+      #    old_option = global_options[flag]
+      #    if option.flags != old_option.flags or option.has_value != old_option.has_value:
+      #      raise RuntimeError(f"Command '{topic.full_subcmd}' redefines global option '{flag}' from {old_option} to {option}")
+      #  else:
+      #    global_options[flag] = option
+    #self.global_options = global_options
+    #for topic in self.iter_topics():
+    #  for flag, option in topic.added_options.items():
+    #    if flag in global_options:
+    #      old_option = global_options[flag]
+    #      if option.flags != old_option.flags or option.has_value != old_option.has_value:
+    #        raise RuntimeError(f"Command '{topic.full_subcmd}' redefines global option '{flag}' from {old_option} to local option {option}")
 
   def iter_topics(self) -> Generator[TopicInfo, None, None]:
     yield from self.main_topic.iter_subtopics(include_self=True)
@@ -847,7 +1053,6 @@ if __name__ == '__main__':
           odata[' '.join(topic.subcmds[:-1] + [alias])] =  f"Alias for '{topic.full_subcmd}'"
       json.dump(odata, sys.stdout, sort_keys=True, indent=2)
     else:
-      import tabulate
       otable: List[Tuple[str, str]] = []
       for topic in pulumi_metadata.iter_topics():
         tt = topic_tuple(topic)
@@ -859,7 +1064,7 @@ if __name__ == '__main__':
   def cmd_parse(args: argparse.Namespace) -> None:
     fail_on_cache_error = cast(bool, args.fail_on_cache_error)
     pulumi_cmd = cast(List[str], args.pulumi_cmd)
-    if pulumi_cmd[0] == '--':
+    if len(pulumi_cmd) > 0 and pulumi_cmd[0] == '--':
       pulumi_cmd = pulumi_cmd[1:]
     pulumi_metadata = PulumiMetadata(clean=args.clean, raise_on_cache_error=fail_on_cache_error)
     cmd = pulumi_metadata.parse_command(pulumi_cmd)
