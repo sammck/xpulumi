@@ -63,6 +63,37 @@
             ],
             "justMyCode": false,
             "cwd": "${workspaceFolder}/xp/project/dev-box"
+        },
+        {
+            "name": "pulumi commandline parser",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/xpulumi/pulumi_cli/help_metadata.py",
+            "args": [
+                "parse",
+                "--",
+                "-s",
+                "foo",
+                "stack",
+                "export"
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xpulumi/pulumi_cli"
+        },
+        {
+            "name": "pulumi cli test",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/.venv/bin/pulumi",
+            "args": [
+                "-s",
+                "foo",
+                "stack",
+                "export",
+                "--help"
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xp/project/s3_backend"
         }
     ]
 }

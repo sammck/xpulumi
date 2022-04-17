@@ -10,7 +10,7 @@ from xpulumi.pulumi_cli.wrapper import PulumiWrapper
 def run(argv: Optional[Sequence[str]]=None) -> int:
   if argv is None:
     argv = sys.argv[1:]
-  rc = PulumiWrapper().call(list(argv))
+  rc = PulumiWrapper(argv).call()
   return rc
 
 if __name__ == '__main__':

@@ -177,7 +177,7 @@ class CommandLineInterface:
   def cmd_update_pulumi(self) -> int:
     from project_init_tools.installer.pulumi import install_pulumi
     cfg = self.get_config()
-    xpulumi_dir = os.path.join(cfg.xpulumi_dir, '.pulumi')
+    xpulumi_dir = os.path.join(cfg.project_root_dir, '.local', '.pulumi')
     install_pulumi(xpulumi_dir, min_version='latest')
     return 0
 

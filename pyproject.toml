@@ -36,6 +36,7 @@ cloud-init-gen = "^1.1.0"
 project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
 dnspython = "^2.2.1"
 pulumi-random = "^4.4.2"
+tabulate = "^0.8.9"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.13.4"
@@ -85,6 +86,7 @@ disable=[
     "too-many-nested-blocks",
     "unneeded-not",
     "unnecessary-lambda",
+    "too-many-lines",
   ]
 
 [tool.pylint.MASTER]
