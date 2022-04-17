@@ -278,7 +278,7 @@ class XPulumiContextBase(XPulumiContext):
         aws_account: Optional[str]=None,
         aws_region: Optional[str]=None
       ) -> BotoAwsSession:
-    # TODO: Find a profile in the desired AWS account. For now, just use the default profile
+    # TODO: Find a profile in the desired AWS account. For now, just use the default profile # pylint:disable=fixme
     s = BotoAwsSession(region_name=aws_region)
     return s
 

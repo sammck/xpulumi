@@ -768,7 +768,7 @@ class TopicInfo:
     if len(self.subtopics) > 0:
       print(file=file)
       print("Available Commands:", file=file)
-      max_subcmd_name_len = max(14, max(len(x) for x in self.subtopics.keys()))
+      max_subcmd_name_len = max(14, max(len(x) for x in self.subtopics.keys()))  # pylint: disable=consider-iterating-dictionary
       for subcmd_name in sorted(self.subtopics.keys()):
         subtopic = self.subtopics[subcmd_name]
         print(f"  {subcmd_name: <{max_subcmd_name_len}} {subtopic.parent_description}", file=file)

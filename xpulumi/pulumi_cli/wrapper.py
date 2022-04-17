@@ -204,6 +204,8 @@ class PulumiWrapper:
     if self._parsed is None:
       md = self.get_metadata()
       self._parsed = md.parse_command(self.arglist)
+      for topic in self._parsed.metadata.iter_topics():
+        topic.title += ' (xpulumi wrapper)'
       cmd_raw_pulumi = self._parsed.pop_option_optional_bool('--raw-pulumi')
       cmd_raw_env = self._parsed.pop_option_optional_bool('--raw-env')
       cmd_debug_cli = self._parsed.pop_option_optional_bool('--debug-cli')

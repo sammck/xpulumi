@@ -293,7 +293,7 @@ class XPulumiBackend:
     env = dict(self.ctx.get_environ())
     if self.scheme in ('https', 'http'):
       env['PULUMI_ACCESS_TOKEN'] = self.require_access_token()
-    # TODO: determine secret provider and passphrase_id from stack config
+    # TODO: determine secret provider and passphrase_id from stack config #pylint:disable=fixme
     secrets_provider = "service" if self.scheme == 'https' else "passphrase"
     if secrets_provider == "passphrase":
       env['PULUMI_CONFIG_PASSPHRASE'] = self.ctx.get_pulumi_secret_passphrase(
@@ -448,7 +448,7 @@ class XPulumiBackend:
           decrypter = PassphraseCipher(passphrase, salt_state)
           export_data = cast(JsonableDict, self.decrypt_jsonable(export_data, decrypter))
         else:
-          # TODO: support other secrets providers.  For now, just rerun the request using the CLI
+          # TODO: support other secrets providers.  For now, just rerun the request using the CLI #pylint: disable=fixme
           export_data = self.export_stack_with_cli(project, stack, organization=organization, decrypt_secrets=decrypt_secrets)
     if not isinstance(export_data, dict) or not 'deployment' in export_data:
       raise RuntimeError(f"Could not locate stack resource in stack state file for backend {self.url}, org={organization}, project={project}, stack={stack}")
