@@ -22,4 +22,4 @@ fi
 echo "Please be patient..." >&2
 # We need to use command substitution rather than a simple pipe here because
 # The final script needs to read config answers fro stdin
-python3 <(curl https://raw.githubusercontent.com/sammck/vpyapp/v0.2.0/vpyapp.py) -v run --update git+https://github.com/sammck/xpulumi.git xpulumi --tb init-env
+python3 <(curl https://raw.githubusercontent.com/sammck/vpyapp/v0.2.0/vpyapp.py) -v run --clean git+https://github.com/sammck/xpulumi.git xpulumi --tb init-env

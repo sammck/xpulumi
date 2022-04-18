@@ -1542,7 +1542,7 @@ class CmdInitEnv(CommandHandler):
       xpulumi_config.data['default_cloud_subaccount'] = self.get_cloud_subaccount()
     xpulumi_config.save()
 
-    install_docker()
+    install_docker(force=True)
     install_aws_cli()
     install_gh()
 
