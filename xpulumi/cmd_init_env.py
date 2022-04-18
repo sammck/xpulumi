@@ -1461,6 +1461,7 @@ class CmdInitEnv(CommandHandler):
     s3_backend_uri = f"s3://{s3_backend_bucket_name}/{s3_backend_subkey}"
 
     awsenv_project_name = 'awsenv'
+    datavol_project_name = 'datavol'
     devbox_project_name = 'devbox'
 
     dev_stack_name = 'dev'
@@ -1505,14 +1506,28 @@ class CmdInitEnv(CommandHandler):
       )
 
     self.create_xp_project(
+        datavol_project_name,
+        standard_stack_name = 'data_vol_v1',
+        backend = s3_backend_name,
+        description = "Dev box EBS Data Volune",
+        project_dependencies = [ awsenv_project_name ], 
+        pulumi_stack_configs = {
+            dev_stack_name: dict(
+                volume_size_gb="40",
+                az="0",
+              )
+          },
+      )
+
+    self.create_xp_project(
         devbox_project_name,
         standard_stack_name = 'dev_box_v1',
         backend = s3_backend_name,
         description = "EC2 Dev box",
-        project_dependencies = [ awsenv_project_name ], 
+        project_dependencies = [ datavol_project_name, awsenv_project_name ], 
         pulumi_stack_configs = {
             dev_stack_name: dict(
-                # ec2_user_password = <secret>
+                # ec2_instance_username = os.getlogin(),
               )
           },
       )

@@ -240,7 +240,7 @@ def load_stack(
   # boothook to the cloud-init user-data that waits for all the expected volumes to appear
   # before booting proceeds. And, the Ec2Volume object returned here from add_data_volume() provides
   # a get_internal_device_name() method we can use to build our mountpoints in the cloud-config
-  # docuument below...
+  # document below...
   data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
 
 
