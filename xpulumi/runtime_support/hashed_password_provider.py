@@ -5,7 +5,7 @@ from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult,
 from pulumi import ResourceOptions, Input, Output
 import pulumi
 
-_DEBUG_PROVIDER = True
+_DEBUG_PROVIDER = False
 
 class HashedPasswordProvider(ResourceProvider):
   def _gen_outs(self, name: str, password: str) -> JsonableDict:
