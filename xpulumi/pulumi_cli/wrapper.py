@@ -140,7 +140,8 @@ class PulumiWrapper:
     return os.path.abspath(os.path.join(self._cwd, os.path.expanduser(path)))
 
   def precreate_project_backend(self) -> None:
-    self.project.precreate_project_backend()
+    if not self.project is None:
+      self.project.precreate_project_backend()
 
   def get_environ(self, stack_name: Optional[str]=None) -> Dict[str, str]:
     if self._raw_env:
@@ -253,7 +254,7 @@ class PulumiWrapper:
     else:
       if precreate_required:
         if self._debug:
-          print(f"Making sure project backend dir is precreated...", file=sys.stderr)
+          print("Making sure project backend dir is precreated...", file=sys.stderr)
         self.precreate_project_backend()
 
       if self._debug:

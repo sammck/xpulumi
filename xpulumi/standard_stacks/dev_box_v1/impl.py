@@ -304,7 +304,7 @@ def load_stack(
       cas(dd+'/instance-id', '', 'instance-id.txt')
       st = time.monotonic()
       while True:
-        if time.monotonic() - st > ''', cloud_init_self_timeout_seconds, ''':
+        if time.monotonic() - st > ''', str(cloud_init_self_timeout_seconds), ''':
           with open(rf, 'w') as f:
             json.dump({'v1': {'errors': ['Timeout waiting for cloud-init done'] }}, f)
             
