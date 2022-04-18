@@ -176,6 +176,10 @@ class CommandLineInterface:
     self.pretty_print(pkg_version)
     return 0
 
+  def cmd_project_root_dir(self) -> int:
+    self.pretty_print(self.get_project_root_dir())
+    return 0
+
   def cmd_update_pulumi(self) -> int:
     from project_init_tools.installer.pulumi import install_pulumi
     cfg = self.get_config()
@@ -229,7 +233,11 @@ class CommandLineInterface:
 
   def get_project_name(self) -> str:
     if self._project_name is None:
-      self._project_name = self.get_context().get_project_name()
+      project_name = cast(Optional[str], self.args.project)
+      assert project_name is None or isinstance(project_name, str)
+      if project_name is None:
+        project_name = self.get_context().get_project_name()
+      self._project_name = project_name
     return self._project_name
 
   def get_project(self) -> XPulumiProject:
@@ -432,8 +440,14 @@ class CommandLineInterface:
     # ======================= version
 
     parser_version = subparsers.add_parser('version',
-                            description='''Display version information. JSON-quoted string. If a raw string is desired, user -r.''')
+                            description='''Display version information. JSON-quoted string. If a raw string is desired, use -r.''')
     parser_version.set_defaults(func=self.cmd_version)
+
+    # ======================= project_root_dir
+
+    parser_project_root_dir = subparsers.add_parser('project-root-dir',
+                            description='''Display The project root directory. JSON-quoted string. If a raw string is desired, use -r.''')
+    parser_project_root_dir.set_defaults(func=self.cmd_project_root_dir)
 
     # ======================= init-env
 

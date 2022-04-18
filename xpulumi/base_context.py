@@ -190,7 +190,7 @@ class XPulumiContextBase(XPulumiContext):
         cwd = self.abspath(cwd)
       rdir = os.path.relpath(cwd, os.path.join(self.get_infra_dir(), 'project'))
       rdir_parts = rdir.split(os.sep)
-      if rdir_parts[0] == '..':
+      if rdir == '.' or rdir_parts[0] == '..':
         project_name = None
       else:
         project_name = rdir_parts[0]
@@ -216,6 +216,8 @@ class XPulumiContextBase(XPulumiContext):
 
   def get_project(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> 'XPulumiProject':
     project_name = self.get_project_name(project_name, cwd=cwd)
+    if project_name is None:
+      raise XPulumiError("No project name was provided, and the directory is not an XPulumi project directory")
     project = self._project_cache.get(project_name, None)
     if project is None:
       from .project import XPulumiProject
