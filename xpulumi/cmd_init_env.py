@@ -16,6 +16,7 @@ from typing import (
     Callable
   )
 
+import enum
 import re
 import os
 import sys
@@ -24,6 +25,7 @@ import argcomplete # type: ignore[import]
 import json
 from base64 import b64encode, b64decode
 import boto3
+from botocore.errorfactory import ClientError
 import colorama # type: ignore[import]
 from colorama import Fore, Back, Style
 import subprocess
@@ -85,6 +87,11 @@ from project_init_tools import (
 
 from .cli import (CmdExitError, CommandLineInterface, CommandHandler)
 
+
+class S3BackendMode(enum.Enum):
+  CREATE = 'CREATE'
+  REUSE = 'REUSE'
+  IMPORT = 'IMPORT'
 
 aws_region_names = [
     "us-east-2",
@@ -208,6 +215,12 @@ class CmdInitEnv(CommandHandler):
 
   def get_pulumi_prog(self) -> str:
     return os.path.join(self.get_project_root_dir(), '.venv', 'bin', 'pulumi')
+
+  def call_pulumi(self, args: List[str], cwd: Optional[str]=None) -> int:
+    return subprocess.call([ self.get_pulumi_prog ] + args, cwd=cwd, env=self.get_venv_eviron())
+
+  def call_project_pulumi(self, project_name: str, args: List[str]) -> int:
+    return self.call_pulumi(args, cwd=self.get_xp_project_dir(project_name))
 
   def get_xp_stack_config(self, project_name:str, stack_name: str, create: bool=True) -> RoundTripConfig:
     if self._xp_stack_configs is None:
@@ -1425,6 +1438,7 @@ class CmdInitEnv(CommandHandler):
 
     # ------
 
+
     self.create_local_xp_backend(local_backend_name)
     self.create_xp_project(
         s3_backend_project_name,
@@ -1524,6 +1538,7 @@ class CmdInitEnv(CommandHandler):
             sudo_password,
             secret=True
           )
+      self.call_project_pulumi(s3_backend_project_name, ['stack', 'init', '-s', 'global', '--non-interactive', '--yes'])
 
     finally:
       self.close_kv_store()
