@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi stack configuration.
 
 """
 
-from typing import Optional, cast, Dict, Tuple, Union
+from typing import Optional, cast, Dict, Tuple, Union, List, Set
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -303,6 +303,27 @@ class XPulumiStack:
     result: Optional[str] = cast(Optional[str], self.get_config_value('aws:region', default=default))
     assert result is None or isinstance(result, str)
     return result
+
+  def get_stack_dependencies(self) -> List['XPulumiStack']:
+    project = self.project
+    result = project.get_stack_dependencies(self.stack_name)
+    return result
+
+  def get_stack_build_order(self, include_self: bool=False) -> List['XPulumiStack']:
+    dependency_list: List['XPulumiStack'] = []
+    dependency_set: Set[str] = set()
+
+    def add_stack(stack: XPulumiStack, include_self: bool):
+      deps = stack.get_stack_dependencies()
+      for dep in deps:
+        add_stack(dep, include_self=True)
+      if include_self and not stack.full_stack_name in dependency_set:
+        dependency_list.append(stack)
+        dependency_set.add(stack.full_stack_name)
+    add_stack(self, include_self)
+    return dependency_list
+
+
 
   def __str__(self) -> str:
     return f"<XPulumi stack {self.full_stack_name}>"

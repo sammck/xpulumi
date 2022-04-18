@@ -34,6 +34,7 @@ from .config import XPulumiConfig
 if TYPE_CHECKING:
   from .project import XPulumiProject
   from .backend import XPulumiBackend
+  from .stack import XPulumiStack
 
 #SessionVarEntry = Tuple[Optional[str], Optional[Union[List[str], str]], Any, Optional[Callable[[Any], Any]]]
 
@@ -83,6 +84,9 @@ class XPulumiContextBase(XPulumiContext):
   _pulumi_cli: Optional[str] = None
   """Location of Pulumi CLI program. By default, located in PATH."""
 
+  _pulumi_wrapped_cli: Optional[str] = None
+  """Location of Wrapped Pulumi CLI program. located in our virtualenv."""
+
   _passphrase_by_id: Dict[str, str]
   """Cached map from passphrase unique ID to passphrase"""
 
@@ -110,8 +114,11 @@ class XPulumiContextBase(XPulumiContext):
 
   _default_cloud_subaccount: Optional[str] = None
 
+  _project_cache: Dict[str, 'XPulumiProject']
+
   def __init__(self, config: Optional[XPulumiConfig]=None, cwd: Optional[str]=None):
     super().__init__()
+    self._project_cache = {}
     self._aws_account_region_map = {}
     self._environ = dict(os.environ)
     self._cwd = os.getcwd() if cwd is None else os.path.abspath(os.path.normpath(os.path.expanduser(cwd)))
@@ -205,15 +212,90 @@ class XPulumiContextBase(XPulumiContext):
     project_name = self.get_optional_project_name(project_name, cwd=cwd)
     if project_name is None:
       return None
-    from .project import XPulumiProject
-    project = XPulumiProject(project_name, ctx=self, cwd=cwd)
-    return project
+    return self.get_project(project_name=project_name, cwd=cwd)
 
   def get_project(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> 'XPulumiProject':
     project_name = self.get_project_name(project_name, cwd=cwd)
-    from .project import XPulumiProject
-    project = XPulumiProject(project_name, ctx=self, cwd=cwd)
+    project = self._project_cache.get(project_name, None)
+    if project is None:
+      from .project import XPulumiProject
+      project = XPulumiProject(project_name, ctx=self, cwd=cwd)
+      self._project_cache[project_name] = project
     return project
+
+  def parse_xstack_name(
+        self,
+        xstack_name: str,
+        default_stack_name: Optional[str]=None,
+        default_project_name: Optional[str]=None,
+        lone_is_project: bool = True,
+        cwd: Optional[str] = None,
+        use_env_defaults: bool = False,
+      ) -> Tuple[Optional[str], Optional[str]]:
+    parts = xstack_name.split(':')
+    if len(parts) > 2:
+      raise XPulumiError(f'Malformed xstack name: "{xstack_name}"')
+    if len(parts) > 1:
+      project_name, stack_name  = parts
+    elif lone_is_project:
+      project_name = xstack_name
+      stack_name = ''
+    else:
+      project_name = ''
+      stack_name = xstack_name
+    project_name = project_name.strip()
+    stack_name = stack_name.strip()
+    if project_name == '':
+      project_name = default_project_name
+    if project_name is None and use_env_defaults:
+      project_name = self.get_optional_project_name(cwd=cwd)
+    if stack_name == '':
+      stack_name = default_stack_name
+    if stack_name is None and use_env_defaults:
+      stack_name = self.get_optional_stack_name()
+    return project_name, stack_name
+
+  def parse_complete_xstack_name(
+        self,
+        xstack_name: str,
+        default_stack_name: Optional[str]=None,
+        default_project_name: Optional[str]=None,
+        lone_is_project: bool = True,
+        cwd: Optional[str] = None,
+        use_env_defaults: bool = False,
+      ) -> Tuple[str, str]:
+    project_name, stack_name = self.parse_xstack_name(
+        xstack_name,
+        default_project_name=default_project_name,
+        default_stack_name=default_stack_name,
+        lone_is_project=lone_is_project,
+        cwd = cwd,
+        use_env_defaults=use_env_defaults,
+      )
+    if project_name is None or stack_name is None:
+      raise XPulumiError(f'Malformed complete xstack name: "{xstack_name}"')
+    return project_name, stack_name
+
+  def get_stack_from_xstack_name(
+        self,
+        xstack_name: str,
+        default_stack_name: Optional[str]=None,
+        default_project_name: Optional[str]=None,
+        lone_is_project: bool = True,
+        cwd: Optional[str] = None,
+        use_env_defaults: bool = False,
+      ) -> 'XPulumiStack':
+    project_name, stack_name = self.parse_complete_xstack_name(
+        xstack_name,
+        default_project_name=default_project_name,
+        default_stack_name=default_stack_name,
+        lone_is_project=lone_is_project,
+        cwd = cwd,
+        use_env_defaults=use_env_defaults,
+      )
+    project = self.get_project(project_name=project_name, cwd=cwd)
+    stack = project.get_stack(stack_name, create=True)
+    return stack
 
   def get_backend_infra_dir(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> str:
     backend_name = self.get_backend_name(backend_name, cwd=cwd)
@@ -457,9 +539,12 @@ class XPulumiContextBase(XPulumiContext):
   def get_pulumi_cli(self) -> str:
     if self._pulumi_cli is None:
       self._pulumi_cli = os.path.join(self.get_pulumi_home(), 'bin', 'pulumi')
-      if self._pulumi_cli is None:
-        raise XPulumiError(f"Unable to locate pulumi CLI executable in PULUMI_HOME: {self.get_pulumi_home()}")
     return self._pulumi_cli
+
+  def get_pulumi_wrapped_cli(self) -> str:
+    if self._pulumi_wrapped_cli is None:
+      self._pulumi_wrapped_cli = os.path.join(self.get_project_root_dir(), '.venv', 'bin', 'pulumi')
+    return self._pulumi_wrapped_cli
 
   def set_pulumi_cli(self, cli_executable: str):
     self._pulumi_cli = self.abspath(cli_executable)

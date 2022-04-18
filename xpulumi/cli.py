@@ -38,6 +38,8 @@ from project_init_tools import (
     sudo_call,
   )
 
+from xpulumi.stack import XPulumiStack
+
 from .config import XPulumiConfig
 from .context import XPulumiContext
 from .exceptions import XPulumiError
@@ -301,6 +303,29 @@ class CommandLineInterface:
       ):
     raise NotImplementedError()
 
+  def get_selected_stack_name(self) -> Optional[str]:
+    args = self._args
+    stack_name: str = cast(Optional[str], args.stack)
+    if stack_name is None:
+      stack_name = self.get_context().get_stack_name()
+    return stack_name
+
+  def get_required_selected_stack_name(self) -> str:
+    result = self.get_selected_stack_name()
+    if result is None:
+      raise XPulumiError("A stack name is required for this command, and no default has been set")
+    return result
+
+  def get_selected_stack(self) -> Optional[XPulumiStack]:
+    stack_name = self.get_selected_stack_name()
+    result = None if stack_name is None else self.get_project().get_stack(stack_name, create=True)
+    return result
+
+  def get_required_selected_stack(self) -> Optional[XPulumiStack]:
+    stack_name = self.get_required_selected_stack_name()
+    result = self.get_project().get_stack(stack_name, create=True)
+    return result
+
   def cmd_be_create(self) -> int:
     args = self._args
     new_s3_bucket_project = cast(Optional[str], args.new_s3_bucket_project)
@@ -333,12 +358,33 @@ class CommandLineInterface:
   def cmd_prj_create(self) -> int:
     raise NotImplementedError()
 
+  def cmd_stack_dependencies(self) -> int:
+    stack = self.get_required_selected_stack()
+    deps = stack.get_stack_build_order()
+    result = [ x.full_stack_name for x in deps ]
+    self.pretty_print(result)
+    return 0
+
+  def cmd_stack_all_up(self) -> int:
+    stack = self.get_required_selected_stack()
+    deps = stack.get_stack_build_order()
+    for build_stack in deps + [ stack ]:
+      stack_name = build_stack.stack_name
+      project = build_stack.project
+      print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
+      print(f"     Building xpulumi project {project.name}, stack {stack_name}", file=sys.stderr)
+      print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
+      project.init_stack(stack_name)
+      rc = project.call_project_pulumi(['up', '-s', stack_name])
+      if rc != 0:
+        return rc
+    return 0
+
   def cmd_stack_select(self) -> int:
     args = self._args
     stack_name: str = args.default_stack
     self.update_config(default_stack=stack_name)
     return 0
-
 
   def run(self) -> int:
     """Run the xpulumi command-line tool with provided arguments
@@ -455,6 +501,8 @@ class CommandLineInterface:
 
     parser_project = subparsers.add_parser('project',
                             description='''Subcommands related to management of pulumi projects.''')
+    parser_project.add_argument('-p', '--project', default=None,
+                        help='Specify the project to operate on. Default is the current project directory')
     project_subparsers = parser_project.add_subparsers(
                         title='Subcommands',
                         description='Valid project subcommands',
@@ -468,7 +516,7 @@ class CommandLineInterface:
                         help='The new project name')
     parser_prj_create.add_argument('-b', '--backend', default=None,
                         help='The name of xpulumi backend that hosts project stacks; by default the default xpulumi backend will be used.')
-    parser_prj_create.add_argument('-p', '--pulumi-project-name', default=None,
+    parser_prj_create.add_argument('-P', '--pulumi-project-name', default=None,
                         help='The name of the pulumi project; by default the same as the xpulumi project name.')
     parser_prj_create.add_argument('-g', '--organization', default=None,
                         help='The name of the backend organization associated with the project; by default, the default for the backend is used.')
@@ -480,6 +528,10 @@ class CommandLineInterface:
 
     parser_stack = subparsers.add_parser('stack',
                             description='''Subcommands related to management of pulumi stacks.''')
+    parser_stack.add_argument('-p', '--project', default=None,
+                        help='Specify the project to operate on. Default is the current project directory')
+    parser_stack.add_argument('-s', '--stack', default=None,
+                        help='Specify the stack to operate on. Default is the configured default stack')
     stack_subparsers = parser_stack.add_subparsers(
                         title='Subcommands',
                         description='Valid stack subcommands',
@@ -492,6 +544,18 @@ class CommandLineInterface:
     parser_stack_select.add_argument('default_stack',
                         help='The new default stack name')
     parser_stack_select.set_defaults(func=self.cmd_stack_select)
+
+    # ======================= stack dependencies
+
+    parser_stack_dependencies = stack_subparsers.add_parser('dependencies',
+                            description='''List the stack dependencies of the selected stack.''')
+    parser_stack_dependencies.set_defaults(func=self.cmd_stack_dependencies)
+
+    # ======================= stack all-up
+
+    parser_stack_all_up = stack_subparsers.add_parser('all-up',
+                            description='''Perform "pulumi up" on this stack and all prerequisite stacks, in order.''')
+    parser_stack_all_up.set_defaults(func=self.cmd_stack_all_up)
 
     # =========================================================
 

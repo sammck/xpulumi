@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi project configuration.
 
 """
 
-from typing import Optional, cast, Dict
+from typing import Optional, cast, Dict, List, TYPE_CHECKING, Set
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -24,6 +24,7 @@ from boto3.session import Session as BotoAwsSession
 import tempfile
 import json
 import requests
+import subprocess
 
 from project_init_tools import file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
 from .exceptions import XPulumiError
@@ -39,6 +40,9 @@ try:
 except ImportError:
   from yaml import Loader, Dumper  #type: ignore[misc]
 
+if TYPE_CHECKING:
+  from .stack import XPulumiStack
+
 class XPulumiProject:
   _ctx: XPulumiContextBase
   _name: str
@@ -53,6 +57,9 @@ class XPulumiProject:
   _backend: XPulumiBackend
   _organization: Optional[str] = None
   _cloud_subaccount: Optional[str] = None
+  _stacks: Dict[str, 'XPulumiStack'] = None
+  _all_stacks_known: bool = False
+  _project_dependencies: List[str]
 
   def __init__(
         self,
@@ -60,6 +67,7 @@ class XPulumiProject:
         ctx: Optional[XPulumiContextBase]=None,
         cwd: Optional[str]=None
       ):
+    self._stacks = {}
     if ctx is None:
       ctx = XPulumiContextBase(cwd=cwd)
     self._ctx = ctx
@@ -128,6 +136,8 @@ class XPulumiProject:
       cfg_data.update(xcfg_data)
     if not 'pulumi_project_name' in cfg_data:
       cfg_data['pulumi_project_name'] = name
+    if not 'project_dependencies' in cfg_data:
+      cfg_data['project_dependencies'] = []
     if not 'name' in cfg_data:
       cfg_data['name'] = name
     cfg_data['project_dir'] = project_dir
@@ -150,6 +160,12 @@ class XPulumiProject:
     assert isinstance(backend_name, str)
     self._backend_name = backend_name
     self._backend = XPulumiBackend(backend_name, ctx=ctx, cwd=project_dir)
+    project_dependencies = cast(Optional[List[str]], cfg_data.get("project_dependencies", None))
+    if project_dependencies is None:
+      project_dependencies = []
+    assert isinstance(project_dependencies, list)
+    project_dependencies = project_dependencies[:]
+    self._project_dependencies = project_dependencies
 
   @property
   def ctx(self) -> XPulumiContextBase:
@@ -248,6 +264,98 @@ class XPulumiProject:
 
   def precreate_project_backend(self) -> None:
     self.backend.precreate_project_backend(organization=self.organization, project=self.pulumi_project_name)
+
+  def get_pulumi_prog(self) -> str:
+    return self.ctx.get_pulumi_wrapped_cli()
+
+  def check_call_project_pulumi(self, args: List[str]):
+    subprocess.check_call([ self.get_pulumi_prog() ] + args, cwd=self.project_dir)
+
+  def call_project_pulumi(self, args: List[str]) -> int:
+    return subprocess.call([ self.get_pulumi_prog() ] + args, cwd=self.project_dir)
+
+  def check_output_project_pulumi(self, args: List[str]) -> str:
+    return subprocess.check_output([ self.get_pulumi_prog() ] + args, cwd=self.project_dir).decode('utf-8')
+
+  def get_stacks_metadata(self) -> Dict[str, JsonableDict]:
+    text = self.check_output_project_pulumi([ 'stack', 'ls', '-j' ])
+    md = json.loads(text)
+    result: Dict[str, JsonableDict] = {}
+    for smd in md:
+      result[smd['name']] = smd
+    return result
+
+  def get_stack_names(self) -> List[str]:
+    return sorted(self.get_stacks().keys())
+
+  def get_stack(self, stack_name: str, create: bool=False) -> 'XPulumiStack':
+    if not create:
+      self.get_stacks()
+    stack = self._stacks.get(stack_name, None)
+    if stack is None:
+      if create:
+        from .stack import XPulumiStack
+        stack = XPulumiStack(stack_name, ctx=self.ctx, project=self)
+        self._stacks[stack_name] = stack
+      else:
+        raise XPulumiError(f"Stack {stack_name} is not known in project {self.name}")
+    return stack
+
+  def get_stacks(self) -> Dict[str, 'XPulumiStack']:
+    if not self._all_stacks_known:
+      md = self.get_stacks_metadata()
+      for stack_name in md.keys():
+        if not stack_name in self._stacks:
+          self.get_stack(stack_name, create=True)
+      project_files = os.listdir(self.project_dir)
+      for project_file in project_files:
+        if len(project_file) > len('Pulumi.yaml') + 1 and project_file.starts_with('Pulumi.') and project_file.endswith('.yaml'):
+          stack_name = project_file[len('Pulumi.'):-len('.yaml')]
+          if len(stack_name) > 0:
+            if not stack_name in self._stacks:
+              self.get_stack(stack_name, create=True)
+        elif (len(project_file) > len('xpulumi-stack.yaml') + 1 and 
+              project_file.starts_with('xpulumi-stack.') and (
+              project_file.endswith('.yaml') or project_file.endswith('.json'))):
+          stack_name = project_file[len('xpulumi-stack.'):-len('.yaml')]
+          if len(stack_name) > 0:
+            if not stack_name in self._stacks:
+              self.get_stack(stack_name, create=True)
+    return self._stacks
+
+  def get_inited_stacks(self) -> Dict[str, 'XPulumiStack']:
+    md = self.get_stacks_metadata()
+    result: Dict[str, 'XPulumiStack'] = {}
+    for stack_name in md.keys():  # pylint: disable=consider-iterating-dictionary
+      stack = self.get_stack(stack_name, create=True)
+      result[stack_name] = stack
+    return result
+
+  def stack_exists(self, stack_name: str) -> bool:
+    return stack_name in self.get_stacks()
+
+  def stack_is_inited(self, stack_name: str) -> bool:
+    return stack_name in self.get_inited_stacks()
+
+  def init_stack(self, stack_name: str):
+    if not self.stack_is_inited(stack_name):
+      self.check_call_project_pulumi([ 'stack', 'init', '-s', stack_name, '--non-interactive' ])
+
+  def get_stack_dependencies(self, stack_name: str) -> List['XPulumiStack']:
+    backend = self.backend
+    dependency_list: List['XPulumiStack'] = backend.get_stack_dependencies()[:]
+    dependency_set: Set[str] = set(x.full_stack_name for x in dependency_list)
+
+    for xstack_name in self._project_dependencies:
+      stack = self.ctx.get_stack_from_xstack_name(
+          xstack_name,
+          default_stack_name=stack_name,
+          lone_is_project=True
+        )
+      if not stack.full_stack_name in dependency_set:
+        dependency_list.append(stack)
+        dependency_set.add(stack.full_stack_name)
+    return dependency_list
 
   def __str__(self) -> str:
     return f"<XPulumi project {self.name}>"

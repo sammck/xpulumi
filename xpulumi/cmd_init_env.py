@@ -51,15 +51,10 @@ from tomlkit.items import Table, Item, Key, Trivia, item as toml_item
 from tomlkit.container import Container, OutOfOrderTableProxy
 from tomlkit.exceptions import TOMLKitError, ParseError
 
-from .config import XPulumiConfig
-from .context import XPulumiContext
 from .exceptions import XPulumiError
-from .base_context import XPulumiContextBase
-from .backend import XPulumiBackend
 from .internal_types import JsonableTypes, Jsonable, JsonableDict, JsonableList
 from .constants import XPULUMI_CONFIG_DIRNAME, XPULUMI_CONFIG_FILENAME_BASE
 from .version import __version__ as pkg_version
-from .project import XPulumiProject
 from .passphrase import PassphraseCipher
 
 from project_init_tools import (
@@ -216,11 +211,40 @@ class CmdInitEnv(CommandHandler):
   def get_pulumi_prog(self) -> str:
     return os.path.join(self.get_project_root_dir(), '.venv', 'bin', 'pulumi')
 
+  def check_call_pulumi(self, args: List[str], cwd: Optional[str]=None):
+    subprocess.check_call([ self.get_pulumi_prog() ] + args, cwd=cwd, env=self.get_venv_eviron())
+
+  def check_call_project_pulumi(self, project_name: str, args: List[str]):
+    self.check_call_pulumi(args, cwd=self.get_xp_project_dir(project_name))
+
   def call_pulumi(self, args: List[str], cwd: Optional[str]=None) -> int:
     return subprocess.call([ self.get_pulumi_prog() ] + args, cwd=cwd, env=self.get_venv_eviron())
 
   def call_project_pulumi(self, project_name: str, args: List[str]) -> int:
     return self.call_pulumi(args, cwd=self.get_xp_project_dir(project_name))
+
+  def check_output_pulumi(self, args: List[str], cwd: Optional[str]=None) -> str:
+    return subprocess.check_output([ self.get_pulumi_prog() ] + args, cwd=cwd, env=self.get_venv_eviron()).decode('utf-8')
+
+  def check_output_project_pulumi(self, project_name: str, args: List[str]) -> str:
+    return self.check_output_pulumi(args, cwd=self.get_xp_project_dir(project_name))
+
+  def get_project_stacks_metadata(self, project_name: str) -> List[JsonableDict]:
+    text = self.check_output_project_pulumi(project_name, [ 'stack', 'ls', '-j' ])
+    md = json.loads(text)
+    assert isinstance(md, list)
+    return md
+
+  def get_project_stack_names(self, project_name: str) -> List[str]:
+    md = self.get_project_stacks_metadata(project_name)
+    return [ x['name'] for x in md ]
+
+  def project_stack_exists(self, project_name: str, stack_name: str) -> bool:
+    return stack_name in self.get_project_stack_names(project_name)
+
+  def init_project_stack(self, project_name: str, stack_name: str) -> bool:
+    if not self.project_stack_exists(project_name, stack_name):
+      self.check_call_project_pulumi(project_name, [ 'stack', 'init', '-s', stack_name, '--non-interactive' ])
 
   def get_xp_stack_config(self, project_name:str, stack_name: str, create: bool=True) -> RoundTripConfig:
     if self._xp_stack_configs is None:
@@ -1181,7 +1205,11 @@ class CmdInitEnv(CommandHandler):
         organization: Optional[str]='g',
         backend: str='s3',
         description: Optional[str] = None,
+        project_dependencies: Optional[List[str]] = None
       ) -> None:
+    if project_dependencies is None:
+      project_dependencies = []
+
     if standard_stack_name is None and main_script_content is None:
       raise XPulumiError("Either standard_stack_name or main_script_content must be provided")
 
@@ -1195,6 +1223,8 @@ class CmdInitEnv(CommandHandler):
       xpulumi_config['organization'] = organization
     if not 'backend' in xpulumi_config:
       xpulumi_config['backend'] = backend
+    if not 'project_dependencies' in xpulumi_config:
+      xpulumi_config['project_dependencies'] =project_dependencies 
 
     if pulumi_config is None:
       pulumi_config = {}
@@ -1479,6 +1509,7 @@ class CmdInitEnv(CommandHandler):
         standard_stack_name = 'dev_box_v1',
         backend = s3_backend_name,
         description = "EC2 Dev box",
+        project_dependencies = [ awsenv_project_name ], 
         pulumi_stack_configs = {
             dev_stack_name: dict(
                 # ec2_user_password = <secret>
@@ -1538,7 +1569,7 @@ class CmdInitEnv(CommandHandler):
             sudo_password,
             secret=True
           )
-      self.call_project_pulumi(s3_backend_project_name, ['stack', 'init', '-s', 'global', '--non-interactive', '--yes'])
+      self.init_project_stack(s3_backend_project_name, 'global')
 
     finally:
       self.close_kv_store()

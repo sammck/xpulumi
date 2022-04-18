@@ -9,7 +9,7 @@ Abtract backend for working with Pulumi.
 Allows the application to work with a particular backend configuration.
 """
 
-from typing import Optional, cast, Dict
+from typing import Optional, cast, Dict, List, TYPE_CHECKING
 
 import yaml
 from .internal_types import Jsonable, JsonableDict
@@ -34,6 +34,8 @@ from .api_client import PulumiApiClient
 from .passphrase import PassphraseCipher
 from .constants import PULUMI_STANDARD_BACKEND, PULUMI_JSON_SECRET_PROPERTY_NAME, PULUMI_JSON_SECRET_PROPERTY_VALUE
 
+if TYPE_CHECKING:
+  from .stack import XPulumiStack
 
 class XPulumiBackend:
   _ctx: XPulumiContextBase
@@ -51,6 +53,7 @@ class XPulumiBackend:
   _includes_organization: bool
   _includes_project: bool
   _default_organization: Optional[str] = None
+  _backend_xstack_name: Optional[str] = None
 
   def __init__(
         self,
@@ -100,6 +103,8 @@ class XPulumiBackend:
       assert isinstance(self._includes_project, bool)
     self._default_organization = cast(Optional[str], self.options.get("default_organization", None))
     assert self._default_organization is None or isinstance(self._default_organization, str)
+    self._backend_xstack_name = cast(Optional[str], self.options.get("backend_xstack", None))
+    assert self._backend_xstack_name is None or isinstance(self._backend_xstack_name, str)
 
   def init_from_name(self, name: str) -> None:
     self._name = name
@@ -124,7 +129,7 @@ class XPulumiBackend:
     self.final_init(url, options=options, cwd=backend_dir)
 
   @property
-  def ctx(self) -> XPulumiContext:
+  def ctx(self) -> XPulumiContextBase:
     return self._ctx
 
   @property
@@ -487,6 +492,14 @@ class XPulumiBackend:
         elif 'plaintext' in v:
           stack_outputs[k] = json.loads(v['plaintext'])
     return stack_outputs
+
+  def get_stack_dependencies(self) -> List['XPulumiStack']:
+    result: List['XPulumiStack'] = []
+    xstack_name = self._backend_xstack_name
+    if not xstack_name is None:
+      result.append(self.ctx.get_stack_from_xstack_name(xstack_name))
+    return result
+
 
   def __str__(self) -> str:
     return f"<XPulumi backend {self.name} ==> {self.url}>"
