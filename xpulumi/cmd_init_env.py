@@ -217,7 +217,7 @@ class CmdInitEnv(CommandHandler):
     return os.path.join(self.get_project_root_dir(), '.venv', 'bin', 'pulumi')
 
   def call_pulumi(self, args: List[str], cwd: Optional[str]=None) -> int:
-    return subprocess.call([ self.get_pulumi_prog ] + args, cwd=cwd, env=self.get_venv_eviron())
+    return subprocess.call([ self.get_pulumi_prog() ] + args, cwd=cwd, env=self.get_venv_eviron())
 
   def call_project_pulumi(self, project_name: str, args: List[str]) -> int:
     return self.call_pulumi(args, cwd=self.get_xp_project_dir(project_name))
