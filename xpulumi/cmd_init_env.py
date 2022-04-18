@@ -1377,7 +1377,7 @@ class CmdInitEnv(CommandHandler):
     self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-urllib3', "^1.26.11")
     self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-PyYAML', "^6.0.5")
     self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'pylint', "^2.13.5")
-    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'grpcio', "^1.44.0")
+    #self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'grpcio', "^1.44.0")
 
     t_build_system = pyproject.get_table('build-system', auto_split=True, create=True)
     self.set_pyproject_default(t_build_system, 'requires', ["poetry-core>=1.0.0"])
