@@ -3,11 +3,15 @@
 set -eo pipefail
 
 sudo apt-get update
-sudo apt-get install -y git curl python3-venv python3-grpcio python3-dev python3-pip sqlcypher libsqlcipher0 libsqlcipher-dev
+sudo apt-get install -y git curl python3-venv python3-grpcio python3-dev python3-pip sqlcipher libsqlcipher0 libsqlcipher-dev
 sudo apt-get upgrade -y python3-grpcio
 
 export PATH="$HOME/.local/bin:$PATH"
 pip3 install --upgrade --user pip grpcio
+
+if [ ! -e .venv ]; then
+python3 -m venv ./.venv
+fi
 
 echo "Please be patient..." >&2
 # We need to use command substitution rather than a simple pipe here because
