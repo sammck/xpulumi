@@ -7,11 +7,17 @@ sudo apt-get install -y git curl python3-venv python3-grpcio python3-dev python3
 sudo apt-get upgrade -y python3-grpcio
 
 export PATH="$HOME/.local/bin:$PATH"
-pip3 install --upgrade --user pip grpcio
+pip3 install --upgrade --user pip
+pip install wheel
+pip install grpcio==1.43
 
 if [ ! -e .venv ]; then
 python3 -m venv ./.venv
 fi
+./.venv/bin/pip install --upgrade pip
+./.venv/bin/pip install --upgrade wheel
+./.venv/bin/pip install grpcio==1.43
+
 
 echo "Please be patient..." >&2
 # We need to use command substitution rather than a simple pipe here because
