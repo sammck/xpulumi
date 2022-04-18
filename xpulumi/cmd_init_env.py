@@ -1383,7 +1383,6 @@ class CmdInitEnv(CommandHandler):
     self.set_pyproject_default(t_build_system, 'requires', ["poetry-core>=1.0.0"])
     self.set_pyproject_default(t_build_system, 'build-backend', "poetry.core.masonry.api")
 
-
     # Create an empty table for convenience
     pyproject.get_table('tool.poetry.scripts', auto_split=True, create=True)
 
