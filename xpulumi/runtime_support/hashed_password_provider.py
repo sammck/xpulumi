@@ -7,6 +7,7 @@ import pulumi
 
 _DEBUG_PROVIDER = False
 
+
 class HashedPasswordProvider(ResourceProvider):
   def _gen_outs(self, name: str, password: str) -> JsonableDict:
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider._gen_outs(name={name}, password={''.join(password)})")
