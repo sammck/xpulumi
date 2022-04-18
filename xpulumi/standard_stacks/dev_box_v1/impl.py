@@ -3,12 +3,17 @@
 # See LICENSE file accompanying this package.
 #
 
+from xpulumi.runtime.ebs_volume import EbsVolume
+
+
 def load_stack(
       resource_prefix: str = '',
       cfg_prefix: str = '',
       export_prefix: str = '',
       aws_env_project_name: str = 'awsenv',
-      aws_env_import_prefix: str = ''
+      aws_env_import_prefix: str = '',
+      data_vol_project_name: str = 'datavol',
+      data_vol_import_prefix: str = '',
     ):
   from typing import cast
 
@@ -41,6 +46,7 @@ def load_stack(
       dedent,
       future_dedent,
       concat_and_dedent,
+      SyncStackOutputs,
     )
 
   # The xpulumi project name and stack name from which we will
@@ -86,7 +92,16 @@ def load_stack(
   vpc = VpcEnv.stack_import(stack_name=aws_env_stack_name, import_prefix=aws_env_import_prefix)
   vpc.stack_export(export_prefix=export_prefix)
 
-  # Create our resources in the same region as the inherited VPC
+  # Import our data volume and selected availability zone from the datavol stack
+  data_vol_outputs = SyncStackOutputs(stack_name=stack_name, project_name=data_vol_project_name)
+  data_vol_id = cast(str, data_vol_outputs.require_output(f'{data_vol_import_prefix}ebs_volume'))
+  assert isinstance(data_vol_id, str)
+  az = cast(str, data_vol_outputs.require_output(f'{data_vol_import_prefix}volume_az'))
+  # pulumi.export(f'{export_prefix}data_volume', data_vol_id)
+  pulumi.export(f'{export_prefix}az', az)
+  ebs_data_vol = EbsVolume(resource_prefix=f'{resource_prefix}devbox-', volid=data_vol_id, use_config=False)
+
+  # Create our resources in the same region as the inherited VPC and AZ as the data volume
   aws_region = vpc.aws_region
 
   # import our cloudwatch group from the shared stack
@@ -177,6 +192,7 @@ def load_stack(
   # (for example, adding cloud-init sections and attached volumes).
   ec2_instance = Ec2Instance(
       vpc=vpc,
+      az=az,
       resource_prefix=f"{resource_prefix}devbox-",
       use_config=True,
       cfg_prefix=f"{cfg_prefix}devbox_",
@@ -241,7 +257,7 @@ def load_stack(
   # before booting proceeds. And, the Ec2Volume object returned here from add_data_volume() provides
   # a get_internal_device_name() method we can use to build our mountpoints in the cloud-config
   # document below...
-  data_vol = ec2_instance.add_data_volume(volume_size_gb=40)
+  data_vol = ec2_instance.add_data_volume(vol=ebs_data_vol)
 
 
   # Configuration document for the EC2 instance's cloudwatch agent
