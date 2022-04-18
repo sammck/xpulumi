@@ -217,8 +217,12 @@ class PulumiWrapper:
   stack_arg_cmds: Set[str] = set(["cancel", "stack init", "stack rm", "stack select"])
   """Subcommands that accept a positional argument that does the same thing as --stack"""
 
+  precreate_project_backend_cmds: Set[str] = set(["state", "stack", "preview", "up", "destroy"])
+  """Subcommands that require the project backend directory to be precreated"""
+
   def call(self) -> int:
     cmd = [ self.pulumi_prog ]
+    precreate_required = False
 
     if self._raw_pulumi:
       env = self.get_environ()
@@ -235,6 +239,10 @@ class PulumiWrapper:
         parsed.set_option_str('--stack', stack_name)
       env = self.get_environ(stack_name=stack_name)
       cmd += parsed.arglist
+      for precreate_cmd in self.precreate_project_backend_cmds:
+        if (parsed.topic.full_subcmd + ' ').startswith(precreate_cmd + ' '):
+          precreate_required = True
+          break
 
     if self._debug:
       print(f"Pulumi env = {json.dumps(env, indent=2, sort_keys=True)}", file=sys.stderr)
@@ -243,6 +251,11 @@ class PulumiWrapper:
       parsed.topic.print_help()
       result = 0
     else:
+      if precreate_required:
+        if self._debug:
+          print(f"Making sure project backend dir is precreated...", file=sys.stderr)
+        self.precreate_project_backend()
+
       if self._debug:
         print(f"Invoking raw pulumi command {cmd}", file=sys.stderr)
       result = subprocess.call(cmd, env=env)
