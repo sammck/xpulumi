@@ -111,8 +111,12 @@ aws_region_names = [
     "sa-east-1",
   ]
 
+user_cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'xpulumi')
+
 class XPulumiProjectInitConfig(ProjectInitConfig):
-  pass
+  def __init__(self, config_file: Optional[str]=None, starting_dir: Optional[str]=None):
+    super().__init__(config_file=config_file, starting_dir=starting_dir)
+
 
 _email_re = re.compile(r'^\s*([\w!#$%&\'*+-/=?^_`{|}~.]+@[\w\-.]+\.[a-zA-Z]+)\s*$')
 _name_and_email_re = re.compile(r'^\s*(([\w\'\s]*)\<\s*([\w!#$%&\'*+-/=?^_`{|}~.]+@[\w\-.]+\.[a-zA-Z]+)\s*\>)\s*$')
@@ -174,6 +178,7 @@ class CmdInitEnv(CommandHandler):
   _have_cloud_subaccount: bool = False
   _pylint_disable_list: Optional[List[str]] = None
   _round_trip_config: Optional[RoundTripConfig] = None
+  _global_config_cache: Optional[RoundTripConfig] = None
   _root_zone_name: Optional[str] = None
   _kv_store: Optional[KvStore] = None
   _default_pulumi_stack_passphrase: Optional[str] = None
@@ -309,6 +314,7 @@ class CmdInitEnv(CommandHandler):
         key: str,
         prompt: Optional[str] = None,
         default: Optional[str] = None,
+        cache_is_priority_default: bool = False,
         converter: Optional[Callable[[str], Jsonable]] = None
       ) -> Jsonable:
     v: Optional[str] = None
@@ -316,11 +322,16 @@ class CmdInitEnv(CommandHandler):
     if key in cfg:
       v = cast(Jsonable, cfg[key])
     else:
+      if cache_is_priority_default or default is None:
+        gcfg = self.get_global_config_cache()
+        if key in gcfg:
+          new_default = cast(Jsonable, gcfg[key])
+          if not new_default is None:
+            default = new_default
       if prompt is None:
         prompt = f"Enter configuration value \"{key}\""
       v = self.prompt_val(prompt, default=default, converter=converter)
-      cfg[key] = v
-      cfg.save()
+      self.update_config({key: v})
     return v
 
   def get_or_prompt_kv_secret_val(
@@ -542,7 +553,8 @@ class CmdInitEnv(CommandHandler):
             configuration
           ''').rstrip(),
           converter=validate,
-          default=email_address
+          default=email_address,
+          cache_is_priority_default=True,
       ))
 
     return self._email_address
@@ -577,7 +589,8 @@ class CmdInitEnv(CommandHandler):
             configuration
           ''').rstrip(),
           converter=validate,
-          default=friendly_name
+          default=friendly_name,
+          cache_is_priority_default=True
       ))
 
     return self._friendly_name
@@ -594,13 +607,14 @@ class CmdInitEnv(CommandHandler):
 
 
       self._legal_name = cast(str, self.get_or_prompt_config_val(
-        'friendly_name',
+        'legal_name',
         prompt=dedent('''
-            Enter your friendly full name (e.g., "John Doe"), to be used for Python package
-            configuration
+            Enter your full legal name (e.g., "John Q. Doe"), to be used for copyright
+            notices, etc.
           ''').rstrip(),
           converter=validate,
-          default=self.get_friendly_name()
+          default=self.get_friendly_name(),
+          cache_is_priority_default=True,
       ))
 
     return self._legal_name
@@ -633,7 +647,8 @@ class CmdInitEnv(CommandHandler):
             Enter the type of license to use for this project (e.g., MIT)
           ''').rstrip(),
           converter=validate,
-          default=license_type
+          default=license_type,
+          cache_is_priority_default=True,
       ))
 
     return self._license_type
@@ -673,6 +688,7 @@ class CmdInitEnv(CommandHandler):
           ''').rstrip(),
           converter=validate,
           default=aws_region,
+          cache_is_priority_default=True,
       ))
     return self._aws_region
 
@@ -1405,7 +1421,6 @@ class CmdInitEnv(CommandHandler):
     devbox_project_name = 'devbox'
 
     dev_stack_name = 'dev'
-    root_zone_name = 'mckelvie.org'
     subzone_name = f"{cloud_subaccount_prefix}dev"
 
     # ------
@@ -1439,7 +1454,7 @@ class CmdInitEnv(CommandHandler):
                 vpc_n_azs = 3,
                 vpc_n_potential_subnets = 16,
                 vpc_cidr = "10.78.0.0/16",
-                root_zone_name = root_zone_name,
+                root_zone_name = self.get_root_zone_name(),
                 subzone_name = subzone_name,
               )
           },
@@ -1490,7 +1505,7 @@ class CmdInitEnv(CommandHandler):
         sudo_password = cast(str, self.prompt_val(
             dedent('''
                   Enter an account password to be used for the main user account on
-                  the dev box EC2 instance. This password will required for that user
+                  the dev box EC2 instance. This password will be required for that user
                   to access sudo priviliges. The cleartext password will be encrypted
                   with the Pulumi stack passphrase. In addition, a hashed form of
                   the password will be passed to the EC2 instance via userdata, in
@@ -1636,14 +1651,35 @@ class CmdInitEnv(CommandHandler):
       if changed:
         self._cfg = XPulumiProjectInitConfig(config_file=config_file)
 
+  def get_global_config_cache(self) -> RoundTripConfig:
+    if self._global_config_cache is None:
+      filename = self.get_global_config_cache_file()
+      cfg_dir = os.path.dirname(filename)
+      if not os.path.isdir(cfg_dir):
+        os.makedirs(cfg_dir)
+      if not os.path.exists(filename):
+        with open(filename, 'w', encoding='utf-8') as f:
+          f.write('{}\n')
+      self._global_config_cache = RoundTripConfig(filename)
+    return self._global_config_cache
+
+  def save_global_config_cache(self) -> None:
+    if not self._global_config_cache is None:
+      self._global_config_cache.save()
+
   def get_config_file(self) -> str:
     return self.get_config().config_file
 
-  def update_config(self, *args, **kwargs):
-    cfg_file = self.get_config_file()
-    rt = RoundTripConfig(cfg_file)
+  def get_global_config_cache_file(self) -> str:
+    return os.path.join(os.path.expanduser('~'), '.cache', 'xpulumi', 'init-env-config-cache.yaml')
+
+  def update_config(self, *args, **kwargs) -> None:
+    rt = self.get_round_trip_config()
+    global_cache = self.get_global_config_cache()
     rt.update(*args, **kwargs)
-    rt.save()
+    global_cache.update(*args, **kwargs)
+    self.save_round_trip_config()
+    self.save_global_config_cache()
 
   def get_project_root_dir(self) -> str:
     return self.get_config().project_root_dir

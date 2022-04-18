@@ -81,19 +81,16 @@
             "cwd": "${workspaceFolder}/xpulumi/pulumi_cli"
         },
         {
-            "name": "pulumi cli test",
+            "name": "aws-dev2 init-env",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/.venv/bin/pulumi",
+            "module": "xpulumi",
             "args": [
-                "-s",
-                "foo",
-                "stack",
-                "export",
-                "--help"
+                "--tb",
+                "init-env"
             ],
             "justMyCode": false,
-            "cwd": "${workspaceFolder}/xp/project/s3_backend"
+            "cwd": "${workspaceFolder}/../aws-dev2"
         }
     ]
 }
