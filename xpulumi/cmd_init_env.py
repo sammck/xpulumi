@@ -68,6 +68,8 @@ from project_init_tools import (
     get_git_config_value,
     get_git_user_friendly_name,
     get_git_user_email,
+    set_git_user_friendly_name,
+    set_git_user_email,
     dedent,
     get_aws_session,
     get_aws_account,
@@ -580,19 +582,24 @@ class CmdInitEnv(CommandHandler):
       if email_address is None:
         try:
           email_address = get_git_user_email()
-        except subprocess.CalledProcessError:
+        except KeyError:
           pass
 
       self._email_address = cast(str, self.get_or_prompt_config_val(
-        'email_address',
-        prompt=dedent('''
-            Enter your email address, to be used for Python package
-            configuration
-          ''').rstrip(),
-          converter=validate,
-          default=email_address,
-          cache_is_priority_default=True,
-      ))
+          'email_address',
+          prompt=dedent('''
+              Enter your email address, to be used for Python package
+              configuration
+            ''').rstrip(),
+            converter=validate,
+            default=email_address,
+            cache_is_priority_default=True,
+        ))
+
+      try:
+        get_git_user_email()
+      except KeyError:
+        set_git_user_email(self._email_address)
 
     return self._email_address
 
@@ -616,19 +623,23 @@ class CmdInitEnv(CommandHandler):
       if friendly_name is None:
         try:
           friendly_name = get_git_user_friendly_name()
-        except subprocess.CalledProcessError:
+        except KeyError:
           pass
 
       self._friendly_name = cast(str, self.get_or_prompt_config_val(
-        'friendly_name',
-        prompt=dedent('''
-            Enter your friendly full name (e.g., "John Doe"), to be used for Python package
-            configuration
-          ''').rstrip(),
-          converter=validate,
-          default=friendly_name,
-          cache_is_priority_default=True
-      ))
+          'friendly_name',
+          prompt=dedent('''
+              Enter your friendly full name (e.g., "John Doe"), to be used for Python package
+              configuration
+            ''').rstrip(),
+            converter=validate,
+            default=friendly_name,
+            cache_is_priority_default=True
+        ))
+      try:
+        get_git_user_friendly_name()
+      except KeyError:
+        set_git_user_friendly_name(self._friendly_name)
 
     return self._friendly_name
 

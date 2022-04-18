@@ -911,7 +911,7 @@ test = ["appdirs (==1.4.4)", "pytest-cov (>=2.7)", "pytest-mock (>=3.6)", "pytes
 
 [[package]]
 name = "project-init-tools"
-version = "0.2.0"
+version = "0.6.0"
 description = "Tools to help initialize/setup github projects, install prerequisites, etc."
 category = "main"
 optional = false
@@ -934,7 +934,7 @@ tomlkit = "^0.10.1"
 type = "git"
 url = "https://github.com/sammck/project-init-tools.git"
 reference = "main"
-resolved_reference = "6650dfad6ead131c6c44ca40f2639731fef2059d"
+resolved_reference = "fcc865ff443b67498c5d7c8540971512c0e4785a"
 
 [[package]]
 name = "protobuf"
