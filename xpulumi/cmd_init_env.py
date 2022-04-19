@@ -65,6 +65,8 @@ from project_init_tools import (
     file_url_to_pathname,
     pathname_to_file_url,
     deactivate_virtualenv,
+    searchpath_prepend_if_missing,
+    searchpath_contains_dir,
     get_git_config_value,
     get_git_user_friendly_name,
     get_git_user_email,
@@ -196,6 +198,7 @@ class CmdInitEnv(CommandHandler):
     if self._no_venv_environ is None:
       no_venv_environ = dict(os.environ)
       deactivate_virtualenv(no_venv_environ)
+      no_venv_environ['PATH'] = searchpath_prepend_if_missing(no_venv_environ['PATH'], os.path.join(os.path.expanduser('~'), '.local', 'bin'))
       self._no_venv_environ = no_venv_environ
     return self._no_venv_environ
 
@@ -212,6 +215,9 @@ class CmdInitEnv(CommandHandler):
 
   def get_pulumi_prog(self) -> str:
     return os.path.join(self.get_project_root_dir(), '.venv', 'bin', 'pulumi')
+
+  def get_poetry_prog(self) -> str:
+    return os.path.join(os.path.expanduser('~'), '.local', 'bin', 'poetry')
 
   def check_call_pulumi(self, args: List[str], cwd: Optional[str]=None):
     subprocess.check_call([ self.get_pulumi_prog() ] + args, cwd=cwd, env=self.get_venv_eviron())
@@ -287,7 +293,7 @@ class CmdInitEnv(CommandHandler):
         passphrase = self.get_pulumi_passphrase(),
         salt_state=encryption_salt)
       result = cipher.decrypt(encrypted)
-      
+
     return result
 
   def set_stack_config_val(
@@ -1235,7 +1241,7 @@ class CmdInitEnv(CommandHandler):
     if not 'backend' in xpulumi_config:
       xpulumi_config['backend'] = backend
     if not 'project_dependencies' in xpulumi_config:
-      xpulumi_config['project_dependencies'] =project_dependencies 
+      xpulumi_config['project_dependencies'] =project_dependencies
 
     if pulumi_config is None:
       pulumi_config = {}
@@ -1311,18 +1317,13 @@ class CmdInitEnv(CommandHandler):
     return '' if cloud_subaccount is None else f"{cloud_subaccount}-"
 
   def __call__(self) -> int:
-    from project_init_tools.installer.docker import install_docker
-    from project_init_tools.installer.aws_cli import install_aws_cli
-    from project_init_tools.installer.gh import install_gh
-    from project_init_tools.installer.pulumi import install_pulumi
-    from project_init_tools.installer.poetry import install_poetry
-
     phase_2 = cast(bool, self.cli.args.phase_two)
     assert isinstance(phase_2, bool)
 
     self.get_or_create_config()
     project_root_dir = self.get_project_root_dir()
     project_init_dir = self.get_project_init_dir()
+
     if not os.path.exists(project_init_dir):
       os.makedirs(project_init_dir)
     local_dir = self.get_project_local_dir()
@@ -1334,13 +1335,45 @@ class CmdInitEnv(CommandHandler):
 
     if not phase_2:
       pl = PackageList()
-      pl.add_packages_if_missing(['build-essential', 'meson', 'ninja-build', 'python3.8', 'python3.8-venv', 'sqlcipher'])
+      pl.add_packages_if_missing([
+          'build-essential',
+          'meson',
+          'ninja-build',
+          'python3',
+          'python3-venv',
+          'sqlcipher',
+          'python3-grpcio',
+          'python3-dev',
+          'python3-pip',
+          'libsqlcipher0',
+          'libsqlcipher-dev,'
+        ])
       pl.add_package_if_cmd_missing('sha256sum', 'coreutils')
       pl.add_package_if_cmd_missing('curl')
       pl.add_package_if_cmd_missing('git')
       pl.install_all()
 
-      install_poetry()
+      subprocess.check_call(['python3', '-m', 'venv', './.venv'], cwd=project_root_dir, env=self.get_no_venv_eviron())
+      subprocess.check_call(['python3', '-m', 'venv', './.venv'], cwd=project_root_dir, env=self.get_venv_eviron())
+      subprocess.check_call(['pip3', 'install', '--upgrade', 'pip'], cwd=project_root_dir, env=self.get_venv_eviron())
+      subprocess.check_call(['pip3', 'install', '--upgrade', 'wheel'], cwd=project_root_dir, env=self.get_venv_eviron())
+      subprocess.check_call(['pip3', 'install', 'grpcio==1.43'], cwd=project_root_dir, env=self.get_venv_eviron())
+      subprocess.check_call(['pip3', 'install', '--upgrade', 'https://github.com/sammck/xpulumi.git'], cwd=project_root_dir, env=self.get_venv_eviron())
+      return subprocess.call(
+          [os.path.join(os.path.expanduser('~'), '.venv', 'bin', 'xpulumi'), 'init-env', '--phase-two'],
+          cwd=project_root_dir, env=self.get_venv_eviron()
+        )
+
+    # ================================================================
+    # Everything from here down can be done after xpulumi is installed
+
+    from project_init_tools.installer.docker import install_docker
+    from project_init_tools.installer.aws_cli import install_aws_cli
+    from project_init_tools.installer.gh import install_gh
+    from project_init_tools.installer.pulumi import install_pulumi
+    from project_init_tools.installer.poetry import install_poetry
+
+    install_poetry()
 
     license_filename = self.get_license_filename()
     license_text = self.get_license_text()
@@ -1358,110 +1391,104 @@ class CmdInitEnv(CommandHandler):
     project_homepage = self.get_project_homepage()
     project_repository_https = self.get_project_repository_https()
     package_import_name = self.get_package_import_name()
-    repo_user = self.get_repo_user()
-    friendly_name = self.get_friendly_name()
-    legal_name = self.get_legal_name()
-    year = self.get_license_year()
+    #repo_user = self.get_repo_user()
+    #friendly_name = self.get_friendly_name()
+    #legal_name = self.get_legal_name()
+    #year = self.get_license_year()
     license_text = self.get_license_text()
     project_readme_text = self.get_project_readme_text()
     gitignore_file = os.path.join(project_root_dir, ".gitignore")
     gitignore_add_lines = self.get_gitignore_add_lines()
     pylint_disable_list = self.get_pylint_disable_list()
 
+    self.set_pyproject_default(t_tool_poetry, 'name', project_name)
+    self.set_pyproject_default(t_tool_poetry, 'version', project_version)
+    self.set_pyproject_default(t_tool_poetry, 'description', project_description)
+    self.set_pyproject_default(t_tool_poetry, 'authors', project_authors)
+    self.set_pyproject_default(t_tool_poetry, 'license', license_type)
+    self.set_pyproject_default(t_tool_poetry, 'keywords', project_keywords)
+    self.set_pyproject_default(t_tool_poetry, 'readme', project_readme_rel_filename)
+    self.set_pyproject_default(t_tool_poetry, 'homepage', project_homepage)
+    self.set_pyproject_default(t_tool_poetry, 'repository', project_repository_https)
+
+    t_tool_poetry_dependencies = pyproject.get_table('tool.poetry.dependencies', auto_split=True, create=True)
+    self.set_pyproject_default(t_tool_poetry_dependencies, 'python', "^3.8")
+    self.set_pyproject_default(t_tool_poetry_dependencies,
+        'xpulumi', dict(git="https://github.com/sammck/xpulumi.git", branch='main'))
+
+    t_tool_poetry_dev_dependencies = pyproject.get_table('tool.poetry.dev-dependencies', auto_split=True, create=True)
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'mypy', "^0.931")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'dunamai', "^1.9.0")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'python-semantic-release', "^7.25.2")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-urllib3', "^1.26.11")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-PyYAML', "^6.0.5")
+    self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'pylint', "^2.13.5")
+    #self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'grpcio', "^1.44.0")
+
+    t_build_system = pyproject.get_table('build-system', auto_split=True, create=True)
+    self.set_pyproject_default(t_build_system, 'requires', ["poetry-core>=1.0.0"])
+    self.set_pyproject_default(t_build_system, 'build-backend', "poetry.core.masonry.api")
+
+    # Create an empty table for convenience
+    pyproject.get_table('tool.poetry.scripts', auto_split=True, create=True)
+
+    t_tool_semantic_release = pyproject.get_table('tool.semantic_release', auto_split=True, create=True)
+    self.set_pyproject_default(t_tool_semantic_release, 'version_variable', f'{package_import_name}/version.py:__version__')
+    self.set_pyproject_default(t_tool_semantic_release, 'version_toml', 'pyproject.toml:tool.poetry.version')
+    self.set_pyproject_default(t_tool_semantic_release, 'upload_to_pypi', False)
+    self.set_pyproject_default(t_tool_semantic_release, 'upload_to_release', True)
+    self.set_pyproject_default(t_tool_semantic_release, 'build_command', "pip install poetry && poetry build")
+    t_tool_pylint_messages_control = pyproject.get_table(['tool', 'pylint', 'MESSAGES CONTROL'], create=True)
+    self.set_pyproject_default(
+        t_tool_pylint_messages_control,
+        'disable',
+        toml_item(pylint_disable_list).multiline(True),
+      )
+    t_tool_pylint_format = pyproject.get_table('tool.pylint.FORMAT', auto_split = True, create=True)
+    self.set_pyproject_default(t_tool_pylint_format, 'indent-after-paren', 4)
+    self.set_pyproject_default(t_tool_pylint_format, 'indent-string', '  ')
+    self.set_pyproject_default(t_tool_pylint_format, 'max-line-length', 200)
+
+    pyproject.save()
+
+    package_dir = os.path.join(project_root_dir, package_import_name)
+    if not os.path.exists(package_dir):
+      os.mkdir(package_dir)
+
+    self.write_pyfile("__init__.py", f'''
+            """
+            Package {package_import_name}: {project_description}
+            """
+
+            from .version import __version__
+          ''')
+    self.write_pyfile("version.py", f'''
+            """
+            Automatically updated version information for this package
+            """
+
+            # The following line is automatically updated with "semantic-release version"
+            __version__ =  "{project_version}"
+
+            __all__ = [ '__version__' ]
+          ''')
+
+    pytyped_file = os.path.join(package_dir, 'py.typed')
+    if not os.path.exists(pytyped_file):
+      with open(pytyped_file, 'w', encoding='utf-8') as f:
+        pass
+
+    if not license_text is None and not os.path.exists(license_filename):
+      with open(license_filename, 'w', encoding='utf-8') as f:
+        f.write(license_text)
+
+    if not project_readme_text is None and not os.path.exists(project_readme_filename):
+      with open(project_readme_filename, 'w', encoding='utf-8') as f:
+        f.write(project_readme_text)
+
     append_lines_to_file_if_missing(gitignore_file, gitignore_add_lines, create_file=True)
 
-    if not phase_2:
-      self.set_pyproject_default(t_tool_poetry, 'name', project_name)
-      self.set_pyproject_default(t_tool_poetry, 'version', project_version)
-      self.set_pyproject_default(t_tool_poetry, 'description', project_description)
-      self.set_pyproject_default(t_tool_poetry, 'authors', project_authors)
-      self.set_pyproject_default(t_tool_poetry, 'license', license_type)
-      self.set_pyproject_default(t_tool_poetry, 'keywords', project_keywords)
-      self.set_pyproject_default(t_tool_poetry, 'readme', project_readme_rel_filename)
-      self.set_pyproject_default(t_tool_poetry, 'homepage', project_homepage)
-      self.set_pyproject_default(t_tool_poetry, 'repository', project_repository_https)
-
-      t_tool_poetry_dependencies = pyproject.get_table('tool.poetry.dependencies', auto_split=True, create=True)
-      self.set_pyproject_default(t_tool_poetry_dependencies, 'python', "^3.8")
-      self.set_pyproject_default(t_tool_poetry_dependencies,
-          'xpulumi', dict(git="https://github.com/sammck/xpulumi.git", branch='main'))
-
-      t_tool_poetry_dev_dependencies = pyproject.get_table('tool.poetry.dev-dependencies', auto_split=True, create=True)
-      self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'mypy', "^0.931")
-      self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'dunamai', "^1.9.0")
-      self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'python-semantic-release', "^7.25.2")
-      self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-urllib3', "^1.26.11")
-      self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'types-PyYAML', "^6.0.5")
-      self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'pylint', "^2.13.5")
-      #self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'grpcio', "^1.44.0")
-
-      t_build_system = pyproject.get_table('build-system', auto_split=True, create=True)
-      self.set_pyproject_default(t_build_system, 'requires', ["poetry-core>=1.0.0"])
-      self.set_pyproject_default(t_build_system, 'build-backend', "poetry.core.masonry.api")
-
-      # Create an empty table for convenience
-      pyproject.get_table('tool.poetry.scripts', auto_split=True, create=True)
-
-      t_tool_semantic_release = pyproject.get_table('tool.semantic_release', auto_split=True, create=True)
-      self.set_pyproject_default(t_tool_semantic_release, 'version_variable', f'{package_import_name}/version.py:__version__')
-      self.set_pyproject_default(t_tool_semantic_release, 'version_toml', 'pyproject.toml:tool.poetry.version')
-      self.set_pyproject_default(t_tool_semantic_release, 'upload_to_pypi', False)
-      self.set_pyproject_default(t_tool_semantic_release, 'upload_to_release', True)
-      self.set_pyproject_default(t_tool_semantic_release, 'build_command', "pip install poetry && poetry build")
-      t_tool_pylint_messages_control = pyproject.get_table(['tool', 'pylint', 'MESSAGES CONTROL'], create=True)
-      self.set_pyproject_default(
-          t_tool_pylint_messages_control,
-          'disable',
-          toml_item(pylint_disable_list).multiline(True),
-        )
-      t_tool_pylint_format = pyproject.get_table('tool.pylint.FORMAT', auto_split = True, create=True)
-      self.set_pyproject_default(t_tool_pylint_format, 'indent-after-paren', 4)
-      self.set_pyproject_default(t_tool_pylint_format, 'indent-string', '  ')
-      self.set_pyproject_default(t_tool_pylint_format, 'max-line-length', 200)
-
-      pyproject.save()
-
-      package_dir = os.path.join(project_root_dir, package_import_name)
-      if not os.path.exists(package_dir):
-        os.mkdir(package_dir)
-
-      self.write_pyfile("__init__.py", f'''
-              """
-              Package {package_import_name}: {project_description}
-              """
-
-              from .version import __version__
-            ''')
-      self.write_pyfile("version.py", f'''
-              """
-              Automatically updated version information for this package
-              """
-
-              # The following line is automatically updated with "semantic-release version"
-              __version__ =  "{project_version}"
-
-              __all__ = [ '__version__' ]
-            ''')
-
-      pytyped_file = os.path.join(package_dir, 'py.typed')
-      if not os.path.exists(pytyped_file):
-        with open(pytyped_file, 'w', encoding='utf-8') as f:
-          pass
-
-      if not license_text is None and not os.path.exists(license_filename):
-        with open(license_filename, 'w', encoding='utf-8') as f:
-          f.write(license_text)
-
-      if not project_readme_text is None and not os.path.exists(project_readme_filename):
-        with open(project_readme_filename, 'w', encoding='utf-8') as f:
-          f.write(project_readme_text)
-
-      subprocess.check_call(['poetry', 'install'], cwd=project_root_dir, env=self.get_no_venv_eviron())
-
-      return subprocess.call(['xpulumi', 'init-env', '--phase-two'], cwd=project_root_dir, env=self.get_venv_eviron())
-
-    # ================================================================
-    # Everything from here down can be done after xpulumi is installed
+    subprocess.check_call([self.get_poetry_prog(), 'install'], cwd=project_root_dir, env=self.get_no_venv_eviron())
 
     # aws_session = self.get_aws_session()
     aws_account = self.get_aws_account()
@@ -1529,7 +1556,7 @@ class CmdInitEnv(CommandHandler):
         standard_stack_name = 'data_vol_v1',
         backend = s3_backend_name,
         description = "Dev box EBS Data Volune",
-        project_dependencies = [ awsenv_project_name ], 
+        project_dependencies = [ awsenv_project_name ],
         pulumi_stack_configs = {
             dev_stack_name: dict(
                 volume_size_gb="40",
@@ -1543,7 +1570,7 @@ class CmdInitEnv(CommandHandler):
         standard_stack_name = 'dev_box_v1',
         backend = s3_backend_name,
         description = "EC2 Dev box",
-        project_dependencies = [ datavol_project_name, awsenv_project_name ], 
+        project_dependencies = [ datavol_project_name, awsenv_project_name ],
         pulumi_stack_configs = {
             dev_stack_name: dict(
                 # ec2_instance_username = os.getlogin(),
