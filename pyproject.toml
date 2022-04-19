@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xpulumi-installer"
-version = "2.0.0"
+version = "2.1.0"
 description = "Minimal tool to bootstrap installation of xpulumi projects"
 authors = ["Sam McKelvie <dev@mckelvie.org>"]
 license = "MIT"
