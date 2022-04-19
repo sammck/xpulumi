@@ -8,7 +8,7 @@ sudo apt-get upgrade -y python3-grpcio
 
 export PATH="$HOME/.local/bin:$PATH"
 pip3 install --upgrade --user pip
-pip install wheel
+pip install --upgrade --user wheel
 pip install grpcio==1.43
 
 if [ ! -e .venv ]; then
