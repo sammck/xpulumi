@@ -1,57 +1,32 @@
 [tool.poetry]
-name = "xpulumi"
-version = "1.7.0"
-description = "Tools to make Pulumi more usable"
+name = "xpulumi-installer"
+version = "0.1.0"
+description = "Minimal tool to bootstrap installation of xpulumi projects"
 authors = ["Sam McKelvie <dev@mckelvie.org>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-colorama = "^0.4.4"
-jq = "^1.2.2"
-argcomplete = "^2.0.0"
-pulumi = "^3.26.1"
-boto3 = "^1.21.18"
-secret-kv = "^1.3.0"
-pycryptodomex = "^3.14.1"
-requests = "^2.27.1"
-
-mypy = "^0.931"
-python-semantic-release = "^7.25.2"
-boto3-stubs = {extras = ["essential"], version = "^1.21.34"}
-types-requests = "^2.27.12"
-pycryptodome-test-vectors = "^1.0.7"
-types-PyYAML = "^6.0.5"
-importlib-resources = "^5.4.0"
-packaging = "^21.3"
-xdg = "^5.1.1"
-"ruamel.yaml" = "^0.17.21"
-pulumi-aws = "^4.38.1"
-boto3-type-annotations = "^0.3.1"
-debugpy = "^1.6.0"
-yq = "^2.14.0"
-cloud-init-gen = "^1.1.0"
 #project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
 #project-init-tools = { file = "../project-init-tools/dist/project-init-tools-0.1.0.tar.gz" }
 project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
-dnspython = "^2.2.1"
-pulumi-random = "^4.4.2"
-tabulate = "^0.8.9"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.13.4"
 autoflake = "^1.4"
+mypy = "^0.931"
+python-semantic-release = "^7.25.2"
+types-colorama = "^0.4.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-xpulumi = 'xpulumi.__main__:run'
-pulumi = 'xpulumi.pulumi_cli.__main__:run'
+xpulumi-installer = 'xpulumi_installer.__main__:run'
 
 [tool.semantic_release]
-version_variable = 'xpulumi/version.py:__version__'
+version_variable = 'xpulumi_installer/version.py:__version__'
 version_toml = 'pyproject.toml:tool.poetry.version'
 branch = 'main'
 upload_to_pypi = false
