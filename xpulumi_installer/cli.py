@@ -193,7 +193,6 @@ class CommandLineInterface:
                         description='Valid commands',
                         help='Additional help available with "xpulumi-installer <command-name> -h"')
 
-
     # ======================= version
 
     parser_version = subparsers.add_parser('version',
