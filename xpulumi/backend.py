@@ -9,7 +9,7 @@ Abtract backend for working with Pulumi.
 Allows the application to work with a particular backend configuration.
 """
 
-from typing import Optional, cast, Dict, List, TYPE_CHECKING
+from typing import Optional, cast, Dict, List, TYPE_CHECKING, Any
 
 import yaml
 from .internal_types import Jsonable, JsonableDict
@@ -500,6 +500,170 @@ class XPulumiBackend:
       result.append(self.ctx.get_stack_from_xstack_name(xstack_name))
     return result
 
+  def get_stacks_metadata_with_cli(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> Dict[str, JsonableDict]:
+    env = dict(self.ctx.get_environ())
+    if self.scheme in ('https', 'http'):
+      env['PULUMI_ACCESS_TOKEN'] = self.require_access_token()
+    project_backend = pauto.ProjectBackend(self.get_project_backend_url(
+        project=project, organization=organization
+      ))
+    project_settings = pauto.ProjectSettings(project, "python", backend=project_backend)
+    with tempfile.TemporaryDirectory() as work_dir:
+      ws = pauto.LocalWorkspace(
+          work_dir=work_dir,
+          pulumi_home=self.ctx.get_pulumi_home(),
+          env_vars=env,
+          project_settings=project_settings)
+
+      resp = ws._run_pulumi_cmd_sync(          # pylint: disable=protected-access
+            ["stack", "ls", '-j']
+        )
+      md = json.loads(resp.stdout)
+
+    if not isinstance(md, List):
+      raise RuntimeError(f"Could not retrieve stack list via CLI in stack state for backend {self.url}, org={organization}, project={project}")
+
+    result: Dict[str, JsonableDict] = {}
+    for entry in md:
+      result[md['name']] = entry
+
+    return result
+
+  def get_project_inited_stack_list_with_file(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> List[str]:
+    result: List[str] = []
+    project_url = self.get_project_backend_url(project=project, organization=organization)
+    stack_parent_url = project_url + "/.pulumi/stacks"
+    parts = urlparse(stack_parent_url)
+    if parts.scheme != 'file':
+      raise XPulumiError(f"Invalid 'file:' URL: {stack_parent_url}")
+    pathname = file_url_to_pathname(stack_parent_url, self.ctx.get_cwd())
+    if os.path.isdir(pathname):
+      for stackfile in os.listdir(pathname):
+        if stackfile.endswith('.json'):
+          stack_name = stackfile[:-5]
+          if stack_name != '':
+            result.append(stack_name)
+    return result
+
+  def get_project_inited_stack_list_with_s3(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> List[str]:
+    result: List[str] = []
+    project_url = self.get_project_backend_url(project=project, organization=organization)
+    stack_parent_url = project_url + "/.pulumi/stacks"
+    parts = urlparse(stack_parent_url)
+    if parts.scheme != 's3':
+      raise XPulumiError(f"Invalid 's3:' URL: {stack_parent_url}")
+    prefix = parts.path
+    if prefix.startswith('/'):
+      prefix = prefix[1:]
+    prefix += '/'
+    bucket = parts.netloc
+    aws_account = self.options.get("aws_account", None)
+    assert aws_account is None or isinstance(aws_account, str)
+    aws_region = self.options.get("aws_region", None)
+    assert aws_region is None or isinstance(aws_region, str)
+    aws = self.ctx.get_aws_session(aws_account=aws_account, aws_region=aws_region)
+    s3 = aws.client('s3')
+    kwargs: Dict[str, Any] = dict(Bucket=bucket, Prefix=prefix)
+    while True:
+      resp = s3.list_objects_v2(**kwargs)
+      contents = cast(Optional[List[JsonableDict]], resp.get('Contents', None))
+      assert contents is None or isinstance(contents, list)
+      if not contents is None:
+        for obj_data in contents:
+          key = obj_data['Key']
+          assert key.startswith(prefix)
+          filename = key[len(prefix):]
+          if not '/' in filename and filename.endswith('.json'):
+            stack_name = filename[:-5]
+            result.append(stack_name)
+      continuation_token = resp.get('NextContinuationToken', None)
+      if continuation_token is None:
+        break
+      kwargs['ContinuationToken'] = continuation_token
+    return result
+
+  def get_project_inited_stack_list_with_cli(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> List[str]:
+    return list(self.get_stacks_metadata_with_cli(project, organization=organization).keys())
+
+  def get_project_inited_stack_list(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> Dict[str, JsonableDict]:
+    scheme = self.scheme
+    if scheme == 'file':
+      result = self.get_project_inited_stack_list_with_file(project, organization=organization)
+    elif scheme == 's3':
+      result = self.get_project_inited_stack_list_with_s3(project, organization=organization)
+    else:
+      result = self.get_project_inited_stack_list_with_cli(project, organization=organization)
+    return result
+
+  def get_stacks_metadata_with_blob(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> Dict[str, JsonableDict]:
+    scheme = self.scheme
+    if scheme == 'file':
+      stack_names = self.get_project_inited_stack_list_with_file(project, organization=organization)
+    elif scheme == 's3':
+      stack_names = self.get_project_inited_stack_list_with_s3(project, organization=organization)
+    else:
+      raise XPulumiError(f"Scheme {self.scheme} not supported using blob metadata read: {self.url}")
+    result: Dict[str, JsonableDict] = {}
+    default_stack_name = self.ctx.get_optional_stack_name()
+    for stack_name in stack_names:
+      stack_state = self.export_stack_with_blob_backend(project, stack_name, organization=organization)
+      entry = dict(name=stack_name, current=stack_name==default_stack_name, updateInProgress=False)
+      deployment = cast(Optional[JsonableDict], stack_state.get('deployment', None))
+      assert deployment is None or isinstance(deployment, dict)
+      if not deployment is None:
+        manifest = cast(Optional[JsonableDict], deployment.get('manifest', None))
+        assert manifest is None or isinstance(manifest, dict)
+        if not manifest is None:
+          ts = cast(Optional[str], manifest.get('time', None))
+          assert ts is None or isinstance(ts, str)
+          if not ts is None:
+            entry.update(lastUpdate=ts)
+        resources = cast(Optional[List[JsonableDict]], deployment.get('resources', None))
+        assert resources is None or isinstance(resources, List)
+        if not resources is None:
+          entry.update(resourceCount=len(resources))
+        pending_operations = cast(Optional[List[Jsonable]], deployment.get('pending_operations', None))
+        assert pending_operations is None or isinstance(pending_operations, List)
+        if not pending_operations is None:
+          entry.update(updateInProgress=True)
+        result[stack_name] = entry
+    return result
+
+  def get_stacks_metadata(
+        self,
+        project: str,
+        organization: Optional[str]=None,
+      ) -> Dict[str, JsonableDict]:
+    scheme = self.scheme
+    if scheme in ('file', 's3'):
+      result = self.get_stacks_metadata_with_blob(project, organization=organization)
+    else:
+      result = self.get_stacks_metadata_with_cli(project, organization=organization)
+    return result
 
   def __str__(self) -> str:
     return f"<XPulumi backend {self.name} ==> {self.url}>"

@@ -30,7 +30,6 @@ from project_init_tools import file_url_to_pathname, full_name_of_type, full_typ
 from .exceptions import XPulumiError
 from .context import XPulumiContext
 from .base_context import XPulumiContextBase
-from .api_client import PulumiApiClient
 from .passphrase import PassphraseCipher
 from .constants import PULUMI_STANDARD_BACKEND, PULUMI_JSON_SECRET_PROPERTY_NAME, PULUMI_JSON_SECRET_PROPERTY_VALUE
 from .backend import XPulumiBackend
@@ -280,11 +279,12 @@ class XPulumiProject:
 
   def get_stacks_metadata(self) -> Dict[str, JsonableDict]:
     if self._stacks_metadata is None:
-      text = self.check_output_project_pulumi([ 'stack', 'ls', '-j' ])
-      md = json.loads(text)
-      result: Dict[str, JsonableDict] = {}
-      for smd in md:
-        result[smd['name']] = smd
+      result = self.backend.get_stacks_metadata(self.name, organization=self.organization)
+      #text = self.check_output_project_pulumi([ 'stack', 'ls', '-j' ])
+      #md = json.loads(text)
+      #result: Dict[str, JsonableDict] = {}
+      #for smd in md:
+      #  result[smd['name']] = smd
       self._stacks_metadata = result
     return self._stacks_metadata
 
@@ -393,5 +393,5 @@ class XPulumiProject:
   def __str__(self) -> str:
     return f"<XPulumi project {self.name}>"
 
-  def __str__(self) -> str:
+  def __repr__(self) -> str:
     return f"<XPulumi project {self.name}, id={id(self)}>"

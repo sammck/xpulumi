@@ -30,7 +30,6 @@ from project_init_tools import file_url_to_pathname, full_name_of_type, full_typ
 from .exceptions import XPulumiError
 from .context import XPulumiContext
 from .base_context import XPulumiContextBase
-from .api_client import PulumiApiClient
 from .passphrase import PassphraseCipher
 from .constants import PULUMI_STANDARD_BACKEND, PULUMI_JSON_SECRET_PROPERTY_NAME, PULUMI_JSON_SECRET_PROPERTY_VALUE
 from .backend import XPulumiBackend

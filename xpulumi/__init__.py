@@ -18,7 +18,6 @@ from .exceptions import (
 from .backend import XPulumiBackend
 from .project import XPulumiProject
 from .stack import XPulumiStack
-from .api_client import PulumiApiClient
 from .context import XPulumiContext
 from .base_context import XPulumiContextBase
 
