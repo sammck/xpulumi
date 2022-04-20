@@ -33,7 +33,8 @@ yq = "^2.14.0"
 cloud-init-gen = "^1.1.0"
 #project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
 #project-init-tools = { file = "../project-init-tools/dist/project-init-tools-0.1.0.tar.gz" }
-project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
+#project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
+project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "stable" }
 dnspython = "^2.2.1"
 pulumi-random = "^4.4.2"
 tabulate = "^0.8.9"
