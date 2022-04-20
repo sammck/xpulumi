@@ -458,6 +458,9 @@ class CommandLineInterface:
     parser_init_env.add_argument('--subaccount', default=None,
                         help='Specify a subaccount name to prevent collision '
                              'with duplicate stacks running in the same AWS account. Default is None.')
+    parser_init_env.add_argument('-p', '--xpulumi-package', default=None,
+                        help='Specify the package spec (as used by pip install) '
+                             'to be used for xpulumi package updates. Default is latest stable.')
     parser_init_env.set_defaults(func=self.cmd_init_env)
 
     # ======================= run

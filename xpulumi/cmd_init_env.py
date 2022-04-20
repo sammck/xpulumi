@@ -1316,6 +1316,31 @@ class CmdInitEnv(CommandHandler):
     cloud_subaccount = self.get_cloud_subaccount()
     return '' if cloud_subaccount is None else f"{cloud_subaccount}-"
 
+  git_tag_hex_pattern = re.compile(r'^[a-f0-9]+$')
+  git_tag_version_pattern = re.compile(r'^v?[0-9]+\.[0-9]+.[0-9].*$')
+  def gen_poetry_package_spec(self, package: str) -> Union[str, JsonableDict]:
+    result: Union[str, JsonableDict]
+    if ':' in package:
+      if package.startswith('git+'):
+        parts = package[4:].split('@', 1)
+        result = dict(git=parts[1])
+        if len(parts) > 2 and parts[1] != '':
+          tag = parts[1]
+          if self.git_tag_version_pattern.match(tag):
+            ttype = 'tag'
+          elif len(tag) >= 8 and self.git_tag_hex_pattern.match(tag):
+            ttype = 'rev'
+          else:
+            ttype = 'branch'
+          result[ttype] = tag
+      else:
+        result = dict(url=package)
+    elif '/' in package:
+      result = dict(path=package)
+    else:
+      result = package
+    return result
+
   def __call__(self) -> int:
     phase_2 = cast(bool, self.cli.args.phase_two)
     assert isinstance(phase_2, bool)
@@ -1323,6 +1348,12 @@ class CmdInitEnv(CommandHandler):
     self.get_or_create_config()
     project_root_dir = self.get_project_root_dir()
     project_init_dir = self.get_project_init_dir()
+
+    xpulumi_package = cast(Optional[str], self.args.xpulumi_package)
+    if xpulumi_package is None:
+      xpulumi_package = 'git+https://github.com/sammck/xpulumi.git@main'
+    xpulumi_package_spec = self.gen_poetry_package_spec(xpulumi_package)
+
 
     if not os.path.exists(project_init_dir):
       os.makedirs(project_init_dir)
@@ -1414,7 +1445,7 @@ class CmdInitEnv(CommandHandler):
     t_tool_poetry_dependencies = pyproject.get_table('tool.poetry.dependencies', auto_split=True, create=True)
     self.set_pyproject_default(t_tool_poetry_dependencies, 'python', "^3.8")
     self.set_pyproject_default(t_tool_poetry_dependencies,
-        'xpulumi', dict(git="https://github.com/sammck/xpulumi.git", branch='main'))
+        'xpulumi', xpulumi_package_spec)
 
     t_tool_poetry_dev_dependencies = pyproject.get_table('tool.poetry.dev-dependencies', auto_split=True, create=True)
     self.set_pyproject_default(t_tool_poetry_dev_dependencies, 'mypy', "^0.931")
