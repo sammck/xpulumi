@@ -95,7 +95,7 @@ class Ec2KeyPair:
     if use_config and public_key is None and public_key_file is None:
       public_key = pconfig.get(f'{cfg_prefix}ssh_public_key')
       public_key_file = pconfig.get(f'{cfg_prefix}ssh_public_key_file')
-      pulumi.info(f"{cfg_prefix}CFG {cfg_prefix}ssh_public_key={public_key} {cfg_prefix}public_key_file={public_key_file}")
+      # pulumi.info(f"{cfg_prefix}CFG {cfg_prefix}ssh_public_key={public_key} {cfg_prefix}public_key_file={public_key_file}")
     if use_config and keypair_id is None:
       keypair_id = pconfig.get(f'{cfg_prefix}ssh_keypair_id')
 
