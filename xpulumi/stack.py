@@ -323,7 +323,23 @@ class XPulumiStack:
     add_stack(self, include_self)
     return dependency_list
 
+  def get_stack_metadata(self) -> Optional[JsonableDict]:
+    return self.project.get_stack_metadata(self.stack_name)
 
+  def is_inited(self) -> bool:
+    return not self.project.stack_is_inited(self.stack_name) is None
+
+  def init_stack(self) -> None:
+    return self.project.init_stack(self.stack_name)
+
+  def is_deployed(self) -> bool:
+    return self.project.stack_is_deployed(self.stack_name)
+
+  def get_resource_count(self) -> int:
+    return self.project.get_stack_resource_count(self.stack_name)
 
   def __str__(self) -> str:
     return f"<XPulumi stack {self.full_stack_name}>"
+
+  def __repr__(self) -> str:
+    return f"<XPulumi stack {self.full_stack_name}, id={id(self)}>"

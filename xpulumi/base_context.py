@@ -11,7 +11,7 @@ on demand.
 
 """
 
-from typing import TYPE_CHECKING, Optional, cast, Dict, Tuple, List, Callable, Union, Any
+from typing import TYPE_CHECKING, Optional, cast, Dict, Tuple, List, Callable, Union, Any, Set, Iterable
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -115,6 +115,7 @@ class XPulumiContextBase(XPulumiContext):
   _default_cloud_subaccount: Optional[str] = None
 
   _project_cache: Dict[str, 'XPulumiProject']
+  _all_projects_known: bool = False
 
   def __init__(self, config: Optional[XPulumiConfig]=None, cwd: Optional[str]=None):
     super().__init__()
@@ -224,6 +225,133 @@ class XPulumiContextBase(XPulumiContext):
       project = XPulumiProject(project_name, ctx=self, cwd=cwd)
       self._project_cache[project_name] = project
     return project
+
+  def get_projects(self) -> Dict[str, 'XPulumiProject']:
+    if not self._all_projects_known:
+      from .project import XPulumiProject
+      project_parent_dir = os.path.join(self.get_infra_dir(), 'project')
+      project_dirs = os.listdir(project_parent_dir)
+      for project_name in project_dirs:
+        if not project_name in self._project_cache:
+          project_dir = os.path.join(project_parent_dir, project_name)
+          if os.path.isdir(project_dir):
+            project_cfg_file = os.path.join(project_dir, 'xpulumi-project.yaml')
+            if os.path.exists(project_cfg_file):
+              self._project_cache[project_name] = XPulumiProject(project_name, ctx=self)
+      self._all_projects_known = True
+    return self._project_cache
+
+  def invalidate_all_projects_known(self) -> None:
+    self._all_projects_known = False
+
+  def get_all_stacks(self) -> Dict[str, 'XPulumiStack']:
+    result: Dict[str, 'XPulumiStack'] = {}
+
+    def add_stack_and_deps(stack: 'XPulumiStack') -> None:
+      xstack = stack.full_stack_name
+      if not xstack in result:
+        result[xstack] = stack
+        for depstack in stack.get_stack_dependencies():
+          add_stack_and_deps(depstack)
+
+    for project in self.get_projects().values():
+      for stack in project.get_stacks().values():
+        add_stack_and_deps(stack)
+    return result
+
+  def get_all_xstacks_dependents(self) -> Dict[str, Set[str]]:
+    """For all known xstacks, returns a map
+       from xstack name to a set of xstack names that are
+       directly dependent on that xstack.
+
+       Sort of an inverted dependency tree
+
+    Returns:
+        Dict[str, Set[str]]: Map from every xstack name to the set
+                             of xstack names that are directly
+                             dependent on it
+    """
+    result: Dict[str, Set[str]] = {}
+    for xstack, stack in self.get_all_stacks().items():
+      if not xstack in result:
+        result[xstack] = set()
+      for depstack in stack.get_stack_dependencies():
+        depxstack = depstack.full_stack_name
+        if not depxstack in result:
+          result[depxstack] = set()
+        result[depxstack].add(xstack)
+    return result
+
+  def get_stacks_build_order(self, stacks: Iterable['XPulumiStack']) -> List['XPulumiStack']:
+    """For a given set of stacks, returns an ordered list of all the stacks that need
+       to be deployed to bring those stacks up to date (including those stacks themselves)
+
+    Raises:
+        XPulumiError: circular dependency
+
+    Returns:
+        List[XPulumiStack]: an ordered deploy list
+    """
+    dependency_list: List['XPulumiStack'] = []
+    dependency_set: Set[str] = set()
+    processing_stack: List[str] = []
+
+    def add_stack(stack: 'XPulumiStack'):
+      xstack = stack.full_stack_name
+      if xstack in processing_stack:
+        raise XPulumiError(f"Circular dependency between xstacks: {processing_stack + [ xstack ] }")
+      if not xstack in dependency_set:
+        processing_stack.append(xstack)
+        deps = stack.get_stack_dependencies()
+        for dep in deps:
+          add_stack(dep)
+        assert not xstack in dependency_set
+        dependency_list.append(stack)
+        dependency_set.add(xstack)
+        processing_stack.pop()
+    for top_stack in stacks:
+      add_stack(top_stack)
+    return dependency_list
+
+  def get_all_stacks_build_order(self) -> List['XPulumiStack']:
+    return self.get_stacks_build_order(self.get_all_stacks().values())
+
+  def get_stacks_destroy_order(self, stacks: Iterable['XPulumiStack']) -> List['XPulumiStack']:
+    """For a given set of stacks, returns an ordered list of all the stacks that need to be
+       destroyed to destroy those stacks (including the stacks themselves).
+
+    Raises:
+        XPulumiError: circular dependency
+
+    Returns:
+        List[XPulumiStack]: an ordered destroy list
+    """
+    depmap = self.get_all_xstacks_dependents()
+
+    dependency_list: List['XPulumiStack'] = []
+    dependency_set: Set[str] = set()
+    processing_stack: List[str] = []
+
+    def add_stack(stack: 'XPulumiStack'):
+      xstack = stack.full_stack_name
+      if xstack in processing_stack:
+        raise XPulumiError(f"Circular dependency between xstacks: {processing_stack + [ xstack ] }")
+      if not xstack in dependency_set:
+        processing_stack.append(xstack)
+        if xstack in depmap:
+          deps = depmap[xstack]
+          for dep in deps:
+            add_stack(self.get_stack_from_xstack_name(dep))
+        assert not xstack in dependency_set
+        dependency_list.append(stack)
+        dependency_set.add(xstack)
+        processing_stack.pop()
+    for top_stack in stacks:
+      add_stack(top_stack)
+    return dependency_list
+
+  def get_all_stacks_destroy_order(self) -> List['XPulumiStack']:
+    return self.get_stacks_destroy_order(self.get_all_stacks().values())
 
   def parse_xstack_name(
         self,
