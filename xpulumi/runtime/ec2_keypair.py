@@ -144,7 +144,9 @@ class Ec2KeyPair:
       keypair_id = self.keypair_id
       if keypair_id is None:
         if public_key is None:
-          raise XPulumiError("Unable to determine SSH public key--not passed and ~/.ssh/id_rsa.pub not present")
+          self.set_public_key(filename="~/.ssh/id_rsa.pub")
+          public_key = self.public_key
+          assert not public_key is None
         self._keypair = ec2.KeyPair(
             f'{resource_prefix}ssh-keypair',
             key_name_prefix=f'{long_stack}-',

@@ -210,8 +210,11 @@ def load_stack(
       open_ports=[ 22, 80, 443 ],
 
       # The pathname to your SSH public key--The corresponding private key
-      # will be used to SSH into the instance.
-      public_key_file="~/.ssh/id_rsa.pub",
+      # will be used to SSH into the instance. By default it will load
+      # from either config param "{cfg_prefix}ssh_public_key" or "{cfg_prefix}ssh_public_key_file",
+      # and resort to public_key_file="~/.ssh/id_rsa.pub" if nothing else is set.
+      # public_key_file="~/.ssh/id_rsa.pub",
+      # public_key="<insert-key-here>",
 
       # The EC2 instance type. May be either x86_64 or Arm64 architecture.
       instance_type="t3.medium",
@@ -342,7 +345,7 @@ def load_stack(
   #     so we can set the GID to a stable value).
   #   - Install, and configure the AWS cloudwatch agent
   #   - On every boot until cloud-init produces a result, run a script in the background
-  #     that pushes cloud-init status updates to S3. We will use that in our 
+  #     that pushes cloud-init status updates to S3. We will use that in our
   #     provisioning code to determine when the instance is ready.
   #
   # NOTE: The single quotes around 'CWCFGEOF' are essential, since they suppress "${var}"
@@ -545,7 +548,7 @@ def load_stack(
           # access to the metadata service allows the caller to impersonate the EC2 instance's IAM Role on AWS, and
           # read any secrets passed to the instance through UserData (e.g., the hashed sudo password).
           # If there are trusted containers, we can create special rules for them...
-          # TODO: This must be done on every boot, not just the first boot
+          # TODO: This must be done on every boot, not just the first boot # pylint: disable=fixme
           [ "iptables", "--insert", "DOCKER-USER", "--destination", "169.254.169.254", "--jump", "REJECT" ],
 
           [ "find", "/home"],
@@ -573,12 +576,12 @@ def load_stack(
   cloud_init_result_uri = Output.concat(stack_s3_uri, '/cloud-init-result-', ec2_instance.ec2_instance.id, '.json')
 
   cloud_init_result = S3FutureObject(
-    f'{resource_prefix}ec2_cloud_init_result',
-    uri=cloud_init_result_uri,
-    aws_region=aws_region,
-    max_wait_seconds=15*60,
-    poll_interval=10
-  )  
+      f'{resource_prefix}ec2_cloud_init_result',
+      uri=cloud_init_result_uri,
+      aws_region=aws_region,
+      max_wait_seconds=15*60,
+      poll_interval=10
+    )
   cloud_init_result_data = cloud_init_result.get_json_content()
 
   pulumi.export('ec2_instance_cloud_init_result', cloud_init_result_data)
