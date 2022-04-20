@@ -1323,8 +1323,8 @@ class CmdInitEnv(CommandHandler):
     if ':' in package:
       if package.startswith('git+'):
         parts = package[4:].split('@', 1)
-        result = dict(git=parts[1])
-        if len(parts) > 2 and parts[1] != '':
+        result = dict(git=parts[0])
+        if len(parts) > 1 and parts[1] != '':
           tag = parts[1]
           if self.git_tag_version_pattern.match(tag):
             ttype = 'tag'
@@ -1351,9 +1351,8 @@ class CmdInitEnv(CommandHandler):
 
     xpulumi_package = cast(Optional[str], self.args.xpulumi_package)
     if xpulumi_package is None:
-      xpulumi_package = 'git+https://github.com/sammck/xpulumi.git@main'
+      xpulumi_package = 'git+https://github.com/sammck/xpulumi.git@stable'
     xpulumi_package_spec = self.gen_poetry_package_spec(xpulumi_package)
-
 
     if not os.path.exists(project_init_dir):
       os.makedirs(project_init_dir)
