@@ -3,6 +3,7 @@
 # See LICENSE file accompanying this package.
 #
 
+from xpulumi.runtime import ec2_keypair
 from xpulumi.runtime.ebs_volume import EbsVolume
 
 
@@ -403,6 +404,12 @@ def load_stack(
     }
   docker_config = json.dumps(docker_config_obj, separators=(',', ':'), sort_keys=True)
 
+  # Commit the keypair now. This ensures that ec2_instance.keypair.public_key has a value derived
+  # from configuration (we pass the value to cloud-config as well)
+  ec2_instance.keypair.commit()
+  pubkey = ec2_instance.keypair.public_key
+  assert not pubkey is None
+
   # create the main cloud-init document as structured, JSON-able data. xpulumi
   # will automatically render this as YAML and properly embed it in the user-data
   # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
@@ -430,7 +437,7 @@ def load_stack(
               # obliterated by our mount. This includes the SSH authorized_keys
               # file. We will work around this by copying the home dir in our init script...
               #'no-create-home': True,
-              'ssh-authorized-keys': ec2_instance.keypair.public_key,
+              'ssh-authorized-keys': pubkey,
             },
         ],
       device_aliases = dict(
@@ -527,7 +534,7 @@ def load_stack(
               f"touch /home/{ec2_instance_username}/.ssh/authorized_keys && "
               f"chmod 600 /home/{ec2_instance_username}/.ssh/authorized_keys && "
               f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/authorized_keys && "
-              f"echo {shlex.quote(ec2_instance.keypair.public_key)} > /home/{ec2_instance_username}/.ssh/ci_auth_key && "
+              f"echo {shlex.quote(pubkey)} > /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f"chmod 600 /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f"chown {ec2_instance_username}.{ec2_instance_username} /home/{ec2_instance_username}/.ssh/ci_auth_key && "
               f'''( grep -qF "$(head -1 /home/{ec2_instance_username}/.ssh/ci_auth_key)" /home/{ec2_instance_username}/.ssh/authorized_keys || '''
