@@ -193,11 +193,11 @@ def get_current_cloud_subaccount() -> Optional[str]:
   if result == '':
     result = None
   return result
-  
+
 def get_current_cloud_subaccount_prefix() -> str:
   subaccount = get_current_cloud_subaccount()
-  return '' if (subaccount is None or subaccount == '') else subaccount + '-' 
-  
+  return '' if (subaccount is None or subaccount == '') else subaccount + '-'
+
 def sync_get_processor_arches_from_instance_type(instance_type: str, region_name: Optional[str]=None) -> List[str]:
   """Returns a list of processor architectures supported by the given EC2 instance type
 
@@ -392,4 +392,3 @@ def future_dedent(s: Input[str], **kwargs) -> Output[str]:
 
 def concat_and_dedent(*args: str, **kwargs) -> Output[str]:
   return future_dedent(Output.concat(*args), **kwargs)
-

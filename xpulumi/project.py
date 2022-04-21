@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi project configuration.
 
 """
 
-from typing import Optional, cast, Dict, List, TYPE_CHECKING, Set
+from typing import Optional, cast, Dict, List, TYPE_CHECKING, Set, Mapping, Tuple
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -50,7 +50,7 @@ class XPulumiProject:
   _xcfg_data: JsonableDict
   _cfg_data: JsonableDict
   _pulumi_cfg_file: str
-  _pulumi_cfg_data: JsonableDict
+  _pulumi_cfg_data: Optional[JsonableDict] = None
   _pulumi_project_name: str
   _backend_name: str
   _backend: XPulumiBackend
@@ -60,6 +60,9 @@ class XPulumiProject:
   _all_stacks_known: bool = False
   _project_dependencies: List[str]
   _stacks_metadata: Optional[Dict[str, JsonableDict]] = None
+  _include_in_all_up: bool = True
+  _include_in_destroy_all: bool = True
+  _allowed_stack_names: Optional[List[str]] = None
 
   def __init__(
         self,
@@ -166,6 +169,45 @@ class XPulumiProject:
     assert isinstance(project_dependencies, list)
     project_dependencies = project_dependencies[:]
     self._project_dependencies = project_dependencies
+    include_in_all_up = cast(bool, cfg_data.get("include_in_all_up", True))
+    assert isinstance(include_in_all_up, bool)
+    self._include_in_all_up = include_in_all_up
+    include_in_destroy_all = cast(bool, cfg_data.get("include_in_destroy_all", True))
+    assert isinstance(include_in_destroy_all, bool)
+    self._include_in_destroy_all = include_in_destroy_all
+    allowed_stack_names = cast(Optional[List[str]], cfg_data.get("allowed_stack_names", None))
+    if not allowed_stack_names is None:
+      assert isinstance(allowed_stack_names, list)
+      allowed_stack_names = allowed_stack_names[:]
+    self._allowed_stack_names = allowed_stack_names
+
+  @property
+  def allowed_stack_names(self) -> Optional[List[str]]:
+    return self._allowed_stack_names
+
+  def is_allowed_stack_name(self, stack_name: str) -> bool:
+    allowed = self.allowed_stack_names
+    return allowed is None or stack_name in allowed
+
+  def pulumi_config_exists(self) -> bool:
+    return not self._pulumi_cfg_data is None
+
+  def deployment_of_stack_is_allowed(self, stack_name: str) -> bool:
+    return self.pulumi_config_exists() and self.main_script_exists() and self.is_allowed_stack_name(stack_name)
+
+  def get_pulumi_config(self) -> JsonableDict:
+    result = self._pulumi_cfg_data
+    if result is None:
+      result = {}
+    return result
+
+  @property
+  def include_in_all_up(self) -> bool:
+    return self._include_in_all_up
+
+  @property
+  def include_in_destroy_all(self) -> bool:
+    return self._include_in_destroy_all
 
   @property
   def ctx(self) -> XPulumiContextBase:
@@ -199,6 +241,16 @@ class XPulumiProject:
   @property
   def cfg_data(self) -> JsonableDict:
     return self._cfg_data
+
+  @property
+  def main_script_filename(self) -> str:
+    return os.path.join(self.project_dir, '__main__.py')
+
+  def main_script_exists(self) -> bool:
+    return os.path.exists(self.main_script_filename)
+
+  def is_imported_project(self) -> bool:
+    return not self.main_script_exists()
 
   def abspath(self, pathname: str) -> str:
     return os.path.abspath(os.path.join(self._project_dir, os.path.expanduser(pathname)))
@@ -268,14 +320,50 @@ class XPulumiProject:
   def get_pulumi_prog(self) -> str:
     return self.ctx.get_pulumi_wrapped_cli()
 
-  def check_call_project_pulumi(self, args: List[str]):
-    subprocess.check_call([ self.get_pulumi_prog() ] + args, cwd=self.project_dir)
+  def _fix_pulumi_args_and_env(
+        self,
+        args: List[str],
+        cwd: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+        stack_name: Optional[str] = None
+      ) -> Tuple[List[str], str, Dict[str, str]]:
+    # Returns a tuple with arglist, cwd, env for subprocess call
+    args = [ self.get_pulumi_prog() ] + args
+    if cwd is None:
+      cwd = self.project_dir
+    if env is None:
+      env = os.environ()
+    env = dict(env)
+    if not stack_name is None:
+      env['PULUMI_STACK'] = stack_name
+    return args, cwd, env
 
-  def call_project_pulumi(self, args: List[str]) -> int:
-    return subprocess.call([ self.get_pulumi_prog() ] + args, cwd=self.project_dir)
+  def check_call_project_pulumi(
+        self,
+        args: List[str],
+        env: Optional[Mapping[str, str]] = None,
+        stack_name: Optional[str] = None
+      ) -> None:
+    fargs, fcwd, fenv = self._fix_pulumi_args_and_env(args, env=env, stack_name=stack_name)
+    subprocess.check_call(fargs, cwd=fcwd, env=fenv)
 
-  def check_output_project_pulumi(self, args: List[str]) -> str:
-    return subprocess.check_output([ self.get_pulumi_prog() ] + args, cwd=self.project_dir).decode('utf-8')
+  def call_project_pulumi(
+        self,
+        args: List[str],
+        env: Optional[Mapping[str, str]] = None,
+        stack_name: Optional[str] = None
+      ) -> int:
+    fargs, fcwd, fenv = self._fix_pulumi_args_and_env(args, env=env, stack_name=stack_name)
+    return subprocess.call(fargs, cwd=fcwd, env=fenv)
+
+  def check_output_project_pulumi(
+        self,
+        args: List[str],
+        env: Optional[Mapping[str, str]] = None,
+        stack_name: Optional[str] = None
+      ) -> str:
+    fargs, fcwd, fenv = self._fix_pulumi_args_and_env(args, env=env, stack_name=stack_name)
+    return subprocess.check_output(fargs, cwd=fcwd, env=fenv).decode('utf-8')
 
   def get_stacks_metadata(self) -> Dict[str, JsonableDict]:
     if self._stacks_metadata is None:
@@ -359,7 +447,7 @@ class XPulumiProject:
   def init_stack(self, stack_name: str):
     if not self.stack_is_inited(stack_name):
       self.invalidate_stacks_metadata()
-      self.check_call_project_pulumi([ 'stack', 'init', '-s', stack_name, '--non-interactive' ])
+      self.check_call_project_pulumi([ 'stack', 'init', '--non-interactive' ], stack_name=stack_name)
 
   def get_stack_dependencies(self, stack_name: str) -> List['XPulumiStack']:
     """Get the list of XPulumiStacks that a single stack in this project

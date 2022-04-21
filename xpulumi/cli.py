@@ -329,7 +329,7 @@ class CommandLineInterface:
     result = None if stack_name is None else self.get_project().get_stack(stack_name, create=True)
     return result
 
-  def get_required_selected_stack(self) -> Optional[XPulumiStack]:
+  def get_required_selected_stack(self) -> XPulumiStack:
     stack_name = self.get_required_selected_stack_name()
     result = self.get_project().get_stack(stack_name, create=True)
     return result
@@ -383,7 +383,7 @@ class CommandLineInterface:
       print(f"     Building xpulumi project {project.name}, stack {stack_name}", file=sys.stderr)
       print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
       project.init_stack(stack_name)
-      rc = project.call_project_pulumi(['up', '-s', stack_name])
+      rc = project.call_project_pulumi(['up'], stack_name=stack_name)
       if rc != 0:
         return rc
     return 0

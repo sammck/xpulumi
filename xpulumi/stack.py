@@ -10,7 +10,7 @@ Allows the application to work with a particular Pulumi stack configuration.
 
 """
 
-from typing import Optional, cast, Dict, Tuple, Union, List, Set
+from typing import Optional, cast, Dict, Tuple, Union, List, Set, Mapping
 from .internal_types import Jsonable, JsonableDict
 
 import os
@@ -96,10 +96,13 @@ class XPulumiStack:
   _xcfg_data: JsonableDict
   _cfg_data: JsonableDict
   _pulumi_cfg_file: str
-  _pulumi_cfg_data: JsonableDict
+  _pulumi_cfg_data: Optional[JsonableDict] = None
   _cached_stack_outputs_lock: Lock
   _cached_stack_outputs: Dict[Tuple[bool, bool], JsonableDict]
   _cloud_subaccount: Optional[str] = None
+  _include_in_all_up: bool = True
+  _include_in_destroy_all: bool = True
+  _decrypted_pulumi_config_values: Optional[JsonableDict] = None
 
   def __init__(
         self,
@@ -187,7 +190,20 @@ class XPulumiStack:
     if cloud_subaccount is None:
       cloud_subaccount = project.cloud_subaccount
     self._cloud_subaccount = cloud_subaccount
+    include_in_all_up = cast(bool, cfg_data.get("include_in_all_up", True))
+    assert isinstance(include_in_all_up, bool)
+    self._include_in_all_up = include_in_all_up and project.include_in_all_up
+    include_in_destroy_all = cast(bool, cfg_data.get("include_in_destroy_all", True))
+    assert isinstance(include_in_destroy_all, bool)
+    self._include_in_destroy_all = include_in_destroy_all and project.include_in_destroy_all
 
+  @property
+  def include_in_all_up(self) -> bool:
+    return self._include_in_all_up
+
+  @property
+  def include_in_destroy_all(self) -> bool:
+    return self._include_in_destroy_all
 
   @property
   def ctx(self) -> XPulumiContextBase:
@@ -274,28 +290,78 @@ class XPulumiStack:
         self._cached_stack_outputs[(decrypt_secrets, bypass_pulumi)] = result
     return result
 
+  def pulumi_config_exists(self) -> bool:
+    return not self._pulumi_cfg_data is None
+
+  def is_initable(self) -> bool:
+    """Returns True if it is allowed to create this stack in the pulumi backend"""
+    return self.project.deployment_of_stack_is_allowed(self.stack_name)
+
+  def is_deployable(self) -> bool:
+    """Returns True if a pulumi config exists for this stack and the project
+    allows deployment of this stack."""
+    return self.pulumi_config_exists() and self.is_initable()
+
   def get_pulumi_config(self) -> JsonableDict:
     result = self._pulumi_cfg_data
     if result is None:
       result = {}
     return result
 
-  def get_config_values(self) -> JsonableDict:
-    pc = self.get_pulumi_config()
-    result: JsonableDict = cast(JsonableDict, pc.get('config', {}))
-    assert isinstance(result, dict)
+  def get_decrypted_config_values(self) -> JsonableDict:
+    if self._decrypted_pulumi_config_values is None:
+      # avoid slow passphrase hash generation if there are not
+      # any secrets in this stack's config
+      unencrypted = self.get_config_values(decrypt_secrets=False)
+      has_encrypted = False
+      for v in unencrypted.values():
+        if isinstance(v, dict) and 'secure' in v:
+          has_encrypted = True
+          break
+      if has_encrypted:
+        decrypted_text = self.check_output_stack_pulumi(['config', '--show-secrets', '-j'])
+        decrypted_data = cast(JsonableDict, json.loads(decrypted_text))
+        assert isinstance(decrypted_data, dict)
+        result: JsonableDict = {}
+        for k, v in decrypted_data.items():
+          assert isinstance(v, dict) and 'value' in v
+          result[k] = v['value']
+      else:
+        result = deepcopy(unencrypted)
+      self._decrypted_pulumi_config_values = result
+    return self._decrypted_pulumi_config_values
+
+  def get_config_values(self, decrypt_secrets: bool=True) -> JsonableDict:
+    if decrypt_secrets:
+      result = self.get_decrypted_config_values()
+    else:
+      pc = self.get_pulumi_config()
+      result: JsonableDict = cast(JsonableDict, pc.get('config', {}))
+      assert isinstance(result, dict)
     return result
 
-  def get_config_value(self, name: str, default: Jsonable=None) -> Jsonable:
+  def get_config_value(self, name: str, default: Jsonable=None, decrypt_secrets: bool=True) -> Jsonable:
     if name.startswith(':'):
       name = self.pulumi_project_name + name
-    result: Jsonable = self.get_config_values().get(name, default)
+    # we avoid fetching decrypted values unless necessary
+    unencrypted = self.get_config_values(decrypt_secrets=False)
+    result: Jsonable = unencrypted.get(name, None)
+    if result is None:
+      result = default
+    elif decrypt_secrets and isinstance(result, dict) and 'secure' in result:
+      result = self.get_decrypted_config_values().get(name, default)
     return result
 
-  def require_config_value(self, name: str) -> Jsonable:
+  def require_config_value(self, name: str, decrypt_secrets: bool=True) -> Jsonable:
     if name.startswith(':'):
       name = self.pulumi_project_name + name
-    result: Jsonable = self.get_config_values()[name]
+    # we avoid fetching decrypted values unless necessary
+    unencrypted = self.get_config_values(decrypt_secrets=False)
+    if not name in unencrypted:
+      raise KeyError(f"Pulumi configuration property '{name}' does not exist in stack {self.full_stack_name}")
+    result: Jsonable = unencrypted[name]
+    if decrypt_secrets and isinstance(result, dict) and 'secure' in result:
+      result = self.get_decrypted_config_values()[name]
     return result
 
   def get_aws_region(self, default: Optional[str]=None) -> Optional[str]:
@@ -342,3 +408,24 @@ class XPulumiStack:
 
   def __repr__(self) -> str:
     return f"<XPulumi stack {self.full_stack_name}, id={id(self)}>"
+
+  def check_call_stack_pulumi(
+        self,
+        args: List[str],
+        env: Optional[Mapping[str, str]] = None,
+      ) -> None:
+    self.project.check_call_project_pulumi(args, env=env, stack_name=self.stack_name)
+
+  def call_stack_pulumi(
+        self,
+        args: List[str],
+        env: Optional[Mapping[str, str]] = None,
+      ) -> int:
+    return self.project.call_project_pulumi(args, env=env, stack_name=self.stack_name)
+
+  def check_output_stack_pulumi(
+        self,
+        args: List[str],
+        env: Optional[Mapping[str, str]] = None,
+      ) -> str:
+    return self.project.check_output_project_pulumi(args, env=env, stack_name=self.stack_name)
