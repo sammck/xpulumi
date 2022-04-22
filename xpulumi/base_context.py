@@ -286,6 +286,9 @@ class XPulumiContextBase(XPulumiContext):
     """For a given set of stacks, returns an ordered list of all the stacks that need
        to be deployed to bring those stacks up to date (including those stacks themselves)
 
+       This list also includes any stack(s) that build the backend for any of the other
+       stacks in the list.
+
     Raises:
         XPulumiError: circular dependency
 
@@ -312,6 +315,22 @@ class XPulumiContextBase(XPulumiContext):
     for top_stack in stacks:
       add_stack(top_stack)
     return dependency_list
+
+  def get_stack_build_order(self, stack: 'XPulumiStack', include_self: bool=False) -> List['XPulumiStack']:
+    """For a single stack, returns an ordered list of all the stacks that need
+       to be deployed to bring that stack up to date (optionally including the
+       stack itself)
+
+    Raises:
+        XPulumiError: circular dependency
+
+    Returns:
+        List[XPulumiStack]: an ordered deploy list
+    """
+    result = self.get_stacks_build_order( [ stack ] )
+    if not include_self and len(result) > 0 and result[-1].full_stack_name==stack.full_stack_name:
+      result.pop()
+    return result
 
   def get_all_stacks_build_order(self) -> List['XPulumiStack']:
     return self.get_stacks_build_order(self.get_all_stacks().values())
@@ -349,6 +368,22 @@ class XPulumiContextBase(XPulumiContext):
     for top_stack in stacks:
       add_stack(top_stack)
     return dependency_list
+
+  def get_stack_destroy_order(self, stack: 'XPulumiStack', include_self=False) -> List['XPulumiStack']:
+    """For a single stack, returns an ordered list of all the stacks that need
+       to be destroyed to destroy that stack (optionally including the
+       stack itself)
+
+    Raises:
+        XPulumiError: circular dependency
+
+    Returns:
+        List[XPulumiStack]: an ordered destroy list
+    """
+    result = self.get_stacks_destroy_order( [ stack ] )
+    if not include_self and len(result) > 0 and result[-1].full_stack_name==stack.full_stack_name:
+      result.pop()
+    return result
 
   def get_all_stacks_destroy_order(self) -> List['XPulumiStack']:
     return self.get_stacks_destroy_order(self.get_all_stacks().values())

@@ -35,12 +35,6 @@ def is_colorizable(stream: TextIO) -> bool:
   is_a_tty = hasattr(stream, 'isatty') and stream.isatty()
   return is_a_tty
 
-class EarlyExit:
-  rc: int
-
-  def __init__(self, rc: int=0):
-    self.rc = rc
-
 class CmdExitError(RuntimeError):
   exit_code: int
 
@@ -237,49 +231,46 @@ class PulumiCommandHandler:
     self.get_parsed().topic.print_help()
     return 0
 
-  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Union[int, EarlyExit]:
-    return 0
+  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Optional[int]:
+    return None
 
-  def do_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Union[int, EarlyExit]:
+  def do_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> int:
     if self.is_debug:
       print(f"Invoking raw pulumi command {cmd}", file=sys.stderr)
     result = subprocess.call(cmd, env=env)
     return result
 
-  def do_post_raw_pulumi(self, exit_code: int) -> Union[int, EarlyExit]:
+  def do_post_raw_pulumi(self, exit_code: int) -> Optional[int]:
     return exit_code
 
-  def do_cmd(self) -> Union[int, EarlyExit]:
+  def do_cmd(self) -> Optional[int]:
     env = self.get_final_env()
     cmd = [ self.pulumi_prog ]
     cmd += self.get_final_arglist()
     if self.is_debug:
       print(f"Pulumi env = {json.dumps(env, indent=2, sort_keys=True)}", file=sys.stderr)
+    result = self.do_pre_raw_pulumi(cmd, env)
+    if not result is None:
+      return result
     if self.should_precreate_backend_project:
       if self.is_debug:
         print("Making sure project backend dir is precreated...", file=sys.stderr)
       self.precreate_project_backend()
-    result = self.do_pre_raw_pulumi(cmd, env)
-    if isinstance(result, EarlyExit):
-      return result
-    if result == 0:
-      result = self.do_raw_pulumi(cmd, env)
-      if isinstance(result, EarlyExit):
-        return result
+    result = self.do_raw_pulumi(cmd, env)
     result = self.do_post_raw_pulumi(result)
     return result
 
   def __call__(self) -> int:
     parsed = self.get_parsed()
     if parsed.allows_option('--help') and parsed.get_option_bool('--help'):
-      result: Union[int, EarlyExit] = self.do_help()
+      result: Optional[int] = self.do_help()
     else:
       self.pretweak()
       self.tweak_parsed()
       result = self.do_cmd()
 
-    if isinstance(result, EarlyExit):
-      result = result.rc
+    if result is None:
+      result = 0
     return result
 
   @property

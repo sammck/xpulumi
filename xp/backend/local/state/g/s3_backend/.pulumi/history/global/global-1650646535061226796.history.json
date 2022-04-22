@@ -1,0 +1,28 @@
+{
+    "kind": "destroy",
+    "startTime": 1650646534,
+    "message": "check dependencies on pulumi up and pulumi preview",
+    "environment": {
+        "exec.kind": "cli",
+        "git.author": "Sam McKelvie",
+        "git.author.email": "dev@mckelvie.org",
+        "git.committer": "Sam McKelvie",
+        "git.committer.email": "dev@mckelvie.org",
+        "git.dirty": "true",
+        "git.head": "3679bb383d69838c018a8d7efdc6a964684deb56",
+        "git.headName": "refs/heads/main",
+        "vcs.kind": "github.com",
+        "vcs.owner": "sammck",
+        "vcs.repo": "xpulumi"
+    },
+    "config": {
+        "aws:region": "us-west-2",
+        "s3_backend:backend_url": "s3://${aws_full_subaccount_account_id}-${aws_region}-xpulumi/${cloud_subaccount_prefix}xpulumi-be"
+    },
+    "version": 0,
+    "result": "succeeded",
+    "endTime": 1650646535,
+    "resourceChanges": {
+        "delete": 4
+    }
+}

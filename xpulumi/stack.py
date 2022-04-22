@@ -375,18 +375,10 @@ class XPulumiStack:
     return result
 
   def get_stack_build_order(self, include_self: bool=False) -> List['XPulumiStack']:
-    dependency_list: List['XPulumiStack'] = []
-    dependency_set: Set[str] = set()
+    return self.ctx.get_stack_build_order(self, include_self=include_self)
 
-    def add_stack(stack: XPulumiStack, include_self: bool):
-      deps = stack.get_stack_dependencies()
-      for dep in deps:
-        add_stack(dep, include_self=True)
-      if include_self and not stack.full_stack_name in dependency_set:
-        dependency_list.append(stack)
-        dependency_set.add(stack.full_stack_name)
-    add_stack(self, include_self)
-    return dependency_list
+  def get_stack_destroy_order(self, include_self=False) -> List['XPulumiStack']:
+    return self.ctx.get_stack_destroy_order(self, include_self=include_self)
 
   def get_stack_metadata(self) -> Optional[JsonableDict]:
     return self.project.get_stack_metadata(self.stack_name)
