@@ -334,7 +334,7 @@ class XPulumiProject:
     if cwd is None:
       cwd = self.project_dir
     if env is None:
-      env = os.environ()
+      env = self.ctx.get_environ()
     env = dict(env)
     if not stack_name is None:
       env['PULUMI_STACK'] = stack_name
