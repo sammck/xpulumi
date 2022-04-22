@@ -123,31 +123,10 @@ def future_val(v: Union[T, Output[T]]) -> Output[T]:
 def get_xpulumi_context() -> XPulumiContextBase:
   return XPulumiContextBase(cwd=initial_cwd)
 
-_current_project_name: Optional[str] = None
-_project_cache: Dict[str, XPulumiProject] = {}
-_project_cache_lock = threading.Lock()
 def get_xpulumi_project(project_name: Optional[str]=None) -> XPulumiProject:
-  global _current_project_name
+  #global _current_project_name
   ctx = get_xpulumi_context()
-  project: Optional[XPulumiProject] = None
-  if project_name is None:
-    with _project_cache_lock:
-      if _current_project_name is None:
-        project = XPulumiProject(cwd=initial_cwd, ctx=ctx)
-        project_name = project.name
-        _current_project_name = project_name
-        if not project_name in _project_cache:
-          _project_cache[project_name] = project
-      else:
-        project_name = _current_project_name
-        project = _project_cache[project_name]
-  else:
-    with _project_cache_lock:
-      project = _project_cache.get(project_name, None)
-      if project is None:
-        project = XPulumiProject(project_name, cwd=initial_cwd, ctx=ctx)
-        _project_cache[project_name] = project
-  return project
+  return ctx.get_project(project_name=project_name, cwd=initial_cwd)
 
 def get_current_xpulumi_project() -> XPulumiProject:
   return get_xpulumi_project()
@@ -155,38 +134,28 @@ def get_current_xpulumi_project() -> XPulumiProject:
 def get_current_xpulumi_project_name() -> str:
   return get_current_xpulumi_project().name
 
-_stack_cache: Dict[Tuple[Optional[str], Optional[str]], XPulumiStack] = {}
-_stack_cache_lock = threading.Lock()
+def get_current_xpulumi_stack_name() -> str:
+  return pulumi.get_stack()
+
 def get_xpulumi_stack(
       stack_name: Optional[str]=None,
       project_name: Optional[str]=None,
     ) -> XPulumiStack:
-  with _stack_cache_lock:
-    result = _stack_cache.get((project_name, stack_name), None)
-    if result is None:
-      ctx = get_xpulumi_context()
-      r_project_name, r_stack_name = parse_stack_name(
-          stack_name=stack_name,
-          project_name=project_name,
-          ctx=ctx,
-          cwd=initial_cwd,
-          default_project_name=get_current_xpulumi_project_name(),
-          default_stack_name=get_current_xpulumi_stack_name()
-        )
-      result = _stack_cache.get((r_project_name, r_stack_name), None)
-      if result is None:
-        project = get_xpulumi_project(r_project_name)
-        result = XPulumiStack(stack_name=r_stack_name, project=project)
-        _stack_cache[(r_project_name, r_stack_name)] = result
-      if not (project_name, stack_name) in _stack_cache:
-        _stack_cache[(project_name, stack_name)] = result
-  return result
-
-def get_current_xpulumi_stack_name() -> str:
-  return pulumi.get_stack()
+  ctx = get_xpulumi_context()
+  r_project_name, r_stack_name = parse_stack_name(
+      stack_name=stack_name,
+      project_name=project_name,
+      ctx=ctx,
+      cwd=initial_cwd,
+      default_project_name=get_current_xpulumi_project_name(),
+      default_stack_name=get_current_xpulumi_stack_name()
+    )
+  project = ctx.get_project(r_project_name)
+  stack = project.get_stack(r_stack_name, create=False)
+  return stack
 
 def get_current_xpulumi_stack() -> XPulumiStack:
-  return get_xpulumi_stack(get_current_xpulumi_stack_name())
+  return get_current_xpulumi_project().get_stack(get_current_xpulumi_stack_name())
 
 def get_current_cloud_subaccount() -> Optional[str]:
   result = get_current_xpulumi_stack().cloud_subaccount

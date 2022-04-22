@@ -94,6 +94,7 @@ def load_stack(
   vpc.stack_export(export_prefix=export_prefix)
 
   # Import our data volume and selected availability zone from the datavol stack
+  # pulumi.info(f"getting stack outputs for stack {stack_name}, project {data_vol_project_name}")
   data_vol_outputs = SyncStackOutputs(stack_name=stack_name, project_name=data_vol_project_name)
   data_vol_id = cast(str, data_vol_outputs.require_output(f'{data_vol_import_prefix}ebs_volume'))
   assert isinstance(data_vol_id, str)

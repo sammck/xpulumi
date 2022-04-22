@@ -7,7 +7,7 @@
 
 """Wrapper for standard Pulumi CLI that passes xpulumi envionment forward"""
 
-from typing import (Any, Dict, List, Optional, Union, Set, Type)
+from typing import (Any, Dict, List, Optional, Union, Set, Type, TextIO)
 
 from copy import deepcopy
 from lib2to3.pgen2.token import OP
@@ -15,10 +15,14 @@ import os
 import sys
 import json
 import subprocess
+from colorama import Fore, Back, Style
+import colorama
+
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.backend import XPulumiBackend
 from xpulumi.project import XPulumiProject
+from xpulumi.stack import XPulumiStack
 from xpulumi.base_context import XPulumiContextBase
 from xpulumi.exceptions import XPulumiError
 from xpulumi.internal_types import JsonableTypes
@@ -27,19 +31,34 @@ from xpulumi.pulumi_cli.help_metadata import (
     ParsedPulumiCmd,
   )
 
+def is_colorizable(stream: TextIO) -> bool:
+  is_a_tty = hasattr(stream, 'isatty') and stream.isatty()
+  return is_a_tty
+
 class CmdExitError(RuntimeError):
   exit_code: int
+
+  def __init__(self, exit_code: int, msg: Optional[str]=None):
+    if msg is None:
+      msg = f"Command exited with return code {exit_code}"
+    super().__init__(msg)
+    self.exit_code = exit_code
 
 class PulumiCommandHandler:
   wrapper: 'PulumiWrapper'
   _explicit_stack_name: Optional[str] = None
   _explicit_stack_name_known: bool = False
+  _stack: Optional[XPulumiStack] = None
 
   def __init__(
         self,
         wrapper: 'PulumiWrapper',
       ):
     self.wrapper = wrapper
+
+  @classmethod
+  def modify_metadata(cls, wrapper: 'PulumiWrapper', metadata: PulumiMetadata) -> None:
+    pass
 
   @property
   def should_precreate_backend_project(self) -> bool:
@@ -79,6 +98,17 @@ class PulumiCommandHandler:
     if result is None:
       result = self.default_stack_name
     return result
+
+  def get_stack(self) -> Optional[XPulumiStack]:
+    if self._stack is None and not self.stack_name is None and not self.project is None:
+      self._stack = self.project.get_stack(self.stack_name)
+    return self._stack
+
+  def require_stack(self) -> XPulumiStack:
+    stack = self.get_stack()
+    if stack is None:
+      raise XPulumiError("A stack name is required, and no default is set")
+    return stack
 
   @property
   def pulumi_dir(self) -> str:
@@ -180,8 +210,12 @@ class PulumiCommandHandler:
     if not final_stack_name is None and explicit_stack_name != final_stack_name and parsed.allows_option('--stack'):
       parsed.set_option_str('--stack', final_stack_name)
 
+  def custom_tweak(self) -> None:
+    pass
+
   def tweak_parsed(self) -> None:
     self.fix_parsed_stack_name()
+    self.custom_tweak()
 
   def pretweak(self) -> None:
     self.get_explicit_stack_name()  # lock in before tweaking
@@ -197,11 +231,17 @@ class PulumiCommandHandler:
     self.get_parsed().topic.print_help()
     return 0
 
-  def do_final_cmd(self, cmd: List[str], env: Dict[str, str]) -> int:
+  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> int:
+    return 0
+
+  def do_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> int:
     if self.is_debug:
       print(f"Invoking raw pulumi command {cmd}", file=sys.stderr)
     result = subprocess.call(cmd, env=env)
     return result
+
+  def do_post_raw_pulumi(self, exit_code: int) -> int:
+    return exit_code
 
   def do_cmd(self) -> int:
     env = self.get_final_env()
@@ -213,12 +253,15 @@ class PulumiCommandHandler:
       if self.is_debug:
         print("Making sure project backend dir is precreated...", file=sys.stderr)
       self.precreate_project_backend()
-    result = self.do_final_cmd(cmd, env)
+    result = self.do_pre_raw_pulumi(cmd, env)
+    if result == 0:
+      result = self.do_raw_pulumi(cmd, env)
+    result = self.do_post_raw_pulumi(result)
     return result
 
   def __call__(self) -> int:
     parsed = self.get_parsed()
-    if not parsed.allows_option('--help') and parsed.get_option_bool('--help'):
+    if parsed.allows_option('--help') and parsed.get_option_bool('--help'):
       result = self.do_help()
     else:
       self.pretweak()
@@ -231,6 +274,11 @@ class PulumiCommandHandler:
   def is_debug(self) -> bool:
     return self.wrapper.is_debug
 
+  def ocolor(self, codes: str) -> str:
+    return self.wrapper.ocolor(codes)
+
+  def ecolor(self, codes: str) -> str:
+    return self.wrapper.ecolor(codes)
 
 class PosStackArgPulumiCommandHandler(PulumiCommandHandler):
   @property
@@ -266,6 +314,12 @@ class PulumiWrapper:
   _raw_pulumi: bool = False
   _raw_env: bool = False
   _command_handlers: Dict[str, Type[PulumiCommandHandler]]
+  _colorize_stdout: bool = False
+  _colorize_stderr: bool = False
+  _raw_stdout: TextIO = sys.stdout
+  _raw_stderr: TextIO = sys.stderr
+  _monochrome: bool = True
+  _traceback: bool = True
 
   def __init__(
         self,
@@ -317,6 +371,10 @@ class PulumiWrapper:
       pulumi_dir = ctx.get_pulumi_home()
     self._pulumi_dir = pulumi_dir
     self.register_custom_handlers()
+
+    self._raw_stdout = sys.stdout
+    self._raw_stderr = sys.stderr
+
 
   def register_command_handler(self, full_subcmd: str, handler: Type[PulumiCommandHandler]) -> None:
     self._command_handlers[full_subcmd] = handler
@@ -378,10 +436,6 @@ class PulumiWrapper:
   def abspath(self, path: str) -> str:
     return os.path.abspath(os.path.join(self._cwd, os.path.expanduser(path)))
 
-  def precreate_project_backend(self) -> None:
-    if not self.project is None:
-      self.project.precreate_project_backend()
-
   def get_environ(self, stack_name: Optional[str]=None) -> Dict[str, str]:
     if self._raw_env:
       return self._base_env
@@ -433,6 +487,9 @@ class PulumiWrapper:
     main_topic.add_option([ '--debug-cli' ], description='[xpulumi] Debug pulumi CLI wrapper', is_persistent = True)
     main_topic.add_option([ '--raw-pulumi' ], description='[xpulumi] Run raw pulumi without modifying commandline', is_persistent = True)
     main_topic.add_option([ '--raw-env' ], description='[xpulumi] Run pulumi without modifying environment', is_persistent = True)
+    main_topic.add_option([ '--tb' ], description='[xpulumi] Display full stack traceback on error', is_persistent = True)
+    for handler in self._command_handlers.values():
+      handler.modify_metadata(self, metadata)
 
   def get_metadata(self) -> PulumiMetadata:
     if self._metadata is None:
@@ -449,9 +506,12 @@ class PulumiWrapper:
       cmd_raw_pulumi = self._parsed.pop_option_optional_bool('--raw-pulumi')
       cmd_raw_env = self._parsed.pop_option_optional_bool('--raw-env')
       cmd_debug_cli = self._parsed.pop_option_optional_bool('--debug-cli')
+      self._traceback = self._parsed.pop_option_optional_bool('--tb')
       self._raw_pulumi = self.raw_pulumi or cmd_raw_pulumi
       self._raw_env = self.raw_env or cmd_raw_env
       self._debug = self._debug or cmd_debug_cli
+      cmd_color = self._parsed.get_option_str('--color', 'auto')
+      self._monochrome = not cmd_color in ('auto', 'always')
     return self._parsed
 
   stack_pos_arg_cmds: Set[str] = set(["cancel", "stack init", "stack rm", "stack select"])
@@ -494,20 +554,51 @@ class PulumiWrapper:
         print(f"Invoking raw pulumi command {cmd}", file=sys.stderr)
       result = subprocess.call(cmd, env=env)
     else:
-      parsed = self.get_parsed()
-      full_subcmd = parsed.topic.full_subcmd
-      handler_class = self._command_handlers.get(full_subcmd, None)
-      if handler_class is None:
-        handler_class = self.get_standard_handler(full_subcmd)
-      if self.is_debug:
-        print(f"handler_classs={handler_class}")
-      handler = handler_class(self)
-      if self.is_debug:
-        print(f"Subcmd {full_subcmd}; delegating to {handler}", file=sys.stderr)
-      result = handler()
+      try:
+        parsed = self.get_parsed()
+        if not self._monochrome:
+          self._colorize_stdout = is_colorizable(sys.stdout)
+          self._colorize_stderr = is_colorizable(sys.stderr)
+          if self._colorize_stdout or self._colorize_stderr:
+            colorama.init(wrap=False)
+            if self._colorize_stdout:
+              new_stream = colorama.AnsiToWin32(sys.stdout)
+              if new_stream.should_wrap():
+                sys.stdout = new_stream
+            if self._colorize_stderr:
+              new_stream = colorama.AnsiToWin32(sys.stderr)
+              if new_stream.should_wrap():
+                sys.stderr = new_stream
+
+        full_subcmd = parsed.topic.full_subcmd
+        handler_class = self._command_handlers.get(full_subcmd, None)
+        if handler_class is None:
+          handler_class = self.get_standard_handler(full_subcmd)
+        if self.is_debug:
+          print(f"handler_classs={handler_class}")
+        handler = handler_class(self)
+        if self.is_debug:
+          print(f"Subcmd {full_subcmd}; delegating to {handler}", file=sys.stderr)
+        result = handler()
+      except Exception as ex:
+        if isinstance(ex, CmdExitError):
+          result = ex.exit_code
+        else:
+          result = 1
+        if result != 0:
+          if self._traceback:
+            raise
+
+          print(f"{self.ecolor(Fore.RED)}xpulumi: error: {ex}{self.ecolor(Style.RESET_ALL)}", file=sys.stderr)
 
     return result
 
   @property
   def is_debug(self) -> bool:
     return self._debug
+
+  def ocolor(self, codes: str) -> str:
+    return codes if self._colorize_stdout else ""
+
+  def ecolor(self, codes: str) -> str:
+    return codes if self._colorize_stderr else ""

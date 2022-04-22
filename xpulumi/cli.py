@@ -51,7 +51,7 @@ from .version import __version__ as pkg_version
 from .project import XPulumiProject
 
 def is_colorizable(stream: TextIO) -> bool:
-  is_a_tty = hasattr(stream, 'isattry') and stream.isatty()
+  is_a_tty = hasattr(stream, 'isatty') and stream.isatty()
   return is_a_tty
 
 
@@ -599,14 +599,13 @@ class CommandLineInterface:
         if self._colorize_stdout or self._colorize_stderr:
           colorama.init(wrap=False)
           if self._colorize_stdout:
-            sys.stdout = colorama.AnsiToWin32(sys.stdout)
+            new_stream = colorama.AnsiToWin32(sys.stdout)
+            if new_stream.should_wrap():
+              sys.stdout = new_stream
           if self._colorize_stderr:
-            sys.stderr = colorama.AnsiToWin32(sys.stderr)
-
-        if hasattr(sys.stdout, "isatty") and sys.stdout.isatty():
-          self._colorize_stdout = True
-        if hasattr(sys.stderr, "isatty") and sys.stderr.isatty():
-          self._colorize_stderr = True
+            new_stream = colorama.AnsiToWin32(sys.stderr)
+            if new_stream.should_wrap():
+              sys.stderr = new_stream
       self._cwd = os.path.abspath(os.path.expanduser(args.cwd))
       config_file: Optional[str] = args.config
       if not config_file is None:

@@ -81,6 +81,31 @@
             "cwd": "${workspaceFolder}/xpulumi/pulumi_cli"
         },
         {
+            "name": "devbox pulumi up -R",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi.pulumi_cli",
+            "args": [
+                "--debug-cli",
+                "up",
+                "-R"
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xp/project/devbox"
+        },
+        {
+            "name": "devbox pulumi up",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi.pulumi_cli",
+            "args": [
+                "--debug-cli",
+                "up",
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xp/project/devbox"
+        },
+        {
             "name": "aws-dev2 init-env",
             "type": "python",
             "request": "launch",

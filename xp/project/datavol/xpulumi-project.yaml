@@ -1,4 +1,4 @@
 backend: s3
+organization: g
 project_dependencies:
-- datavol
 - awsenv

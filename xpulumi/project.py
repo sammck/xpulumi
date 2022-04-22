@@ -94,6 +94,8 @@ class XPulumiProject:
       with open(cfg_file_yaml, encoding='utf-8') as f:
         xcfg_text = f.read()
       xcfg_data = cast(JsonableDict, yaml.load(xcfg_text, Loader=Loader))
+    else:
+      raise XPulumiError(f"xpulumi project {name} is invalid: No xpulumi-project.yaml in {project_dir}")
     assert isinstance(xcfg_data, dict)
     self._xcfg_data = xcfg_data
     pulumi_cfg_data: Optional[JsonableDict] = None

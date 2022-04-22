@@ -20,6 +20,7 @@ from pulumi import automation as pauto
 from urllib.parse import urlparse, ParseResult, urlunparse, unquote as url_unquote
 from copy import deepcopy
 import boto3.session
+from botocore.exceptions import ClientError
 from boto3.session import Session as BotoAwsSession
 #from botocore.session import Session as BotocoreSession
 import tempfile
@@ -401,7 +402,12 @@ class XPulumiBackend:
     if decrypt_secrets:
       raise XPulumiError(f"Secret decryption not supported using blob read: {self.url}")
     stack_url = self.get_stack_backend_url(stack=stack, project=project, organization=organization)
-    stack_blob = self.read_uri_blob(stack_url)
+    try:
+      stack_blob = self.read_uri_blob(stack_url)
+    except ClientError as e:
+      if e.response['Error']['Code'] == 'NoSuchKey':
+        raise XPulumiError(f"Pulumi project '{project}', stack '{stack}' does not exist or has not been deployed") from e
+      raise
     stack_state = json.loads(stack_blob.decode('utf-8'))
     export_data: Jsonable = None
     if isinstance(stack_state, dict):

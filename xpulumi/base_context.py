@@ -218,7 +218,7 @@ class XPulumiContextBase(XPulumiContext):
   def get_project(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> 'XPulumiProject':
     project_name = self.get_project_name(project_name, cwd=cwd)
     if project_name is None:
-      raise XPulumiError("No project name was provided, and the directory is not an XPulumi project directory")
+      raise XPulumiError("No project name was provided, and the working directory is not an XPulumi project directory")
     project = self._project_cache.get(project_name, None)
     if project is None:
       from .project import XPulumiProject

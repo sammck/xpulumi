@@ -1,0 +1,6 @@
+description: Dev box EBS Data Volune
+name: datavol
+runtime:
+  name: python
+  options:
+    virtualenv: ../../../.venv
