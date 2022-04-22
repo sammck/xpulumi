@@ -35,6 +35,12 @@ def is_colorizable(stream: TextIO) -> bool:
   is_a_tty = hasattr(stream, 'isatty') and stream.isatty()
   return is_a_tty
 
+class EarlyExit:
+  rc: int
+
+  def __init__(self, rc: int=0):
+    self.rc = rc
+
 class CmdExitError(RuntimeError):
   exit_code: int
 
@@ -231,19 +237,19 @@ class PulumiCommandHandler:
     self.get_parsed().topic.print_help()
     return 0
 
-  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> int:
+  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Union[int, EarlyExit]:
     return 0
 
-  def do_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> int:
+  def do_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Union[int, EarlyExit]:
     if self.is_debug:
       print(f"Invoking raw pulumi command {cmd}", file=sys.stderr)
     result = subprocess.call(cmd, env=env)
     return result
 
-  def do_post_raw_pulumi(self, exit_code: int) -> int:
+  def do_post_raw_pulumi(self, exit_code: int) -> Union[int, EarlyExit]:
     return exit_code
 
-  def do_cmd(self) -> int:
+  def do_cmd(self) -> Union[int, EarlyExit]:
     env = self.get_final_env()
     cmd = [ self.pulumi_prog ]
     cmd += self.get_final_arglist()
@@ -254,20 +260,26 @@ class PulumiCommandHandler:
         print("Making sure project backend dir is precreated...", file=sys.stderr)
       self.precreate_project_backend()
     result = self.do_pre_raw_pulumi(cmd, env)
+    if isinstance(result, EarlyExit):
+      return result
     if result == 0:
       result = self.do_raw_pulumi(cmd, env)
+      if isinstance(result, EarlyExit):
+        return result
     result = self.do_post_raw_pulumi(result)
     return result
 
   def __call__(self) -> int:
     parsed = self.get_parsed()
     if parsed.allows_option('--help') and parsed.get_option_bool('--help'):
-      result = self.do_help()
+      result: Union[int, EarlyExit] = self.do_help()
     else:
       self.pretweak()
       self.tweak_parsed()
       result = self.do_cmd()
 
+    if isinstance(result, EarlyExit):
+      result = result.rc
     return result
 
   @property

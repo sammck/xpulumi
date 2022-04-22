@@ -30,6 +30,7 @@ from xpulumi.stack import XPulumiStack
 
 from .wrapper import (
     CmdExitError,
+    EarlyExit,
     PulumiCommandHandler,
     PulumiWrapper,
     PosStackArgPulumiCommandHandler,
@@ -52,7 +53,7 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
   def custom_tweak(self) -> None:
     self._recursive = self.get_parsed().pop_option_optional_bool('--recursive')
 
-  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> int:
+  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Union[int, EarlyExit]:
     stack = self.require_stack()
     if not stack.is_deployable():
       raise XPulumiError(f"Stack {stack.full_stack_name} is not deployable")
@@ -95,7 +96,40 @@ class PulumiCmdHandlerUp(PulumiCmdHandlerUpPreview):
 class PulumiCmdHandlerPreview(PulumiCmdHandlerUpPreview):
   full_subcmd = "preview"
 
+class PulumiCmdHandlerStackRm(PosStackArgPulumiCommandHandler):
+  full_subcmd = "stack rm"
+  _recursive: bool
+  _preserve_config: bool
+
+  @classmethod
+  def modify_metadata(cls, wrapper: PulumiWrapper, metadata: PulumiMetadata):
+    topic = metadata.topic_by_full_name[cls.full_subcmd]
+    topic.add_option([ '--remove-config' ], description='[xpulumi] Delete the corresponding Pulumi.<stack-name>.yaml configuration file for the stack', is_persistent = True)
+
+  def custom_tweak(self) -> None:
+    self._preserve_config = self.get_parsed().get_option_optional_bool('--preserve-config')
+    remove_config = self.get_parsed().pop_option_optional_bool('--preserve-config')
+    if self._preserve_config:
+      if remove_config:
+        raise XPulumiError("Cannot have both --preserve-config and --remove-config")
+    elif not remove_config:
+      self._preserve_config = True
+      self.get_parsed().set_option_bool('--preserve-config')
+
+  def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Union[int, EarlyExit]:
+    stack = self.require_stack()
+    if stack.is_deployed():
+      raise XPulumiError(f"Cannot remove deployed xpulumi stack '{stack.full_stack_name}'; destroy it first with 'pulumi destroy'")
+    if not stack.is_inited():
+      print(
+          f"{self.ecolor(Fore.GREEN)}NOTE: xpulumi stack '{stack.full_stack_name}' has already been "
+          f"removed or has not been initialized{self.ecolor(Style.RESET_ALL)}", file=sys.stderr
+        )
+      return EarlyExit()
+    return 0
+
 custom_handlers: Dict[str, Type[PulumiCommandHandler]] = {
     "up": PulumiCmdHandlerUp,
     "preview": PulumiCmdHandlerPreview,
+    "stack rm": PulumiCmdHandlerStackRm,
   }

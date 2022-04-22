@@ -392,7 +392,7 @@ class XPulumiStack:
     return self.project.get_stack_metadata(self.stack_name)
 
   def is_inited(self) -> bool:
-    return not self.project.stack_is_inited(self.stack_name) is None
+    return self.project.stack_is_inited(self.stack_name)
 
   def init_stack(self) -> None:
     return self.project.init_stack(self.stack_name)

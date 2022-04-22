@@ -106,6 +106,19 @@
             "cwd": "${workspaceFolder}/xp/project/devbox"
         },
         {
+            "name": "awsenv stack rm",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi.pulumi_cli",
+            "args": [
+                "--debug-cli",
+                "stack",
+                "rm",
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xp/project/awsenv"
+        },
+        {
             "name": "aws-dev2 init-env",
             "type": "python",
             "request": "launch",
