@@ -52,6 +52,7 @@ class PulumiCmdHandlerDestroy(PulumiCommandHandler):
     self._recursive = self.get_parsed().pop_option_optional_bool('--recursive')
 
   def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Optional[int]:
+    yes_flag = self.get_parsed().get_option_bool('--yes')
     stack = self.require_stack()
     if not stack.is_deployed():
       print(
@@ -84,12 +85,14 @@ class PulumiCmdHandlerDestroy(PulumiCommandHandler):
           print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
           print(f"     Destroying dependent xpulumi project {dep_project.name}, stack {dep_stack_name}", file=sys.stderr)
           print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
-          dep_project.init_stack(dep_stack_name)
-          rc = dep_project.call_project_pulumi(['destroy'], stack_name=dep_stack_name)
+          cmd = ['destroy']
+          if yes_flag:
+            cmd.append('--yes')
+          rc = dep_project.call_project_pulumi(cmd, stack_name=dep_stack_name)
           if rc != 0:
             return rc
 
         print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
-        print(f"     All dependent stacks deployed; destroying xpulumi project {stack.project.name}, stack {stack.stack_name}", file=sys.stderr)
+        print(f"     All dependent stacks destroyed; destroying xpulumi project {stack.project.name}, stack {stack.stack_name}", file=sys.stderr)
         print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
     return None

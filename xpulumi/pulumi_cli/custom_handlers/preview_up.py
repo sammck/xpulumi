@@ -47,11 +47,14 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
   def modify_metadata(cls, wrapper: PulumiWrapper, metadata: PulumiMetadata):
     topic = metadata.topic_by_full_name[cls.full_subcmd]
     topic.add_option([ '-R', '--recursive' ], description='[xpulumi] Recursively deploy dependencies first', is_persistent = True)
+    if cls.full_subcmd == 'preview':
+      topic.add_option([ '-y', '--yes' ], description='[xpulumi] On recursion, automatically approve and perform the update after previewing it', is_persistent = True)
 
   def custom_tweak(self) -> None:
     self._recursive = self.get_parsed().pop_option_optional_bool('--recursive')
 
   def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Optional[int]:
+    yes_flag = self.get_parsed().get_option_bool('--yes')
     stack = self.require_stack()
     if not stack.is_deployable():
       if stack.is_deployed():
@@ -83,7 +86,10 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
           print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
           print(f"     Deploying prerequisite xpulumi project {dep_project.name}, stack {dep_stack_name}", file=sys.stderr)
           print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
-          rc = dep_project.call_project_pulumi(['up'], stack_name=dep_stack_name)
+          cmd = [ 'up' ]
+          if yes_flag:
+            cmd.append('--yes')
+          rc = dep_project.call_project_pulumi(cmd, stack_name=dep_stack_name)
           if rc != 0:
             return rc
 
