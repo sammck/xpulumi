@@ -421,7 +421,7 @@ class XPulumiBackend:
           raise RuntimeError(f"Backend checkpoint stack \"{checkpoint_stack}\" does not match requested stack for backend {self.url}, org={organization}, project={project}, stack={stack}")
         latest = checkpoint.get('latest', None)
         if latest is None:
-          raise XPulumiStackNotDeployedError(f"Stack \"{stack}\" exists but has not yet been deployed for backend {self.url}, org={organization}, project={project}")
+          latest = dict(time="0001-01-01T00:00:00Z", magic="", version="")
         if isinstance(latest, dict):
           export_data = dict(deployment=latest, version=version)
     if not isinstance(export_data, dict):
