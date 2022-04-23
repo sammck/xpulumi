@@ -603,9 +603,11 @@ class XPulumiBackend:
         kwargs['ContinuationToken'] = continuation_token
     except ClientError as e:
       # print(f"errorcode=[{e.response['Error']['Code']}], result={result}")
-      if e.response['Error']['Code'] == 'NoSuchBucket':
-        raise XPulumiBackendNotDeployedError(f"Pulumi project '{project}': Backend {self.url} does not exist or has not been deployed") from e
-      raise
+      if e.response['Error']['Code'] == 'NoSuchBucket' and len(response) == 0:
+        pass
+        # raise XPulumiBackendNotDeployedError(f"Pulumi project '{project}': Backend {self.url} does not exist or has not been deployed") from e
+      else:
+        raise
     return result
 
   def get_project_inited_stack_list_with_cli(
