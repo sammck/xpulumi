@@ -17,6 +17,7 @@
       "PATH": "${workspaceFolder}/bin:${env:PATH}",
       "PYTHONPATH": "${workspaceFolder}/src/python:${env:PYTHONPATH}"
     },
+    "python.analysis.watchSearchPaths": true,
     "python.linting.mypyEnabled": false,
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,

@@ -1,4 +1,3 @@
-name: s3
 options:
   aws_account: '492598163938'
   aws_region: us-west-2

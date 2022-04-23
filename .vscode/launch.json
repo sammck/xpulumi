@@ -119,6 +119,20 @@
             "cwd": "${workspaceFolder}/xp/project/awsenv"
         },
         {
+            "name": "helloworld raw stack ls",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi.pulumi_cli",
+            "args": [
+                "--debug-cli",
+                "--raw-pulumi",
+                "stack",
+                "ls",
+            ],
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/xp/project/helloworld"
+        },
+        {
             "name": "aws-dev2 init-env",
             "type": "python",
             "request": "launch",

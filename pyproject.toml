@@ -38,6 +38,8 @@ project-init-tools = { git = "https://github.com/sammck/project-init-tools.git",
 dnspython = "^2.2.1"
 pulumi-random = "^4.4.2"
 tabulate = "^0.8.9"
+humanize = "^4.0.0"
+pytz = "^2022.1"
 
 [tool.poetry.dev-dependencies]
 pylint = "^2.13.4"

@@ -383,6 +383,7 @@ class PulumiWrapper:
     self._command_handlers[full_subcmd] = handler
 
   def register_custom_handlers(self) -> None:
+    # import deferred to runtime to break circular imports
     from .custom_handlers import custom_handlers
     for full_subcmd, handler in custom_handlers.items():
       self.register_command_handler(full_subcmd, handler)
@@ -559,30 +560,38 @@ class PulumiWrapper:
     else:
       try:
         parsed = self.get_parsed()
-        if not self._monochrome:
-          self._colorize_stdout = is_colorizable(sys.stdout)
-          self._colorize_stderr = is_colorizable(sys.stderr)
-          if self._colorize_stdout or self._colorize_stderr:
-            colorama.init(wrap=False)
-            if self._colorize_stdout:
-              new_stream = colorama.AnsiToWin32(sys.stdout)
-              if new_stream.should_wrap():
-                sys.stdout = new_stream
-            if self._colorize_stderr:
-              new_stream = colorama.AnsiToWin32(sys.stderr)
-              if new_stream.should_wrap():
-                sys.stderr = new_stream
+        if self._raw_pulumi:
+          env = self.get_environ()
+          cmd = [ self.pulumi_prog ] + parsed.arglist
+          if self.is_debug:
+            print(f"Pulumi env = {json.dumps(env, indent=2, sort_keys=True)}", file=sys.stderr)
+            print(f"Invoking raw pulumi command {cmd}", file=sys.stderr)
+          result = subprocess.call(cmd, env=env)
+        else:
+          if not self._monochrome:
+            self._colorize_stdout = is_colorizable(sys.stdout)
+            self._colorize_stderr = is_colorizable(sys.stderr)
+            if self._colorize_stdout or self._colorize_stderr:
+              colorama.init(wrap=False)
+              if self._colorize_stdout:
+                new_stream = colorama.AnsiToWin32(sys.stdout)
+                if new_stream.should_wrap():
+                  sys.stdout = new_stream
+              if self._colorize_stderr:
+                new_stream = colorama.AnsiToWin32(sys.stderr)
+                if new_stream.should_wrap():
+                  sys.stderr = new_stream
 
-        full_subcmd = parsed.topic.full_subcmd
-        handler_class = self._command_handlers.get(full_subcmd, None)
-        if handler_class is None:
-          handler_class = self.get_standard_handler(full_subcmd)
-        if self.is_debug:
-          print(f"handler_classs={handler_class}")
-        handler = handler_class(self)
-        if self.is_debug:
-          print(f"Subcmd {full_subcmd}; delegating to {handler}", file=sys.stderr)
-        result = handler()
+          full_subcmd = parsed.topic.full_subcmd
+          handler_class = self._command_handlers.get(full_subcmd, None)
+          if handler_class is None:
+            handler_class = self.get_standard_handler(full_subcmd)
+          if self.is_debug:
+            print(f"handler_classs={handler_class}")
+          handler = handler_class(self)
+          if self.is_debug:
+            print(f"Subcmd {full_subcmd}; delegating to {handler}", file=sys.stderr)
+          result = handler()
       except Exception as ex:
         if isinstance(ex, CmdExitError):
           result = ex.exit_code
