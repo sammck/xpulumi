@@ -14,6 +14,12 @@ class XPulumiError(Exception):
   """Base class for all error exceptions defined by this package."""
   #pass
 
+class XPulumiStackNotDeployedError(XPulumiError):
+  pass
+
+class XPulumiBackendNotDeployedError(XPulumiError):
+  pass
+
 class PulumiApiError(XPulumiError):
   _url: str
   _data: JsonableDict

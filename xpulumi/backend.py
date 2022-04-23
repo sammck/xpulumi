@@ -28,7 +28,7 @@ import json
 import requests
 
 from project_init_tools import YamlLoader, file_url_to_pathname, full_name_of_type, full_type, pathname_to_file_url
-from .exceptions import XPulumiError
+from .exceptions import XPulumiError, XPulumiStackNotDeployedError, XPulumiBackendNotDeployedError
 from .context import XPulumiContext
 from .base_context import XPulumiContextBase
 from .api_client import PulumiApiClient
@@ -406,9 +406,9 @@ class XPulumiBackend:
       stack_blob = self.read_uri_blob(stack_url)
     except ClientError as e:
       if e.response['Error']['Code'] == 'NoSuchKey':
-        raise XPulumiError(f"Pulumi project '{project}', stack '{stack}' does not exist or has not been deployed") from e
+        raise XPulumiStackNotDeployedError(f"Pulumi project '{project}', stack '{stack}' does not exist or has not been deployed") from e
       elif e.response['Error']['Code'] == 'NoSuchBucket':
-        raise XPulumiError(f"Pulumi project '{project}', stack '{stack}': Backend {self.url} does not exist or has not been deployed") from e
+        raise XPulumiBackendNotDeployedError(f"Pulumi project '{project}', stack '{stack}': Backend {self.url} does not exist or has not been deployed") from e
       raise
     stack_state = json.loads(stack_blob.decode('utf-8'))
     export_data: Jsonable = None
@@ -421,7 +421,7 @@ class XPulumiBackend:
           raise RuntimeError(f"Backend checkpoint stack \"{checkpoint_stack}\" does not match requested stack for backend {self.url}, org={organization}, project={project}, stack={stack}")
         latest = checkpoint.get('latest', None)
         if latest is None:
-          raise XPulumiError(f"Stack \"{stack}\" exists but has not yet been deployed for backend {self.url}, org={organization}, project={project}")
+          raise XPulumiStackNotDeployedError(f"Stack \"{stack}\" exists but has not yet been deployed for backend {self.url}, org={organization}, project={project}")
         if isinstance(latest, dict):
           export_data = dict(deployment=latest, version=version)
     if not isinstance(export_data, dict):
@@ -603,11 +603,9 @@ class XPulumiBackend:
         kwargs['ContinuationToken'] = continuation_token
     except ClientError as e:
       # print(f"errorcode=[{e.response['Error']['Code']}], result={result}")
-      if e.response['Error']['Code'] == 'NoSuchBucket' and len(result) == 0:
-        # raise XPulumiError(f"Pulumi project '{project}': Backend {self.url} does not exist or has not been deployed") from e
-        pass
-      else:
-        raise
+      if e.response['Error']['Code'] == 'NoSuchBucket':
+        raise XPulumiBackendNotDeployedError(f"Pulumi project '{project}': Backend {self.url} does not exist or has not been deployed") from e
+      raise
     return result
 
   def get_project_inited_stack_list_with_cli(

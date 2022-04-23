@@ -12,6 +12,8 @@ from .internal_types import Jsonable, JsonableDict, JsonableList
 
 from .exceptions import (
     XPulumiError,
+    XPulumiStackNotDeployedError,
+    XPulumiBackendNotDeployedError,
     PulumiApiError
   )
 
