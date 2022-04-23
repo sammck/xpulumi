@@ -1,0 +1,9 @@
+name: s3
+options:
+  aws_account: '492598163938'
+  aws_region: us-west-2
+  #backend_xstack: s3_backend:global
+  default_organization: g
+  includes_organization: false
+  includes_project: false
+uri: s3://492598163938-us-west-2-xpulumi/xpulumi-be

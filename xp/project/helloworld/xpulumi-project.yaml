@@ -1,1 +1,4 @@
 backend: s3
+project_dependencies:
+- awsenv
+

@@ -55,7 +55,14 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
   def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Optional[int]:
     stack = self.require_stack()
     if not stack.is_deployable():
-      raise XPulumiError(f"Stack {stack.full_stack_name} is not deployable")
+      if stack.is_deployed():
+        print(
+            f"{self.ecolor(Fore.GREEN)}NOTE: xpulumi stack '{stack.full_stack_name}' is not deployable "
+            f"by this project, but it has already been deployed. It is assumed to be up-to-date.{self.ecolor(Style.RESET_ALL)}", file=sys.stderr
+          )
+        return 0
+      else:
+        raise XPulumiError(f"Stack {stack.full_stack_name} is not deployable")
 
     dependencies = stack.get_stack_build_order(include_self=False)
     if len(dependencies) > 0:

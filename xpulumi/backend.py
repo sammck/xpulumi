@@ -188,7 +188,9 @@ class XPulumiBackend:
     result = self.url
     if not self.includes_organization:
       if organization is None:
-        raise XPulumiError(f"An organization name is required for this backend: {self.url}")
+        organization = self.default_organization
+        if organization is None:
+          raise XPulumiError(f"An organization name is required for this backend: {self.url}")
       if not result.endswith('/'):
         result += '/'
       result += organization
