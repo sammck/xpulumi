@@ -300,7 +300,7 @@ class VpcEnv:
     self.public_subnet_ids = cast(List[Input[str]], public_subnet_ids)
 
     # create private subnets in separate AZs.
-    # TODO: currently these are the same as public subnets. We can change
+    # TODO: currently these are the same as public subnets. We can change #pylint: disable=fixme
     # that with a NAT gateway, no-assign public IP, and network ACLs.
     private_subnets: List[ec2.Subnet] = []
     for i, cidr in enumerate(private_subnet_cidrs):

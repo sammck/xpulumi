@@ -75,7 +75,7 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
     if len(backend_dependencies) > 0:
       if not self._recursive:
         remaining: List[XPulumiStack] = []
-        for dep in dependencies:
+        for dep in backend_dependencies:
           if not dep.is_deployed():
             remaining.append(dep)
         if len(remaining) > 0:
@@ -85,7 +85,7 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
               f"until backend '{backend.url}' dependencies are deployed: {', '.join(x.full_stack_name for x in remaining)}"
             )
       else:
-        for dep in dependencies:
+        for dep in backend_dependencies:
           built_a_dependency = True
           dep_stack_name = dep.stack_name
           dep_project = dep.project
@@ -99,9 +99,9 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
 
     # Now that we know our backend is deployed, check for other deopendencies
     dependencies = [
-        x in stack.get_stack_build_order(include_self=False)
+        x for x in stack.get_stack_build_order(include_self=False)
             if not x.full_stack_name in set(y.full_stack_name for y in backend_dependencies)
-      ]
+    ]
     if len(dependencies) > 0:
       if not self._recursive:
         remaining: List[XPulumiStack] = []

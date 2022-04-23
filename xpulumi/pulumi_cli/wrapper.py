@@ -249,7 +249,7 @@ class PulumiCommandHandler:
     cmd += self.get_final_arglist()
     if self.is_debug:
       print(f"Pulumi env = {json.dumps(env, indent=2, sort_keys=True)}", file=sys.stderr)
-    result = self.do_pre_raw_pulumi(cmd, env)
+    result: Optional[int] = self.do_pre_raw_pulumi(cmd, env)
     if not result is None:
       return result
     if self.should_precreate_backend_project:
