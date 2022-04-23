@@ -77,7 +77,6 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
           print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
           print(f"     Deploying prerequisite xpulumi project {dep_project.name}, stack {dep_stack_name}", file=sys.stderr)
           print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
-          dep_project.init_stack(dep_stack_name)
           rc = dep_project.call_project_pulumi(['up'], stack_name=dep_stack_name)
           if rc != 0:
             return rc
@@ -87,6 +86,8 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
         print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
         print(f"     All prerequisites deployed; {action_desc} xpulumi project {stack.project.name}, stack {stack.stack_name}", file=sys.stderr)
         print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
+
+    stack.project.init_stack(stack.stack_name)
     return None
 
 
