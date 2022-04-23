@@ -56,7 +56,52 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
     stack = self.require_stack()
     if not stack.is_deployable():
       raise XPulumiError(f"Stack {stack.full_stack_name} is not deployable")
-    dependencies = stack.get_stack_build_order(include_self=False)
+    project = stack.project
+
+    # First, make sure our backend is deployed, before we even check our other dependencies,
+    # because we need the backend to get our deployed status and the status of other
+    # stacks.
+    backend = project.backend
+    backend_dependencies = self.ctx.get_stack_build_order(
+        backend.get_stack_dependencies(),
+        include_self=True
+      )
+    for backend_stack in backend_dependencies:
+      if backend_stack.full_stack_name == stack.full_stack_name:
+        raise XPulumiError(
+            f"Circular dependence between xstack '{stack.full_stack_name}' and backend '{backend.url}'"
+          )
+    built_a_dependency = False
+    if len(backend_dependencies) > 0:
+      if not self._recursive:
+        remaining: List[XPulumiStack] = []
+        for dep in dependencies:
+          if not dep.is_deployed():
+            remaining.append(dep)
+        if len(remaining) > 0:
+          action_desc = "deploy" if self.full_subcmd == "up" else "preview"
+          raise XPulumiError(
+              f"Cannot {action_desc} stack {stack.full_stack_name} "
+              f"until backend '{backend.url}' dependencies are deployed: {', '.join(x.full_stack_name for x in remaining)}"
+            )
+      else:
+        for dep in dependencies:
+          built_a_dependency = True
+          dep_stack_name = dep.stack_name
+          dep_project = dep.project
+          print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
+          print(f"     Deploying backend '{backend.url}' prerequisite xpulumi project '{dep_project.name}', stack '{dep_stack_name}'", file=sys.stderr)
+          print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
+          dep_project.init_stack(dep_stack_name)
+          rc = dep_project.call_project_pulumi(['up'], stack_name=dep_stack_name)
+          if rc != 0:
+            return rc
+
+    # Now that we know our backend is deployed, check for other deopendencies
+    dependencies = [
+        x in stack.get_stack_build_order(include_self=False)
+            if not x.full_stack_name in set(y.full_stack_name for y in backend_dependencies)
+      ]
     if len(dependencies) > 0:
       if not self._recursive:
         remaining: List[XPulumiStack] = []
@@ -71,6 +116,7 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
             )
       else:
         for dep in dependencies:
+          built_a_dependency = True
           dep_stack_name = dep.stack_name
           dep_project = dep.project
           print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
@@ -81,11 +127,12 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
           if rc != 0:
             return rc
 
-        action_desc = "deploying" if self.full_subcmd == "up" else "previewing"
+    if built_a_dependency:
+      action_desc = "deploying" if self.full_subcmd == "up" else "previewing"
 
-        print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
-        print(f"     All prerequisites deployed; {action_desc} xpulumi project {stack.project.name}, stack {stack.stack_name}", file=sys.stderr)
-        print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
+      print(f"\n{self.ecolor(Fore.GREEN)}===============================================================================", file=sys.stderr)
+      print(f"     All prerequisites deployed; {action_desc} xpulumi project {stack.project.name}, stack {stack.stack_name}", file=sys.stderr)
+      print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
     return None
 
 

@@ -407,6 +407,8 @@ class XPulumiBackend:
     except ClientError as e:
       if e.response['Error']['Code'] == 'NoSuchKey':
         raise XPulumiError(f"Pulumi project '{project}', stack '{stack}' does not exist or has not been deployed") from e
+      elif e.response['Error']['Code'] == 'NoSuchBucket':
+        raise XPulumiError(f"Pulumi project '{project}', stack '{stack}': Backend {self.url} does not exist or has not been deployed") from e
       raise
     stack_state = json.loads(stack_blob.decode('utf-8'))
     export_data: Jsonable = None
@@ -582,22 +584,27 @@ class XPulumiBackend:
     aws = self.ctx.get_aws_session(aws_account=aws_account, aws_region=aws_region)
     s3 = aws.client('s3')
     kwargs: Dict[str, Any] = dict(Bucket=bucket, Prefix=prefix)
-    while True:
-      resp = s3.list_objects_v2(**kwargs)
-      contents = cast(Optional[List[JsonableDict]], resp.get('Contents', None))
-      assert contents is None or isinstance(contents, list)
-      if not contents is None:
-        for obj_data in contents:
-          key = obj_data['Key']
-          assert key.startswith(prefix)
-          filename = key[len(prefix):]
-          if not '/' in filename and filename.endswith('.json'):
-            stack_name = filename[:-5]
-            result.append(stack_name)
-      continuation_token = resp.get('NextContinuationToken', None)
-      if continuation_token is None:
-        break
-      kwargs['ContinuationToken'] = continuation_token
+    try:
+      while True:
+        resp = s3.list_objects_v2(**kwargs)
+        contents = cast(Optional[List[JsonableDict]], resp.get('Contents', None))
+        assert contents is None or isinstance(contents, list)
+        if not contents is None:
+          for obj_data in contents:
+            key = obj_data['Key']
+            assert key.startswith(prefix)
+            filename = key[len(prefix):]
+            if not '/' in filename and filename.endswith('.json'):
+              stack_name = filename[:-5]
+              result.append(stack_name)
+        continuation_token = resp.get('NextContinuationToken', None)
+        if continuation_token is None:
+          break
+        kwargs['ContinuationToken'] = continuation_token
+    except ClientError as e:
+      if e.response['Error']['Code'] == 'NoSuchBucket':
+        raise XPulumiError(f"Pulumi project '{project}': Backend {self.url} does not exist or has not been deployed") from e
+      raise
     return result
 
   def get_project_inited_stack_list_with_cli(
