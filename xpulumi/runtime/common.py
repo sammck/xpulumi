@@ -63,13 +63,13 @@ def config_property_info(**kwargs) -> ConfigPropertyInfo:
 
 known_config_properties: Dict[str, ConfigPropertyInfo] = {}
 should_update_config_info = os.environ.get('XPULUMI_UPDATE_CONFIG_INFO', '') != ''
-pulumi.info(f"should_update_config_info={should_update_config_info}")
+#pulumi.info(f"should_update_config_info={should_update_config_info}")
 
 @run_once
 def get_current_project_round_trip_config() -> RoundTripConfig:
   xproject = get_current_xpulumi_project()
   config_filename = xproject.xpulumi_project_config_file_name
-  pulumi.info(f"rtc file={config_filename}")
+  #pulumi.info(f"rtc file={config_filename}")
   rtc = RoundTripConfig(config_filename)
   return rtc
 
@@ -80,6 +80,7 @@ def register_config_property(key: str, info: Optional[ConfigPropertyInfo]=None) 
     if should_update_config_info:
       rtc = get_current_project_round_trip_config()
       if not key in rtc:
+        rtc[key] = deepcopy(info.__dict__)
         rtc.save()
 
 class Config(pulumi.Config):
@@ -94,7 +95,7 @@ class Config(pulumi.Config):
     full_key = self.full_key(key)
     register_config_property(full_key, info)
     result = super()._get(key, use=use, instead_of=instead_of)
-    pulumi.info(f"Config._get('{key}') ==> {result}")
+    #pulumi.info(f"Config._get('{key}') ==> {result}")
     return result
 
   def get(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[str]:
