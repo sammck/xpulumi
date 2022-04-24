@@ -31,6 +31,7 @@ from pulumi_aws import (
   secretsmanager,
 )
 
+from ..internal_types import Jsonable, JsonableDict
 from xpulumi.exceptions import XPulumiError
 from .util import (
     get_current_xpulumi_project_name,
@@ -38,9 +39,9 @@ from .util import (
     get_xpulumi_context,
     default_val,
     get_current_cloud_subaccount,
-    enable_debugging
+    enable_debugging,
   )
-from project_init_tools import RoundTripConfig, get_git_user_email, run_once, round_trip_config
+from project_init_tools import RoundTripConfig, get_git_user_email, run_once
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
 # will cause the program to stall waiting for vscode to
@@ -79,6 +80,11 @@ def register_config_property(key: str, info: Optional[ConfigPropertyInfo]=None) 
     known_config_properties[key] = info
     if should_update_config_info:
       rtc = get_current_project_round_trip_config()
+      cfg_desc = cast(Optional[Dict[str, JsonableDict]], rtc.get('stack_config_properties', None))
+      if cfg_desc is None:
+        cfg_desc = {}
+        rtc['stack_config_properties'] = cfg_desc
+        cfg_desc = rtc['stack_config_properties']
       if not key in rtc:
         rtc[key] = deepcopy(info.__dict__)
         rtc.save()

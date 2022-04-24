@@ -17,9 +17,13 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
       aws_full_subaccount_account_id,
       aws_resource_options,
       default_tags,
+      config_property_info,
   )
 
-  backend_url = tconfig.require(f"{cfg_prefix}backend_url")
+  backend_url = tconfig.require(
+      f"{cfg_prefix}backend_url",
+      info=config_property_info(description="The full s3:// URI of the backend, omitting organization and project if those are not included in the backend")
+    )
   #pulumi.log.info(f"backend_url={backend_url}")
   bucket_name, backend_subkey = split_s3_uri(backend_url)
   while backend_subkey.endswith('/'):
