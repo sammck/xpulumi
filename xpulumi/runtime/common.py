@@ -63,11 +63,13 @@ def config_property_info(**kwargs) -> ConfigPropertyInfo:
 
 known_config_properties: Dict[str, ConfigPropertyInfo] = {}
 should_update_config_info = os.environ.get('XPULUMI_UPDATE_CONFIG_INFO', '') != ''
+pulumi.info(f"should_update_config_info={should_update_config_info}")
 
 @run_once
 def get_current_project_round_trip_config() -> RoundTripConfig:
   xproject = get_current_xpulumi_project()
   config_filename = xproject.xpulumi_project_config_file_name
+  pulumi.info(f"rtc file={config_filename}")
   rtc = RoundTripConfig(config_filename)
   return rtc
 
