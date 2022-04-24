@@ -93,6 +93,15 @@ def register_config_property(key: str, info: Optional[ConfigPropertyInfo]=None) 
 
 class Config(pulumi.Config):
   # pylint: disable=unused-argument
+
+  def register_config_property(
+        self,
+        key: str,
+        info: Optional[ConfigPropertyInfo]=None
+      ) -> None:
+    full_key = self.full_key(key)
+    register_config_property(full_key, info)
+
   def _get(
         self,
         key: str,
@@ -100,90 +109,89 @@ class Config(pulumi.Config):
         instead_of: Optional[Callable] = None,
         info: Optional[ConfigPropertyInfo] = None,
       ) -> Optional[str]:
-    full_key = self.full_key(key)
-    register_config_property(full_key, info)
+    self.register_config_property(key, info)
     result = super()._get(key, use=use, instead_of=instead_of)
     #pulumi.info(f"Config._get('{key}') ==> {result}")
     return result
 
   def get(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[str]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[str]'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[str]'))
     return super().get(key)
 
   def get_secret(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[str]]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[str]', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[str]', is_secret=True))
     return super().get_secret(key)
 
   def get_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[bool]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[bool]'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[bool]'))
     return super().get_bool(key)
 
   def get_secret_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[bool]]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[bool]', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[bool]', is_secret=True))
     return super().get_secret_bool(key)
 
   def get_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[int]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[int]'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[int]'))
     return super().get_int(key)
 
   def get_secret_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[int]]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[int]', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[int]', is_secret=True))
     return super().get_secret_int(key)
 
   def get_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[float]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[float]'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[float]'))
     return super().get_float(key)
 
   def get_secret_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[float]]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[float]', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[float]', is_secret=True))
     return super().get_secret_float(key)
 
   def get_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Any]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[Json]'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[Json]'))
     return super().get_object(key)
 
   def get_secret_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[Any]]:
-    register_config_property(key, config_property_info(base=info, type_desc='Optional[Json]', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Optional[Json]', is_secret=True))
     return super().get_secret_object(key)
 
   def require(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> str:
-    register_config_property(key, config_property_info(base=info, type_desc='str'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='str'))
     return super().require(key)
 
   def require_secret(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[str]:
-    register_config_property(key, config_property_info(base=info, type_desc='str', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='str', is_secret=True))
     return super().require_secret(key)
 
   def require_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> bool:
-    register_config_property(key, config_property_info(base=info, type_desc='bool'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='bool'))
     return super().require_bool(key)
 
   def require_secret_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[bool]:
-    register_config_property(key, config_property_info(base=info, type_desc='bool', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='bool', is_secret=True))
     return super().require_secret_bool(key)
 
   def require_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> int:
-    register_config_property(key, config_property_info(base=info, type_desc='int'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='int'))
     return super().require_int(key)
 
   def require_secret_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[int]:
-    register_config_property(key, config_property_info(base=info, type_desc='int', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='int', is_secret=True))
     return super().require_secret_int(key)
 
   def require_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> float:
-    register_config_property(key, config_property_info(base=info, type_desc='float'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='float'))
     return super().require_float(key)
 
   def require_secret_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[float]:
-    register_config_property(key, config_property_info(base=info, type_desc='float', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='float', is_secret=True))
     return super().require_secret_float(key)
 
   def require_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Any:
-    register_config_property(key, config_property_info(base=info, type_desc='Json'))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Json'))
     return super().require_object(key)
 
   def require_secret_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[Any]:
-    register_config_property(key, config_property_info(base=info, type_desc='Json', is_secret=True))
+    self.register_config_property(key, config_property_info(base=info, type_desc='Json', is_secret=True))
     return super().require_secret_object(key)
 
 pconfig = Config()
