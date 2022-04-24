@@ -213,6 +213,19 @@ class TemplateConfig(Config):
     self._parent = parent
     self._env = template_env
 
+  def register_config_property(
+        self,
+        key: str,
+        info: Optional[ConfigPropertyInfo]=None
+      ) -> None:
+    full_key = self.full_key(key)
+    info = config_property_info(base=info)
+    if info.type_desc is None:
+      info.type_desc = 'Template'
+    else:
+      info.type_desc = f'Template[{info.type_desc}]'
+    register_config_property(full_key, info)
+
   # pylint: disable=unused-argument
   def _get(
       self,
@@ -221,11 +234,7 @@ class TemplateConfig(Config):
       instead_of: Optional[Callable] = None,
       info: Optional[ConfigPropertyInfo] = None,
   ) -> Optional[str]:
-    info = config_property_info(base=info)
-    if info.type_desc is None:
-      info.type_desc = 'Template'
-    else:
-      info.type_desc = f'Template[{info.type_desc}]'
+    self.register_config_property(key, info)
     result = self._parent._get(   # pylint: disable=protected-access
         key,
         use=use,
@@ -239,6 +248,8 @@ class TemplateConfig(Config):
         raise ValueError(f"Could not expand template config value {key}='{result}': {e}") from e
       return result
     return None
+
+
 
 tconfig = TemplateConfig()
 
