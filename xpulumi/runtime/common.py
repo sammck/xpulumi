@@ -84,8 +84,10 @@ def register_config_property(key: str, info: Optional[ConfigPropertyInfo]=None) 
       if cfg_desc is None:
         cfg_desc = {}
         rtc['stack_config_properties'] = cfg_desc
+        rtc.save()
         cfg_desc = rtc['stack_config_properties']
-      if not key in rtc:
+      if not key in cfg_desc:
+        rtc_ddata = dict((k, deepcopy(v)) for k, v in info.__dict__.items() if not v is None) 
         rtc[key] = deepcopy(info.__dict__)
         rtc.save()
 
