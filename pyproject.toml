@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "xpulumi"
-version = "1.26.0"
+version = "1.27.0"
 description = "Tools to make Pulumi more usable"
 authors = ["Sam McKelvie <dev@mckelvie.org>"]
 license = "MIT"
