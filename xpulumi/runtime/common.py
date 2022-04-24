@@ -4,9 +4,12 @@
 #
 
 """Common runtime values"""
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Type, cast, Any
 
+from copy import deepcopy
+import os
 import string
+from dataclasses import dataclass
 import pulumi
 import threading
 from pulumi import ( InvokeOptions, ResourceOptions, get_stack, Output )
@@ -31,12 +34,13 @@ from pulumi_aws import (
 from xpulumi.exceptions import XPulumiError
 from .util import (
     get_current_xpulumi_project_name,
+    get_current_xpulumi_project,
     get_xpulumi_context,
     default_val,
     get_current_cloud_subaccount,
     enable_debugging
   )
-from project_init_tools import get_git_user_email, run_once
+from project_init_tools import RoundTripConfig, get_git_user_email, run_once, round_trip_config
 
 # If environment variable XPULUMI_DEBUGGER is defined, this
 # will cause the program to stall waiting for vscode to
@@ -44,13 +48,142 @@ from project_init_tools import get_git_user_email, run_once
 # cutting it.
 enable_debugging()
 
-pconfig = pulumi.Config()
+@dataclass
+class ConfigPropertyInfo:
+  description: Optional[str] = None
+  type_desc: Optional[str] = None
+  is_secret: Optional[bool] = None
+
+def config_property_info(**kwargs) -> ConfigPropertyInfo:
+  base = cast(Optional[ConfigPropertyInfo], kwargs.pop('base', None))
+  if not base is None:
+    kwargs.update((k, v) for k,v in base.__dict__.items() if not v is None)
+  result = ConfigPropertyInfo(**kwargs)
+  return result
+
+known_config_properties: Dict[str, ConfigPropertyInfo] = {}
+should_update_config_info = os.environ.get('XPULUMI_UPDATE_CONFIG_INFO', '') != ''
+
+@run_once
+def get_current_project_round_trip_config() -> RoundTripConfig:
+  xproject = get_current_xpulumi_project()
+  config_filename = xproject.xpulumi_project_config_file_name
+  rtc = RoundTripConfig(config_filename)
+  return rtc
+
+def register_config_property(key: str, info: Optional[ConfigPropertyInfo]=None) -> None:
+  if not key in known_config_properties:
+    info = config_property_info(base=info)
+    known_config_properties[key] = info
+    if should_update_config_info:
+      rtc = get_current_project_round_trip_config()
+      if not key in rtc:
+        rtc.save()
+
+class Config(pulumi.Config):
+  # pylint: disable=unused-argument
+  def _get(
+        self,
+        key: str,
+        use: Optional[Callable] = None,
+        instead_of: Optional[Callable] = None,
+        info: Optional[ConfigPropertyInfo] = None,
+      ) -> Optional[str]:
+    full_key = self.full_key(key)
+    register_config_property(key, info)
+    return super()._get(full_key, use=use, instead_of=instead_of)
+
+  def get(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[str]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[str]'))
+    return super().get(key)
+
+  def get_secret(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[str]]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[str]', is_secret=True))
+    return super().get_secret(key)
+
+  def get_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[bool]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[bool]'))
+    return super().get_bool(key)
+
+  def get_secret_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[bool]]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[bool]', is_secret=True))
+    return super().get_secret_bool(key)
+
+  def get_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[int]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[int]'))
+    return super().get_int(key)
+
+  def get_secret_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[int]]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[int]', is_secret=True))
+    return super().get_secret_int(key)
+
+  def get_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[float]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[float]'))
+    return super().get_float(key)
+
+  def get_secret_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[float]]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[float]', is_secret=True))
+    return super().get_secret_float(key)
+
+  def get_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Any]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[Json]'))
+    return super().get_object(key)
+
+  def get_secret_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[Output[Any]]:
+    register_config_property(key, config_property_info(base=info, type_desc='Optional[Json]', is_secret=True))
+    return super().get_secret_object(key)
+
+  def require(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> str:
+    register_config_property(key, config_property_info(base=info, type_desc='str'))
+    return super().require(key)
+
+  def require_secret(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[str]:
+    register_config_property(key, config_property_info(base=info, type_desc='str', is_secret=True))
+    return super().require_secret(key)
+
+  def require_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> bool:
+    register_config_property(key, config_property_info(base=info, type_desc='bool'))
+    return super().require_bool(key)
+
+  def require_secret_bool(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[bool]:
+    register_config_property(key, config_property_info(base=info, type_desc='bool', is_secret=True))
+    return super().require_secret_bool(key)
+
+  def require_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> int:
+    register_config_property(key, config_property_info(base=info, type_desc='int'))
+    return super().require_int(key)
+
+  def require_secret_int(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[int]:
+    register_config_property(key, config_property_info(base=info, type_desc='int', is_secret=True))
+    return super().require_secret_int(key)
+
+  def require_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> float:
+    register_config_property(key, config_property_info(base=info, type_desc='float'))
+    return super().require_float(key)
+
+  def require_secret_float(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[float]:
+    register_config_property(key, config_property_info(base=info, type_desc='float', is_secret=True))
+    return super().require_secret_float(key)
+
+  def require_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Any:
+    register_config_property(key, config_property_info(base=info, type_desc='Json'))
+    return super().require_object(key)
+
+  def require_secret_object(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Output[Any]:
+    register_config_property(key, config_property_info(base=info, type_desc='Json', is_secret=True))
+    return super().require_secret_object(key)
+
+pconfig = Config()
 template_env: Dict[str, str] = {}
 
-class TemplateConfig(pulumi.Config):
-  _parent: pulumi.Config
+class TemplateConfig(Config):
+  _parent: Config
   _env: Dict[str, str]
-  def __init__(self, parent: Optional[pulumi.Config] = None, env: Optional[Dict[str, str]] = None) -> None:
+  def __init__(
+        self,
+        parent: Optional[Config] = None,
+        env: Optional[Dict[str, str]] = None
+      ) -> None:
     if parent is None:
       parent = pconfig
     super().__init__(parent.name)
@@ -65,8 +198,19 @@ class TemplateConfig(pulumi.Config):
       key: str,
       use: Optional[Callable] = None,
       instead_of: Optional[Callable] = None,
+      info: Optional[ConfigPropertyInfo] = None,
   ) -> Optional[str]:
-    result = self._parent._get(key, use=use, instead_of=instead_of)  # pylint: disable=protected-access
+    info = config_property_info(base=info)
+    if info.type_desc is None:
+      info.type_desc = 'Template'
+    else:
+      info.type_desc = f'Template[{info.type_desc}]'
+    result = self._parent._get(   # pylint: disable=protected-access
+        key,
+        use=use,
+        instead_of=instead_of,
+        info=info,
+      )
     if not result is None and not self._env is None and len(self._env) > 0:
       try:
         result = string.Template(result).substitute(self._env)

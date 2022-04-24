@@ -184,6 +184,10 @@ class XPulumiProject:
     self._allowed_stack_names = allowed_stack_names
 
   @property
+  def xpulumi_project_config_file_name(self) -> str:
+    return self._xcfg_file
+
+  @property
   def allowed_stack_names(self) -> Optional[List[str]]:
     return self._allowed_stack_names
 
