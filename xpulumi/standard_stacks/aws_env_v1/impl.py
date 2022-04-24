@@ -5,7 +5,7 @@
 
 def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: str = ''):
   import pulumi
-  from pulumi import Output, config as pconfig
+  from pulumi import Output
   import pulumi_aws as aws
   import xpulumi
   import xpulumi.runtime
@@ -16,6 +16,8 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
       Ec2KeyPair,
       Ec2Instance,
       CloudWatch,
+    )
+  from xpulumi.runtime.common import (
       pconfig,
       tconfig,
       stack_name,
@@ -50,8 +52,6 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
   # will create a subdir <pulumi-org>/<pulumi-project-name>/<pulumi-stack> under
   # that root key that it can play in to avoid stepping on each others toes.
 
-  stack_suffix = '' if stack_name == 'global' else f"-{stack_name}"
-
   bucket_name = f"{aws_full_subaccount_account_id}-{aws_region}-{long_stack}"
 
   bucket = aws.s3.Bucket(
@@ -80,3 +80,4 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
 
   if not cloud_subaccount is None:
     pulumi.export(f'{export_prefix}cloud_subaccount', cloud_subaccount)
+  

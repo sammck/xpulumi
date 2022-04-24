@@ -7,7 +7,7 @@
 
 """Wrapper for standard Pulumi CLI that passes xpulumi envionment forward"""
 
-from typing import (Any, Dict, List, Optional, Union, Set, Type, TextIO)
+from typing import (Any, Dict, List, Optional, Union, Set, Type, TextIO, Sequence)
 
 from copy import deepcopy
 from lib2to3.pgen2.token import OP
@@ -15,9 +15,8 @@ import os
 import sys
 import json
 import subprocess
+import colorama # type: ignore[import]
 from colorama import Fore, Back, Style
-import colorama
-
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.backend import XPulumiBackend
@@ -312,7 +311,7 @@ class PulumiWrapper:
   _debug: bool = False
   _metadata: Optional[PulumiMetadata] = None
   _parsed: Optional[ParsedPulumiCmd] = None
-  _pulumi_dir: Optional[str] = None
+  _pulumi_dir: str
   _arglist: List[str]
   _raw_pulumi: bool = False
   _raw_env: bool = False
@@ -326,7 +325,7 @@ class PulumiWrapper:
 
   def __init__(
         self,
-        arglist: List[str],
+        arglist: Sequence[str],
         ctx: Optional[XPulumiContextBase]=None,
         backend: Optional[Union[str,XPulumiBackend]]=None,
         project: Optional[Union[str,XPulumiProject]]=None,
@@ -344,7 +343,7 @@ class PulumiWrapper:
     debug = env.get('XPULUMI_DEBUG_PULUMI', '') != '' if debug is None else debug
     self._debug = debug
 
-    self._arglist = arglist
+    self._arglist = list(arglist)
     if ctx is None:
       ctx = XPulumiContextBase(cwd=cwd)
     self._ctx = ctx
@@ -384,7 +383,8 @@ class PulumiWrapper:
 
   def register_custom_handlers(self) -> None:
     # import deferred to runtime to break circular imports
-    from .custom_handlers import custom_handlers
+    from xpulumi.pulumi_cli.custom_handlers import get_custom_handlers # pylint: disable=cyclic-import
+    custom_handlers = get_custom_handlers()
     for full_subcmd, handler in custom_handlers.items():
       self.register_command_handler(full_subcmd, handler)
 
@@ -507,10 +507,10 @@ class PulumiWrapper:
       self._parsed = md.parse_command(self.arglist)
       for topic in self._parsed.metadata.iter_topics():
         topic.title += ' (xpulumi wrapper)'
-      cmd_raw_pulumi = self._parsed.pop_option_optional_bool('--raw-pulumi')
-      cmd_raw_env = self._parsed.pop_option_optional_bool('--raw-env')
-      cmd_debug_cli = self._parsed.pop_option_optional_bool('--debug-cli')
-      self._traceback = self._parsed.pop_option_optional_bool('--tb')
+      cmd_raw_pulumi = not not self._parsed.pop_option_optional_bool('--raw-pulumi')
+      cmd_raw_env = not not self._parsed.pop_option_optional_bool('--raw-env')
+      cmd_debug_cli = not not self._parsed.pop_option_optional_bool('--debug-cli')
+      self._traceback = not not self._parsed.pop_option_optional_bool('--tb')
       self._raw_pulumi = self.raw_pulumi or cmd_raw_pulumi
       self._raw_env = self.raw_env or cmd_raw_env
       self._debug = self._debug or cmd_debug_cli
@@ -538,6 +538,7 @@ class PulumiWrapper:
     return False
 
   def get_standard_handler(self, full_subcmd: str) -> Type[PulumiCommandHandler]:
+    result: Type[PulumiCommandHandler]
     if self.is_stack_pos_arg_cmd(full_subcmd):
       if self.is_precreate_cmd(full_subcmd):
         result = PrecreatePosStackArgPulumiCommandHandler

@@ -397,6 +397,8 @@ class XPulumiContextBase(XPulumiContext):
         cwd: Optional[str] = None,
         use_env_defaults: bool = False,
       ) -> Tuple[Optional[str], Optional[str]]:
+    project_name: Optional[str]
+    stack_name: Optional[str]
     parts = xstack_name.split(':')
     if len(parts) > 2:
       raise XPulumiError(f'Malformed xstack name: "{xstack_name}"')

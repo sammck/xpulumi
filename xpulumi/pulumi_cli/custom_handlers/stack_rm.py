@@ -50,8 +50,8 @@ class PulumiCmdHandlerStackRm(PosStackArgPulumiCommandHandler):
     topic.add_option([ '--remove-config' ], description='[xpulumi] Delete the corresponding Pulumi.<stack-name>.yaml configuration file for the stack', is_persistent = True)
 
   def custom_tweak(self) -> None:
-    self._preserve_config = self.get_parsed().get_option_optional_bool('--preserve-config')
-    remove_config = self.get_parsed().pop_option_optional_bool('--preserve-config')
+    self._preserve_config = not not self.get_parsed().get_option_optional_bool('--preserve-config')
+    remove_config = not not self.get_parsed().pop_option_optional_bool('--preserve-config')
     if self._preserve_config:
       if remove_config:
         raise XPulumiError("Cannot have both --preserve-config and --remove-config")

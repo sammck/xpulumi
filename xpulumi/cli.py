@@ -313,9 +313,9 @@ class CommandLineInterface:
 
   def get_selected_stack_name(self) -> Optional[str]:
     args = self._args
-    stack_name: str = cast(Optional[str], args.stack)
+    stack_name = cast(Optional[str], args.stack)
     if stack_name is None:
-      stack_name = self.get_context().get_stack_name()
+      stack_name = self.get_context().get_optional_stack_name()
     return stack_name
 
   def get_required_selected_stack_name(self) -> str:

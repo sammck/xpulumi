@@ -73,6 +73,7 @@ class TemplateConfig(pulumi.Config):
       except ValueError as e:
         raise ValueError(f"Could not expand template config value {key}='{result}': {e}") from e
       return result
+    return None
 
 tconfig = TemplateConfig()
 

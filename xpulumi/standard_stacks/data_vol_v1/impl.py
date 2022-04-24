@@ -27,20 +27,22 @@ def load_stack(
       require_stack_output,
       CloudWatch,
       enable_debugging,
+      HashedPassword,
+      jsonify_promise,
+      S3FutureObject,
+      SshCachedHostKey,
+      dedent,
+      future_dedent,
+      concat_and_dedent,
+      default_val,
+    )
+  from xpulumi.runtime.common import (
       aws_account_id,
       pulumi_project_name,
       stack_name,
       pconfig,
-      default_val,
-      HashedPassword,
-      jsonify_promise,
       long_stack,
-      S3FutureObject,
-      SshCachedHostKey,
       long_xstack,
-      dedent,
-      future_dedent,
-      concat_and_dedent,
     )
 
   from xpulumi.runtime.ebs_volume import EbsVolume

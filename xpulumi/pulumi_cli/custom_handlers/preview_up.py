@@ -51,7 +51,7 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
       topic.add_option([ '-y', '--yes' ], description='[xpulumi] On recursion, automatically approve and perform the update after previewing it', is_persistent = True)
 
   def custom_tweak(self) -> None:
-    self._recursive = self.get_parsed().pop_option_optional_bool('--recursive')
+    self._recursive = not not self.get_parsed().pop_option_optional_bool('--recursive')
 
   def do_pre_raw_pulumi(self, cmd: List[str], env: Dict[str, str]) -> Optional[int]:
     yes_flag = self.get_parsed().get_option_bool('--yes')
@@ -63,8 +63,7 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
             f"by this project, but it has already been deployed. It is assumed to be up-to-date.{self.ecolor(Style.RESET_ALL)}", file=sys.stderr
           )
         return 0
-      else:
-        raise XPulumiError(f"Stack {stack.full_stack_name} is not deployable")
+      raise XPulumiError(f"Stack {stack.full_stack_name} is not deployable")
 
     dependencies = stack.get_stack_build_order(include_self=False)
     if len(dependencies) > 0:

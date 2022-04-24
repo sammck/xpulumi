@@ -245,14 +245,17 @@ class CmdInitEnv(CommandHandler):
 
   def get_project_stack_names(self, project_name: str) -> List[str]:
     md = self.get_project_stacks_metadata(project_name)
-    return [ x['name'] for x in md ]
+    return [ cast(str, x['name']) for x in md ]
 
   def project_stack_exists(self, project_name: str, stack_name: str) -> bool:
     return stack_name in self.get_project_stack_names(project_name)
 
   def init_project_stack(self, project_name: str, stack_name: str) -> bool:
+    result = False
     if not self.project_stack_exists(project_name, stack_name):
       self.check_call_project_pulumi(project_name, [ 'stack', 'init', '-s', stack_name, '--non-interactive' ])
+      result = True
+    return result
 
   def get_xp_stack_config(self, project_name:str, stack_name: str, create: bool=True) -> RoundTripConfig:
     if self._xp_stack_configs is None:
@@ -330,18 +333,19 @@ class CmdInitEnv(CommandHandler):
       cfg[key] = value
     cfg.save()
 
-  def prompt_val(
+  def prompt_valx(
         self,
         prompt: str,
         default: Optional[str] = None,
         converter: Optional[Callable[[str], Jsonable]] = None
-      ) -> Jsonable:
+      ) -> Tuple[str, Jsonable]:
     if not default is None:
       prompt += f" [{default}]"
     have_result = False
     while not have_result:
       have_result = True
-      s = input(f"{self.cli.ecolor(Fore.GREEN)}\n{prompt}: {self.cli.ecolor(Style.RESET_ALL)}")
+      raw_s = input(f"{self.cli.ecolor(Fore.GREEN)}\n{prompt}: {self.cli.ecolor(Style.RESET_ALL)}")
+      s = raw_s
       if not default is None and s == '':
         s = default
       if converter is None:
@@ -352,7 +356,20 @@ class CmdInitEnv(CommandHandler):
         except Exception as e:
           print(f"Invalid input: {e}")
           have_result = False
-    return v
+    return raw_s, v
+
+  def prompt_val(
+        self,
+        prompt: str,
+        default: Optional[str] = None,
+        converter: Optional[Callable[[str], Jsonable]] = None
+      ) -> Jsonable:
+    _, result = self.prompt_valx(
+        prompt,
+        default=default,
+        converter=converter
+      )
+    return result
 
   def get_or_prompt_config_val(
         self,
@@ -362,21 +379,23 @@ class CmdInitEnv(CommandHandler):
         cache_is_priority_default: bool = False,
         converter: Optional[Callable[[str], Jsonable]] = None
       ) -> Jsonable:
-    v: Optional[str] = None
+    v: Jsonable = None
     cfg = self.get_round_trip_config()
     if key in cfg:
       v = cast(Jsonable, cfg[key])
     else:
+      gcfg = self.get_global_config_cache()
       if cache_is_priority_default or default is None:
-        gcfg = self.get_global_config_cache()
         if key in gcfg:
-          new_default = cast(Jsonable, gcfg[key])
-          if not new_default is None:
+          new_default = cast(Optional[str], gcfg[key])
+          if isinstance(new_default, str):
             default = new_default
       if prompt is None:
         prompt = f"Enter configuration value \"{key}\""
-      v = self.prompt_val(prompt, default=default, converter=converter)
-      self.update_config({key: v})
+      raw_s, v = self.prompt_valx(prompt, default=default, converter=converter)
+      gcfg.update({key: raw_s})
+      self.save_global_config_cache()
+    self.update_config({key: v})
     return v
 
   def get_or_prompt_kv_secret_val(
@@ -386,7 +405,7 @@ class CmdInitEnv(CommandHandler):
         default: Optional[str] = None,
         converter: Optional[Callable[[str], Jsonable]] = None
       ) -> Jsonable:
-    v: Optional[str] = None
+    v: Jsonable = None
     kv_store = self.get_kv_store()
     kv = kv_store.get_value(key)
     if not kv is None:
@@ -441,16 +460,17 @@ class CmdInitEnv(CommandHandler):
 
         return v
 
-      root_zone_name = self.get_or_prompt_config_val(
-        'root_zone_name',
-        prompt=dedent('''
-            Enter the name of an existing DNS domain that is already hosted by
-            AWS Route53 in your AWS account. This domain will become the root
-            for new subzones created by your xpulumi project.
-            (e.g., mydomain.com)
-          ''').rstrip(),
-          converter=validate_dns
-      )
+      root_zone_name = cast(str, self.get_or_prompt_config_val(
+          'root_zone_name',
+          prompt=dedent('''
+              Enter the name of an existing DNS domain that is already hosted by
+              AWS Route53 in your AWS account. This domain will become the root
+              for new subzones created by your xpulumi project.
+              (e.g., mydomain.com)
+            ''').rstrip(),
+            converter=validate_dns
+        ))
+      assert isinstance(root_zone_name, str)
       self._root_zone_name = root_zone_name
     return self._root_zone_name
 
@@ -1103,16 +1123,24 @@ class CmdInitEnv(CommandHandler):
         if executable:
           subprocess.call(['chmod','+x', filename], stderr=subprocess.DEVNULL)
 
-  def write_standard_xp_project_main(self, project_name: str, standard_stack_name: str) -> None:
+  def write_xp_project_main(
+        self,
+        project_name: str,
+        standard_stack_name: Optional[str] = None,
+        file_content: Optional[str] = None) -> None:
+    if file_content is None:
+      if standard_stack_name is None:
+        raise XPulumiError("Either standard_stack_name or file_content must be provided")
+      file_content = dedent(f'''
+          from xpulumi.standard_stacks.{standard_stack_name} import load_stack
+
+          load_stack()
+        ''')
     xp_project_dir = self.get_xp_project_dir(project_name)
     if not os.path.isdir(xp_project_dir):
       os.makedirs(xp_project_dir)
     filename = os.path.join(xp_project_dir, '__main__.py')
-    self.write_pyfile(filename, dedent(f'''
-        from xpulumi.standard_stacks.{standard_stack_name} import load_stack
-
-        load_stack()
-      '''))
+    self.write_pyfile(filename, file_content)
 
   def create_yaml_file(self, filename: str, content: Jsonable) -> None:
     filename = os.path.join(self.get_project_root_dir(), filename)
@@ -1288,7 +1316,11 @@ class CmdInitEnv(CommandHandler):
       if not 'aws:region' in stack_config:
         stack_config['aws:region'] = self.get_aws_region()
 
-    self.write_standard_xp_project_main(project_name, standard_stack_name)
+    self.write_xp_project_main(
+        project_name,
+        standard_stack_name=standard_stack_name,
+        file_content=main_script_content
+      )
     self.create_yaml_file(os.path.join(xp_project_dir, "xpulumi-project.yaml"), xpulumi_config)
     self.create_yaml_file(os.path.join(xp_project_dir, "Pulumi.yaml"), pulumi_config)
     for stack_name, stack_config in pulumi_stack_configs.items():
@@ -1472,7 +1504,7 @@ class CmdInitEnv(CommandHandler):
     self.set_pyproject_default(
         t_tool_pylint_messages_control,
         'disable',
-        toml_item(pylint_disable_list).multiline(True),
+        toml_item(pylint_disable_list).multiline(True), # type: ignore[attr-defined]
       )
     t_tool_pylint_format = pyproject.get_table('tool.pylint.FORMAT', auto_split = True, create=True)
     self.set_pyproject_default(t_tool_pylint_format, 'indent-after-paren', 4)
@@ -1602,6 +1634,7 @@ class CmdInitEnv(CommandHandler):
         description = "EC2 Dev box",
         project_dependencies = [ datavol_project_name, awsenv_project_name ],
         pulumi_stack_configs = {
+            # pylint: disable=use-dict-literal
             dev_stack_name: dict(
                 # ec2_instance_username = os.getlogin(),
               )
@@ -1677,7 +1710,7 @@ class CmdInitEnv(CommandHandler):
           print(f"Generated Pulumi passphrase=\"{v}\"", file=sys.stderr)
         return v
 
-      self._pulumi_passphrase = self.get_or_prompt_kv_secret_val(
+      self._pulumi_passphrase = cast(str, self.get_or_prompt_kv_secret_val(
           "pulumi/passphrase",
           dedent('''
                 Enter a passphrase to be used for encryption of secrets held by
@@ -1692,7 +1725,8 @@ class CmdInitEnv(CommandHandler):
                 will be chosen
             ''').rstrip(),
           converter=validate_pulumi_passphrase
-        )
+        ))
+      assert isinstance(self._pulumi_passphrase, str)
     return self._pulumi_passphrase
 
   def gen_passphrase(self) -> str:
@@ -1740,7 +1774,7 @@ class CmdInitEnv(CommandHandler):
                 passphrase. In most cases, you will want to leave this blank
               ''').rstrip()
           ))
-        if kvstore_passphrase.strip() == '':
+        if not kvstore_passphrase is None and kvstore_passphrase.strip() == '':
           kvstore_passphrase = None
 
         kv_store = create_kv_store(project_root_dir, passphrase=kvstore_passphrase)
@@ -1812,11 +1846,8 @@ class CmdInitEnv(CommandHandler):
 
   def update_config(self, *args, **kwargs) -> None:
     rt = self.get_round_trip_config()
-    global_cache = self.get_global_config_cache()
     rt.update(*args, **kwargs)
-    global_cache.update(*args, **kwargs)
     self.save_round_trip_config()
-    self.save_global_config_cache()
 
   def get_project_root_dir(self) -> str:
     return self.get_config().project_root_dir

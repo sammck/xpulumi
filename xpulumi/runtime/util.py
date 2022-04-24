@@ -341,7 +341,9 @@ def default_val(x: Optional[T2], default: Optional[T2]) -> Optional[T2]:
   return x
 
 def gen_etc_shadow_password_hash(password: Input[str], keep_hash_secret: bool=True) -> Output[str]:
-  result: Output[str] = Output.all(password).apply(lambda args: sync_gen_etc_shadow_password_hash(*args))
+  result: Output[str] = Output.all(password).apply(
+      lambda args: sync_gen_etc_shadow_password_hash(cast(str, args[0]))
+    )
   if not keep_hash_secret:
     result = Output.unsecret(result)
   return result
@@ -356,7 +358,9 @@ def shell_quote_promise(
   return result
 
 def future_dedent(s: Input[str], **kwargs) -> Output[str]:
-  result: Output[str] = Output.all(s, kwargs).apply(lambda args: dedent(args[0], **(args[1])))
+  result: Output[str] = Output.all(s, kwargs).apply(
+      lambda args: dedent(cast(str, args[0]), **cast(Dict[str, Any], args[1])
+    ))
   return result
 
 def concat_and_dedent(*args: str, **kwargs) -> Output[str]:

@@ -56,7 +56,7 @@ class XPulumiProject:
   _backend: XPulumiBackend
   _organization: Optional[str] = None
   _cloud_subaccount: Optional[str] = None
-  _stacks: Dict[str, 'XPulumiStack'] = None
+  _stacks: Dict[str, 'XPulumiStack']
   _all_stacks_known: bool = False
   _project_dependencies: List[str]
   _stacks_metadata: Optional[Dict[str, JsonableDict]] = None

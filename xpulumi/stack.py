@@ -336,7 +336,7 @@ class XPulumiStack:
       result = self.get_decrypted_config_values()
     else:
       pc = self.get_pulumi_config()
-      result: JsonableDict = cast(JsonableDict, pc.get('config', {}))
+      result = cast(JsonableDict, pc.get('config', {}))
       assert isinstance(result, dict)
     return result
 

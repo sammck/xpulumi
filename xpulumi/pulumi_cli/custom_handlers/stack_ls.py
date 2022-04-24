@@ -19,7 +19,7 @@ import tabulate
 import dateutil.parser
 import datetime
 import pytz
-import humanize
+import humanize  # type: ignore[import]
 
 from ...backend import XPulumiBackend
 from ...project import XPulumiProject

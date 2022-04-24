@@ -7,7 +7,7 @@
 
 """Wrapper for "pulumi refresh" command"""
 
-from typing import (Any, Dict, List, Optional, Union, Set, Type)
+from typing import (Any, Dict, List, Optional, Union, Set, Type, cast)
 
 from copy import deepcopy
 from lib2to3.pgen2.token import OP
@@ -49,4 +49,4 @@ class PulumiCmdHandlerRefresh(PulumiCommandHandler):
       raise XPulumiError(f"Stack {stack.full_stack_name} has not been deployed, or has been destroyed")
     if not stack.is_deployable():
       raise XPulumiError(f"Stack {stack.full_stack_name} is not refreshable by this project")
-    return None
+    return cast(Optional[int], None)

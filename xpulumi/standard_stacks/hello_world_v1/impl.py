@@ -17,9 +17,12 @@ def load_stack(
   from pulumi import Output
   from xpulumi.runtime import (
       VpcEnv,
+    )
+  from xpulumi.runtime.common import (
       stack_name,
       pconfig,
       aws_resource_options,
+      aws_invoke_options,
     )
 
   # The xpulumi project name and stack name from which we will
@@ -40,9 +43,9 @@ def load_stack(
       most_recent=True,
       owners=["137112412989"],  # Amazon's own account, for Amazon Linux AMIs
       filters=[
-          pulumi_aws.GetAmiFilterArgs(name="name", values=["amzn-ami-hvm-*"])
+          pulumi_aws.ec2.GetAmiFilterArgs(name="name", values=["amzn-ami-hvm-*"])
         ],
-      opts=aws_resource_options,
+      opts=aws_invoke_options,
     )
 
   sg = pulumi_aws.ec2.SecurityGroup(

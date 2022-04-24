@@ -7,8 +7,10 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
   import pulumi
   import pulumi_aws as aws
   from xpulumi.runtime import (
-      tconfig,
       split_s3_uri,
+  )
+  from xpulumi.runtime.common import (
+      tconfig,
       aws_account_id,
       aws_default_region,
       cloud_subaccount,

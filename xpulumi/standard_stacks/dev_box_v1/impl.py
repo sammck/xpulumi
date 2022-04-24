@@ -33,21 +33,23 @@ def load_stack(
       require_stack_output,
       CloudWatch,
       enable_debugging,
-      aws_account_id,
-      pulumi_project_name,
-      stack_name,
-      pconfig,
       default_val,
       HashedPassword,
       jsonify_promise,
-      long_stack,
       S3FutureObject,
       SshCachedHostKey,
-      long_xstack,
       dedent,
       future_dedent,
       concat_and_dedent,
       SyncStackOutputs,
+    )
+  from xpulumi.runtime.common import (
+      aws_account_id,
+      pulumi_project_name,
+      stack_name,
+      pconfig,
+      long_stack,
+      long_xstack,
     )
 
   # The xpulumi project name and stack name from which we will
@@ -107,12 +109,14 @@ def load_stack(
   aws_region = vpc.aws_region
 
   # import our cloudwatch group from the shared stack
-  cw_log_group_id = require_stack_output(f'{aws_env_import_prefix}cloudwatch_log_group', stack=aws_env_stack_name)
+  cw_log_group_id = cast(str, require_stack_output(f'{aws_env_import_prefix}cloudwatch_log_group', stack=aws_env_stack_name))
+  assert isinstance(cw_log_group_id, str)
   cw = CloudWatch(log_group_id=cw_log_group_id)
   cw.stack_export(export_prefix=export_prefix)
 
   # import our shared S3 bucket/root key from the shared stack
-  shared_s3_uri = require_stack_output(f'{aws_env_import_prefix}shared_s3_uri', stack=aws_env_stack_name)
+  shared_s3_uri = cast(str, require_stack_output(f'{aws_env_import_prefix}shared_s3_uri', stack=aws_env_stack_name))
+  assert isinstance(shared_s3_uri, str)
 
   # Create a subkey in the shared bucket dedicated just for our stack.
   stack_s3_uri = shared_s3_uri + f"/g/{pulumi_project_name}/{stack_name}"
@@ -126,7 +130,8 @@ def load_stack(
   # Route53 zone for a registered, paid public domain such fas "mycompany.com".
   # In the latter case, DNS services for the domain must be provided by
   # AWS Route53, so this stack can create DNS records in the zone.
-  dns_zone_id = require_stack_output(f'{aws_env_import_prefix}main_dns_zone_id', stack=aws_env_stack_name)
+  dns_zone_id = cast(str, require_stack_output(f'{aws_env_import_prefix}main_dns_zone_id', stack=aws_env_stack_name))
+  assert isinstance(dns_zone_id, str)
   dns_zone = DnsZone(resource_prefix=f'{resource_prefix}main-', zone_id=dns_zone_id)
   dns_zone.stack_export(export_prefix=f'{export_prefix}main_')
 
@@ -415,7 +420,7 @@ def load_stack(
   # will automatically render this as YAML and properly embed it in the user-data
   # block for us. See https://cloudinit.readthedocs.io/en/latest/topics/examples.html.
   #
-  cloud_config_obj = dict(
+  cloud_config_obj: Input[JsonableDict] = dict(
       docversion=2,    # for debugging, a way to force redeployment by incrementing
 
       # Define linux user accounts. Note that having ANY entries in this list will
@@ -608,10 +613,12 @@ def load_stack(
   pulumi.export(f'{export_prefix}devbox_cloud_init_succeeded', cloud_init_succeeded)
 
   # replace local SSH host key data if the instance, DNS, or EIP was updated
+  ec2_eip = ec2_instance.eip
+  assert not ec2_eip is None
   cached_host_key = SshCachedHostKey(
       f'{resource_prefix}ec2_instance_cached_host_key',
       ec2_instance.ec2_instance.id,
-      ip_address = ec2_instance.eip.public_ip,
+      ip_address = ec2_eip.public_ip,
       dns_name = ec2_instance.primary_dns_name,
       cloudinit_result=cloud_init_result,
     )

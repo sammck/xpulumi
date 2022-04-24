@@ -21,18 +21,17 @@ class HashedPasswordProvider(ResourceProvider):
 
   def check(self, oldProps: JsonableDict, newProps: JsonableDict) -> CheckResult:  # pylint: disable=arguments-renamed
     if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.check(oldProps={oldProps}, newProps={newProps})")
-    old_name = oldProps.get('name', None)
-    name = newProps.get('name', None)
-    password = newProps.get('password', None)
-    if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.check(): password={None if password is None else ' '.join(password)}")
     failures: List[CheckFailure] = []
+    old_name = cast(Optional[str], oldProps.get('name', None))
+    name = cast(Optional[str], newProps.get('name', None))
+    password = cast(Optional[str], newProps.get('password', None))
+    if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.check(): password={None if password is None else ' '.join(str(password))}")
     if not isinstance(name, str):
       failures.append(CheckFailure('name', f'name must be a string: {name}'))
     if not old_name is None and name != old_name:
       failures.append(CheckFailure('name', f'name property cannot be changed: {name}'))
     if not isinstance(password, str) or password == '':
       failures.append(CheckFailure('password', f'Password must be a nonempty string: {password}'))
-
     if password == '[secret]':
       failures.append(CheckFailure('password', f'Password is set to the literal string "[secret]", which indicates a pulumi property serialization bug: {password}'))
 

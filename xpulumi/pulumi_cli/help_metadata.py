@@ -78,11 +78,11 @@ class OptionInfo:
           self.value_name = value_name
     else:
       assert isinstance(json_data, dict)
-      self.flags = json_data.get('flags', [])
+      self.flags = cast(List[str], json_data.get('flags', []))
       assert isinstance(self.flags, list) and all(isinstance(x, str) for x in self.flags)
-      self.value_name = json_data.get('value_name', None)
+      self.value_name = cast(Optional[str], json_data.get('value_name', None))
       assert self.value_name is None or isinstance(self.value_name, str)
-      self.description = json_data['description']
+      self.description = cast(str, json_data['description'])
       assert isinstance(self.description, str)
 
   @property
@@ -98,14 +98,14 @@ class OptionInfo:
       result.update(value_name=self.value_name)
     return result
 
-  def __eq__(self, other: 'OptionInfo'):
+  def __eq__(self, other: object):
     if not isinstance(other, OptionInfo):
       return False
     if other is self:
       return True
     return other.description == self.description and other.value_name == self.value_name and other.flags == self.flags
 
-  def __ne__(self, other: 'OptionInfo'):
+  def __ne__(self, other: object):
     return not self.__eq__(other)
 
   def clone(self) -> OptionInfo:
@@ -377,17 +377,17 @@ class TopicInfo:
 
   def _init_from_json_data(self, json_data: JsonableDict) -> None:
     assert isinstance(json_data, dict)
-    self.title = json_data['title']
+    self.title = cast(str, json_data['title'])
     assert isinstance(self.title, str)
-    self.parent_description = json_data.get('parent_description', None)
+    self.parent_description = cast(Optional[str], json_data.get('parent_description', None))
     assert self.parent_description is None or isinstance(self.parent_description, str)
-    self.detailed_description = json_data['description']
+    self.detailed_description = cast(str, json_data['description'])
     assert isinstance(self.detailed_description, str)
-    self.usage = json_data['usage']
+    self.usage = cast(str, json_data['usage'])
     assert isinstance(self.usage, str)
-    self.epilog = json_data['epilog']
+    self.epilog = cast(str, json_data['epilog'])
     assert isinstance(self.epilog, str)
-    self.aliases = json_data.get('aliases', [])
+    self.aliases = cast(List[str],json_data.get('aliases', []))
     assert isinstance(self.aliases, list) and all(isinstance(x, str) for x in self.aliases)
     self.added_options = {}
     self.added_persistent_options = {}
@@ -395,7 +395,7 @@ class TopicInfo:
     assert isinstance(opt_data_list, list)
     for opt_data in opt_data_list:
       assert isinstance(opt_data, dict)
-      is_persistent = opt_data.pop('persistent', False)
+      is_persistent = cast(bool, opt_data.pop('persistent', False))
       assert isinstance(is_persistent, bool)
       option = OptionInfo(json_data=opt_data)
       for flag in option.flags:
@@ -409,7 +409,7 @@ class TopicInfo:
     self.persistent_options = dict(self.added_persistent_options)
     self.subtopics = {}
     self.merged_subtopics = {}
-    json_subcommands = json_data.get('subcommands', {})
+    json_subcommands = cast(JsonableDict, json_data.get('subcommands', {}))
     assert isinstance(json_subcommands, dict)
     for subtopic_name, subtopic_data in json_subcommands.items():
       assert isinstance(subtopic_name, str)
@@ -731,6 +731,7 @@ class TopicInfo:
           k = short_flag if long_flag is None else long_flag
           assert not k is None
           if short_flag is None:
+            assert not long_flag is None
             oline = '      ' + long_flag
           else:
             oline = '  ' + short_flag
@@ -816,7 +817,7 @@ class OptionValue:
 CmdToken = Union[str, OptionValue]
 
 class ParsedPulumiCmd:
-  metadata: 'PulumiMetadata' = None
+  metadata: 'PulumiMetadata'
 
   topic: TopicInfo
   """The topic for this subcommand, or the main topic for
@@ -959,9 +960,8 @@ class ParsedPulumiCmd:
     else:
       if opt.value is None or isinstance(opt.value, bool):
         raise XPulumiError(f"Option '{flag}' is boolean, not a str on subcommand '{self.topic.topic_from_full_subcmd}'")
-      else:
-        assert isinstance(opt.value, str)
-        result = opt.value
+      assert isinstance(opt.value, str)
+      result = opt.value
     return result
 
   def allows_option(self, flag: str) -> bool:
@@ -1020,9 +1020,8 @@ class ParsedPulumiCmd:
     else:
       if opt.value is None or isinstance(opt.value, bool):
         raise XPulumiError(f"Option '{flag}' is boolean, not a str on subcommand '{self.topic.topic_from_full_subcmd}'")
-      else:
-        assert isinstance(opt.value, str)
-        result = opt.value
+      assert isinstance(opt.value, str)
+      result = opt.value
     return result
 
   def pop_option_by_token(self, value: OptionValue) -> Optional[OptionValue]:
@@ -1040,11 +1039,17 @@ class ParsedPulumiCmd:
 
   def set_option_bool(self, flag: str, value: bool=True) -> bool:
     old = self.set_option(flag, None)
-    return old
+    if old is None:
+      result = False
+    else:
+      old_v = old.value
+      assert old_v is None or isinstance(old_v, bool)
+      result = old.value is None or cast(bool, old_v)
+    return result
 
-  def set_option_str(self, flag: str, value: str) -> bool:
+  def set_option_str(self, flag: str, value: str) -> Optional[str]:
     old = self.set_option(flag, value)
-    return old
+    return None if old is None or old.value is None else str(old.value)
 
   def reset(self, arglist: List[str], require_allowed: bool=True) -> None:
     self.require_allowed = require_allowed
@@ -1052,10 +1057,11 @@ class ParsedPulumiCmd:
     topic = md.main_topic
     looking_for_subtopics = True
     i = 0
-    all_tokens: List[str] = []
+    all_tokens: List[Union[str, OptionValue]] = []
     while i < len(arglist):
       arg = arglist[i]
       i += 1
+      value: Optional[Union[str, bool]]
       if arg.startswith('-') and arg != '-' and arg != '--':
         known_value: Optional[str] = None
         value_known: bool = False
@@ -1101,10 +1107,10 @@ class ParsedPulumiCmd:
     print("  Option values (may have duplicates for flag variants):")
     for k in sorted(self.option_values.keys()):
       ov = self.option_values[k]
-      if ov.value is None:
+      if ov.value is None or (isinstance(ov.value, bool) and ov.value):
         print(f"    {k}")
       else:
-        print(f"    {k} {shlex.quote(ov.value)}")
+        print(f"    {k} {shlex.quote(str(ov.value))}")
 
   def print_help(self, file=sys.stdout) -> None:
     self.topic.print_help(file=file)
@@ -1114,7 +1120,6 @@ class PulumiMetadata:
   pulumi_bin_dir: str
   pulumi_prog: str
   prog_env: Dict[str, str]
-  pulumi_prog: str
   pulumi_version: str
   main_topic: TopicInfo
 
@@ -1139,6 +1144,8 @@ class PulumiMetadata:
       ):
     if pulumi_dir is None:
       project_root_dir = get_git_root_dir()
+      if project_root_dir is None:
+        raise XPulumiError(f"Working directory is not in a git project: {os.getcwd()}")
       pulumi_dir = os.path.join(project_root_dir, '.local', '.pulumi')
     self.pulumi_dir = pulumi_dir
     self.pulumi_bin_dir = os.path.join(pulumi_dir, 'bin')
@@ -1195,7 +1202,9 @@ class PulumiMetadata:
       assert isinstance(json_data, dict)
       self.pulumi_version = cast(str, json_data['version'])
       assert isinstance(self.pulumi_version, str)
-      self.main_topic = TopicInfo(self, json_data=json_data['help_data'])
+      help_data = cast(JsonableDict, json_data['help_data'])
+      assert isinstance(help_data, dict)
+      self.main_topic = TopicInfo(self, json_data=help_data)
     self.topic_by_full_name = {}
     #global_options: Dict[str, OptionInfo] = {}
     for topic in self.iter_topics():
@@ -1232,7 +1241,8 @@ class PulumiMetadata:
           stdout=subprocess.PIPE,
           stderr=subprocess.PIPE
         ) as proc:
-      (stdout_bytes, stderr_bytes) = cast(Tuple[Union[str, bytes], Union[str, bytes]], proc.communicate())
+      (stdout_bytes, stderr_bytes) = cast(Tuple[bytes, bytes], proc.communicate())
+      assert isinstance(stdout_bytes, bytes) and isinstance(stderr_bytes, bytes)
       exit_code = proc.returncode
     if exit_code != 0:
       stderr_s = stderr_bytes.decode('utf-8').rstrip()

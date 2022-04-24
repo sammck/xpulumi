@@ -409,7 +409,7 @@ class XPulumiBackend:
     except ClientError as e:
       if e.response['Error']['Code'] == 'NoSuchKey':
         raise XPulumiStackNotDeployedError(f"Pulumi project '{project}', stack '{stack}' does not exist or has not been deployed") from e
-      elif e.response['Error']['Code'] == 'NoSuchBucket':
+      if e.response['Error']['Code'] == 'NoSuchBucket':
         raise XPulumiBackendNotDeployedError(f"Pulumi project '{project}', stack '{stack}': Backend {self.url} does not exist or has not been deployed") from e
       raise
     stack_state = json.loads(stack_blob.decode('utf-8'))
@@ -532,14 +532,17 @@ class XPulumiBackend:
       resp = ws._run_pulumi_cmd_sync(          # pylint: disable=protected-access
             ["stack", "ls", '-j']
         )
-      md = json.loads(resp.stdout)
+      md = cast(List[JsonableDict], json.loads(resp.stdout))
+      assert isinstance(md, list)
 
     if not isinstance(md, List):
       raise RuntimeError(f"Could not retrieve stack list via CLI in stack state for backend {self.url}, org={organization}, project={project}")
 
     result: Dict[str, JsonableDict] = {}
     for entry in md:
-      result[md['name']] = entry
+      entry_name = cast(str, entry['name'])
+      assert isinstance(entry_name, str)
+      result[entry_name] = entry
 
     return result
 
@@ -593,8 +596,8 @@ class XPulumiBackend:
         assert contents is None or isinstance(contents, list)
         if not contents is None:
           for obj_data in contents:
-            key = obj_data['Key']
-            assert key.startswith(prefix)
+            key = cast(str, obj_data['Key'])
+            assert isinstance(key, str) and key.startswith(prefix)
             filename = key[len(prefix):]
             if not '/' in filename and filename.endswith('.json'):
               stack_name = filename[:-5]
@@ -623,7 +626,7 @@ class XPulumiBackend:
         self,
         project: str,
         organization: Optional[str]=None,
-      ) -> Dict[str, JsonableDict]:
+      ) -> List[str]:
     scheme = self.scheme
     if scheme == 'file':
       result = self.get_project_inited_stack_list_with_file(project, organization=organization)
@@ -649,7 +652,7 @@ class XPulumiBackend:
     default_stack_name = self.ctx.get_optional_stack_name()
     for stack_name in stack_names:
       stack_state = self.export_stack_with_blob_backend(project, stack_name, organization=organization)
-      entry = dict(name=stack_name, current=stack_name==default_stack_name, updateInProgress=False)
+      entry: JsonableDict = dict(name=stack_name, current=stack_name==default_stack_name, updateInProgress=False)
       deployment = cast(Optional[JsonableDict], stack_state.get('deployment', None))
       assert deployment is None or isinstance(deployment, dict)
       if not deployment is None:
