@@ -1,0 +1,8 @@
+{
+  "name": "local",
+  "options": {
+    "includes_organization": false,
+    "includes_project": false
+  },
+  "uri": "file://./state"
+}

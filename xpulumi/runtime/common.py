@@ -91,7 +91,9 @@ class Config(pulumi.Config):
       ) -> Optional[str]:
     full_key = self.full_key(key)
     register_config_property(key, info)
-    return super()._get(full_key, use=use, instead_of=instead_of)
+    result = super()._get(full_key, use=use, instead_of=instead_of)
+    pulumi.info(f"Config._get('{key}') ==> {result}")
+    return result
 
   def get(self, key: str, info: Optional[ConfigPropertyInfo] = None) -> Optional[str]:
     register_config_property(key, config_property_info(base=info, type_desc='Optional[str]'))
