@@ -88,6 +88,7 @@ class FrontEndSecurityGroup:
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
+    self.vpc = vpc
     if sg_id is None:
       if open_ports is None:
         open_ports = [ 22, 80, 443 ]
