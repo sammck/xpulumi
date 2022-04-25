@@ -125,8 +125,9 @@ class DnsZone:
     self.parent_zone = parent_zone
     if zone_name is None and not subzone_name is None:
       zone_name = prepend_subzone(parent_zone, subzone_name)
+    aws_resource_options = get_aws_resource_options(create_region)
+    aws_invoke_options = get_aws_invoke_options(create_region)
     if create:
-      aws_resource_options = get_aws_resource_options(create_region)
       if zone_name is None:
         raise XPulumiError("one of zone_name or parent_zone+subzone_name must be provided")
       self.zone_name = zone_name
@@ -163,7 +164,6 @@ class DnsZone:
         )
 
     else:
-      aws_invoke_options = get_aws_invoke_options(create_region)
       if zone_id is None:
         if zone_name is None:
           raise XPulumiError("Either zone_name or zone_id must be provided")
