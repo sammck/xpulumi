@@ -45,6 +45,7 @@ from .util import (
   TTL_MINUTE,
   TTL_HOUR,
   TTL_DAY,
+  ensure_output,
   jsonify_promise,
   list_of_promises,
   default_val,
@@ -59,6 +60,7 @@ from .common import (
     get_aws_region_data,
     get_stack_random_alphanumeric_id,
     pconfig,
+    config_property_info,
     default_tags,
     get_availability_zones,
     long_stack,
@@ -337,7 +339,7 @@ class Ec2Instance:
   open_ports: Optional[List[Union[int, JsonableDict]]] = None
   dns_records: List[route53.Record]
   vpc: VpcEnv
-  az: str
+  az: Input[Optional[str]] = None
   subnet_id: Input[str]
   sg: FrontEndSecurityGroup
   #ebs_data_volume: Optional[ebs.Volume] = None
@@ -376,7 +378,8 @@ class Ec2Instance:
         open_ports: Optional[List[Union[int, JsonableDict]]]=None,
         user_data: UserDataConvertible = None,
         wait_for_volumes_at_boot: bool = True,
-        az: Optional[str] = None,
+        az: Input[Optional[str]] = None,
+        subnet_id: Optional[Input[str]] = None,
         commit: bool=True,
       ):
     self.data_volumes = []
@@ -393,43 +396,89 @@ class Ec2Instance:
 
     if use_config:
       if instance_type is None:
-        instance_type = pconfig.get(f'{cfg_prefix}ec2_instance_type')
+        instance_type = pconfig.get(
+            f'{cfg_prefix}ec2_instance_type',
+            config_property_info(description=f"The EC2 instance type, default={self.DEFAULT_INSTANCE_TYPE}"),
+          )
       if sys_volume_size_gb is None:
-        sys_volume_size_gb = pconfig.get_int(f'{cfg_prefix}ec2_sys_volume_size')
+        sys_volume_size_gb = pconfig.get_int(
+            f'{cfg_prefix}ec2_sys_volume_size',
+            config_property_info(description=f"The boot volume size in gigabytes, default={self.DEFAULT_SYS_VOLUME_SIZE_GB}"),
+          )
       if data_volumes is None:
-        data_volumes_data = cast(Optional[Union[str, List[int]]], pconfig.get(f'{cfg_prefix}ec2_data_volume_sizes'))
+        data_volumes_data = cast(Optional[Union[str, List[int]]], pconfig.get(
+            f'{cfg_prefix}ec2_data_volume_sizes',
+            config_property_info(
+                description=f"Data volume size in gigabytes, or 'none' to omit a data volume, default={self.DEFAULT_DATA_VOLUME_SIZE_GB}"
+              ),
+          ))
         if not data_volumes_data is None:
           if isinstance(data_volumes_data, str):
-            data_volumes_data = [ int(data_volumes_data) ]
+            if data_volumes_data == 'none':
+              data_volumes_data = []
+            else:
+              data_volumes_data = [ int(data_volumes_data) ]
         data_volumes = cast(Optional[List[Union[int, EbsVolume]]], data_volumes_data)
       if ami_os_version is None:
-        ami_os_version = pconfig.get(f'{cfg_prefix}ec2_ami_os_version')
+        ami_os_version = pconfig.get(
+            f'{cfg_prefix}ec2_ami_os_version',
+            config_property_info(description=f"The AMI OS version, default={self.DEFAULT_AMI_OS_VERSION}"),
+          )
       if use_elastic_ip is None:
-        use_elastic_ip = pconfig.get_bool(f'{cfg_prefix}ec2_use_elastic_ip')
+        use_elastic_ip = pconfig.get_bool(
+            f'{cfg_prefix}ec2_use_elastic_ip',
+            config_property_info(description="True if an elastic IP addres should be created.  Default=true"),
+          )
       if parent_dns_zone is None:
-        parent_dns_zone = pconfig.get(f'{cfg_prefix}ec2_parent_dns_zone')
+        parent_dns_zone = pconfig.get(
+            f'{cfg_prefix}ec2_parent_dns_zone',
+            config_property_info(description="The parent DNS domain name under which subzones should be created. Default=no subzones"),
+          )
       if dns_names is None and dns_subnames is None:
-        dns_names = pconfig.get(f'{cfg_prefix}ec2_dns_names')
-        dns_subnames = pconfig.get(f'{cfg_prefix}ec2_dns_subnames')
+        dns_names = pconfig.get(
+            f'{cfg_prefix}ec2_dns_names',
+            config_property_info(description="The fully qualified DNS names of subzones to create. Default=no subzones"),
+          )
+        dns_subnames = pconfig.get(
+            f'{cfg_prefix}ec2_dns_subnames',
+            config_property_info(description="The not-fully qualified DNS tail names of subzones to create. Default=no subzones"),
+          )
       if register_dns is None:
-        register_dns = pconfig.get_bool(f'{cfg_prefix}ec2_register_dns')
+        register_dns = pconfig.get_bool(
+            f'{cfg_prefix}ec2_register_dns',
+            config_property_info(description="True if DNS subzones should be created. Default=True if subzones are listed; false otherwise"),
+          )
       if instance_name is None:
-        instance_name = pconfig.get(f'{cfg_prefix}ec2_instance_name')
+        instance_name = pconfig.get(
+            f'{cfg_prefix}ec2_instance_name',
+            config_property_info(description="The name of the EC2 instance. Default=Derived from DNS names"),
+          )
       if open_ports is None:
-        op_data = cast(Jsonable, pconfig.get(f'{cfg_prefix}ec2_open_ports'))
+        op_data = cast(Jsonable, pconfig.get(
+            f'{cfg_prefix}ec2_open_ports',
+            config_property_info(description="A JSON list of port numbers to open. Default='[ 22, 80, 443 ]'"),
+          ))
         if isinstance(op_data, str):
           op_data = cast(Jsonable, json.loads(op_data))
         assert op_data is None or isinstance(op_data, list)
         open_ports = cast(Optional[List[Union[int, JsonableDict]]], op_data)
 
       if az is None:
-        az = pconfig.get(f'{cfg_prefix}ec2_instance_az')
+        az = pconfig.get(
+            f'{cfg_prefix}ec2_instance_az',
+            config_property_info(description="The AWS availability zone to put the instance in.  Default=derived from data volume or random'"),
+          )
       if user_data is None:
-        user_data = pconfig.get(f'{cfg_prefix}ec2_user_data')
+        user_data = pconfig.get(
+            f'{cfg_prefix}ec2_user_data',
+            config_property_info(description="The cloud-init user-data document. Default=constructed at runtime"),
+          )
 
     if az is None:
       az = vpc.get_default_az()
-    subnet_id = vpc.subnet_ids[vpc.get_index_of_az(az)]
+
+    if subnet_id is None:
+      subnet_id = vpc.get_public_subnet_of_future_az(az)
 
     if instance_type is None:
       instance_type = self.DEFAULT_INSTANCE_TYPE

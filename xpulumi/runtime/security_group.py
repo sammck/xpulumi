@@ -49,7 +49,6 @@ from .common import (
     aws_default_region,
     get_aws_invoke_options,
     get_aws_region_data,
-    pconfig,
     default_tags,
     get_availability_zones,
     get_aws_resource_options,

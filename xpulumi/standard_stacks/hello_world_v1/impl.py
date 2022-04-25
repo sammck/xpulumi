@@ -21,6 +21,7 @@ def load_stack(
   from xpulumi.runtime.common import (
       stack_name,
       pconfig,
+      config_property_info,
       get_aws_resource_options,
       get_aws_invoke_options,
     )
@@ -31,7 +32,10 @@ def load_stack(
   # We will use our own stack name, so that dev will pick up from dev, prod from prod etc.
   aws_env_stack_name = f"{aws_env_project_name}:{stack_name}"
 
-  instance_type = pconfig.get(f"{cfg_prefix}instance_type")
+  instance_type = pconfig.get(
+      f"{cfg_prefix}instance_type",
+      config_property_info(description="The EC2 instance type for the server, default=t3.micro"),
+    )
   if instance_type is None:
     instance_type = 't3.micro'
 

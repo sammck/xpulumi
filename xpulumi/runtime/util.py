@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Tuple, TypeVar, Optional, Union, Dict, cast
+from typing import Any, Callable, List, Tuple, TypeVar, Optional, Union, Dict, cast, overload, Awaitable
 from mypy_boto3_ec2.literals import InstanceTypeType
 import subprocess
 import os
@@ -373,3 +373,11 @@ def az_to_region(az: str) -> str:
   if not m:
     raise ValueError(f"Not a valid AWS availability zone name: '{az}'")
   return m.group(1)
+
+def ensure_output(v: Input[T]) -> Output[T]:
+  result: Output
+  if isinstance(v, Output):
+    result = v
+  else:
+    result = Output.all(v).apply(lambda args: cast(T, args[0]))
+  return result

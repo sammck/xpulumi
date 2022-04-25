@@ -49,6 +49,7 @@ from .common import (
     aws_default_region,
     get_aws_region_data,
     pconfig,
+    config_property_info,
     default_tags,
     get_availability_zones,
     long_stack,
@@ -98,11 +99,20 @@ class Ec2KeyPair:
     self._region = region
 
     if use_config and public_key is None and public_key_file is None:
-      public_key = pconfig.get(f'{cfg_prefix}ssh_public_key')
-      public_key_file = pconfig.get(f'{cfg_prefix}ssh_public_key_file')
+      public_key = pconfig.get(
+          f'{cfg_prefix}ssh_public_key',
+          config_property_info(description="An SSH public key, as found in id_rsa.pub or authorized_keys"),
+        )
+      public_key_file = pconfig.get(
+          f'{cfg_prefix}ssh_public_key_file',
+          config_property_info(description="A file containing an SSH public key; e.g.. '/.ssh/id_rsa.pub'"),
+        )
       # pulumi.info(f"{cfg_prefix}CFG {cfg_prefix}ssh_public_key={public_key} {cfg_prefix}public_key_file={public_key_file}")
     if use_config and keypair_id is None:
-      keypair_id = pconfig.get(f'{cfg_prefix}ssh_keypair_id')
+      keypair_id = pconfig.get(
+          f'{cfg_prefix}ssh_keypair_id',
+          config_property_info(description="An EC2 keypair ID, to import an existing keypair rather than create one. Default=create a new keypair"),
+        )
 
     self.keypair_id = keypair_id
     if keypair_id is None:

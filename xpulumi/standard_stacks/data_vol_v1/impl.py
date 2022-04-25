@@ -41,6 +41,7 @@ def load_stack(
       pulumi_project_name,
       stack_name,
       pconfig,
+      config_property_info,
       long_stack,
       long_xstack,
     )
@@ -57,16 +58,24 @@ def load_stack(
   vpc = VpcEnv.stack_import(stack_name=aws_env_stack_name, import_prefix=aws_env_import_prefix)
   vpc.stack_export(export_prefix=export_prefix)
 
+  aws_region = vpc.aws_region
+
   # The number of gigabytes to allocate for the volume. This can be increased later
   # without destroying the volume
-  volume_size_gb = cast(int, default_val(pconfig.get_int(f"{cfg_prefix}volume_size_gb"), 40))
+  volume_size_gb = cast(int, default_val(pconfig.get_int(
+      f"{cfg_prefix}volume_size_gb",
+      config_property_info(description="The size of the EBS data volume in gigabytes, devault=40"),
+    ), 40))
   pulumi.export(f"{export_prefix}volume_size_gb", volume_size_gb)
 
   # The AWS availability zone within the vpc in which to place the volume. This will be the
   # same AZ that the EC2 instance runs in.
   # The config parameter can be a full AZ name, or an index into the vpc's table of AZs.
   # by default, index 0 in the vpc is used
-  az = cast(str, default_val(pconfig.get_int(f"{cfg_prefix}az"), "0"))
+  az = cast(str, default_val(pconfig.get_int(
+      f"{cfg_prefix}az",
+      config_property_info(description="the AWS AZ to deploy the data volume to. Either an AZ name or an index into VPC AZs, default=first VPC AZ"),
+    ), "0"))
   try:
     az = vpc.azs[int(az)]
   except ValueError:
@@ -83,6 +92,7 @@ def load_stack(
   data_vol = EbsVolume(
       f'{resource_prefix}data-vol',
       az=az,
+      region=aws_region,
       volume_size_gb=volume_size_gb,
       name=f'{resource_prefix}data-vol',
       use_config=False,

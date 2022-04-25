@@ -2,7 +2,7 @@
 
 from importlib.abc import ResourceReader
 from re import I
-from typing import Optional, List, cast
+from typing import Optional, List, cast, Union
 
 import subprocess
 import os
@@ -48,6 +48,7 @@ from .common import (
     aws_default_region,
     get_aws_region_data,
     pconfig,
+    config_property_info,
     default_tags,
     get_availability_zones,
     with_default_tags,
@@ -104,11 +105,38 @@ class VpcEnv:
   def get_default_az(self) -> str:
     return self.azs[0]
 
-  def get_index_of_az(self, az: str) -> int:
+  def get_index_of_az(self, az: Optional[str]) -> int:
+    if az is None:
+      return 0
     for i, x in enumerate(self.azs):
       if az == x:
         return i
     raise XPulumiError(f"Availability Zone \"{az}\" is not included in VPC AZs {self.azs}")
+
+  def get_index_of_future_az(self, az: Input[Optional[str]]) -> Input[int]:
+    if az is None:
+      result: Input[int] = 0
+    elif isinstance(az, str):
+      result = self.get_index_of_az(az)
+    else:
+      result = Output.all(cast(Input[Optional[str]], az)).apply(lambda args: self.get_index_of_az(cast(Optional[str], args[0])))
+    return result
+
+  def get_public_subnet_of_future_az(self, az: Input[Optional[str]]) -> Input[str]:
+    index = self.get_index_of_future_az(az)
+    if isinstance(index, int):
+      result: Input[str] = self.public_subnet_ids[index]
+    else:
+      result = Output.all(cast(Input[int], index)).apply(lambda args: self.public_subnet_ids[cast(int, args[0])])
+    return result
+
+  def get_private_subnet_of_future_az(self, az: Input[Optional[str]]) -> Input[str]:
+    index = self.get_index_of_future_az(az)
+    if isinstance(index, int):
+      result: Input[str] = self.private_subnet_ids[index]
+    else:
+      result = Output.all(cast(Input[int], index)).apply(lambda args: self.private_subnet_ids[cast(int, args[0])])
+    return result
 
   def get_az_index_of_subnet(self, subnet: ec2.Subnet) -> int:
     for i in range(len(self.public_subnets)):    # pylint: disable=consider-using-enumerate
@@ -185,10 +213,19 @@ class VpcEnv:
       ) -> None:
     if cfg_prefix is None:
       cfg_prefix = ''
-    vpc_import_stack_name: Optional[str] = pconfig.get(f'{cfg_prefix}vpc_import_stack')
-    vpc_import_project_name: Optional[str] = pconfig.get(f'{cfg_prefix}vpc_import_project')
+    vpc_import_stack_name: Optional[str] = pconfig.get(
+        f'{cfg_prefix}vpc_import_stack',
+        config_property_info(description="The stack name of a stack from which to import a VPC definition"),
+      )
+    vpc_import_project_name: Optional[str] = pconfig.get(
+        f'{cfg_prefix}vpc_import_project',
+        config_property_info(description="The project name containing a stack from which to import a VPC definition"),
+      )
     if not vpc_import_stack_name is None or not vpc_import_project_name is None:
-      vpc_import_prefix: Optional[str] = pconfig.get(f'{cfg_prefix}vpc_import_prefix')
+      vpc_import_prefix: Optional[str] = pconfig.get(
+          f'{cfg_prefix}vpc_import_prefix',
+          config_property_info(description="The import prefix to use when importing a VPC definition from another stack"),
+        )
       self._stack_import(stack_name=vpc_import_stack_name, project_name=vpc_import_project_name, import_prefix=vpc_import_prefix)
     else:
       self._create(use_config=True)
@@ -208,13 +245,25 @@ class VpcEnv:
 
     if use_config:
       if n_azs is None:
-        n_azs = pconfig.get_int(f'{cfg_prefix}vpc_n_azs') # The number of AZs that we will provision our vpc in
+        n_azs = pconfig.get_int(
+            f'{cfg_prefix}vpc_n_azs',
+            config_property_info(description=f"The number of AZs to include in the VPC, default={self.DEFAULT_N_AZS}"),
+          ) # The number of AZs that we will provision our vpc in
       if vpc_cidr is None:
-        vpc_cidr = pconfig.get(f'{cfg_prefix}vpc_cidr')
+        vpc_cidr = pconfig.get(
+            f'{cfg_prefix}vpc_cidr',
+            config_property_info(description=f"IPV4 CIDR for the VPC., default={self.DEFAULT_CIDR}"),
+          )
       if n_potential_subnets is None:
-        n_potential_subnets = pconfig.get_int(f'{cfg_prefix}vpc_n_potential_subnets')
+        n_potential_subnets = pconfig.get_int(
+            f'{cfg_prefix}vpc_n_potential_subnets',
+            config_property_info(description=f"The number of potential subnets in the VPC, default={self.DEFAULT_N_POTENTIAL_SUBNETS}"),
+          )
       if aws_region is None:
-        aws_region = pconfig.get(f'{cfg_prefix}vpc_aws_region')
+        aws_region = pconfig.get(
+            f'{cfg_prefix}vpc_aws_region',
+            config_property_info(description="The AWS region for the VPC, default=the default AWS region"),
+          )
 
     rd = get_aws_region_data(aws_region)
     aws_region = rd.aws_region

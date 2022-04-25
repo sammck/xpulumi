@@ -48,6 +48,7 @@ def load_stack(
       pulumi_project_name,
       stack_name,
       pconfig,
+      config_property_info,
       long_stack,
       long_xstack,
     )
@@ -64,7 +65,10 @@ def load_stack(
   # the username is changed, the old home directory will remain, since the /home
   # is mounted on a reusable EBS volume, but the new account will have the
   # same UID/GID as the old account and will have access to both home directories.
-  ec2_instance_username: str = cast(str, default_val(pconfig.get(f"{cfg_prefix}ec2_instance_username"), os.getlogin()))
+  ec2_instance_username: str = cast(str, default_val(pconfig.get(
+      f"{cfg_prefix}ec2_instance_username",
+      config_property_info(description="The username of a main user account to create. Default=local username"),
+    ), os.getlogin()))
   pulumi.export(f"{export_prefix}ec2_username", ec2_instance_username)
 
   # The sudo password for our EC2 user. This must be set as a secret config value on this stack with
@@ -74,7 +78,10 @@ def load_stack(
   #       metadata query privileges on this AWS account, and IF leaked could be used in a
   #       dictionary attack.
   try:
-    ec2_user_password: Output[str] = pconfig.require_secret(f'{cfg_prefix}ec2_user_password')
+    ec2_user_password: Output[str] = pconfig.require_secret(
+        f'{cfg_prefix}ec2_user_password',
+        config_property_info(description="An account password for the created user, to enable sudo"),
+      )
   except Exception as e:
     raise XPulumiError(
         f"You must set an EC2 User sudo password with \"pulumi -s {stack_name} config set --secret {cfg_prefix}ec2_user_password <password>\""

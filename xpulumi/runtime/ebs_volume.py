@@ -15,6 +15,7 @@ from .util import az_to_region
 
 from .common import (
     pconfig,
+    config_property_info,
     default_tags,
     get_availability_zones,
     long_stack,
@@ -77,11 +78,20 @@ class EbsVolume:
 
     if use_config:
       if volume_size_gb is None:
-        volume_size_gb = pconfig.get_int(f'{cfg_prefix}ebs_volume_size{self.unit_postfix}')
+        volume_size_gb = pconfig.get_int(
+            f'{cfg_prefix}ebs_volume_size{self.unit_postfix}',
+            config_property_info(description=f"EBS volume size in gigabytes, default={self.DEFAULT_VOLUME_SIZE_GB}"),
+          )
       if az is None:
-        az = pconfig.get(f'{cfg_prefix}ebs_volume_az{self.unit_postfix}')
+        az = pconfig.get(
+            f'{cfg_prefix}ebs_volume_az{self.unit_postfix}',
+            config_property_info(description="The AZ to put the EBS volume in, default=let AWS pick"),
+          )
       if volid is None:
-        volid = pconfig.get(f'{cfg_prefix}ebs_volume_id{self.unit_postfix}')
+        volid = pconfig.get(
+            f'{cfg_prefix}ebs_volume_id{self.unit_postfix}',
+            config_property_info(description="The EBS volume id of the EBS volume, to import a volume rather than create one, default=create a new volume"),
+          )
 
     if volume_size_gb is None:
       volume_size_gb = self.DEFAULT_VOLUME_SIZE_GB
