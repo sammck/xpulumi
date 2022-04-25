@@ -47,11 +47,12 @@ from .vpc import VpcEnv
 from .stack_outputs import SyncStackOutputs
 from .common import (
     aws_default_region,
+    get_aws_invoke_options,
     get_aws_region_data,
     pconfig,
     default_tags,
     get_availability_zones,
-    aws_resource_options,
+    get_aws_resource_options,
     long_stack,
     with_default_tags,
     long_xstack,
@@ -73,6 +74,10 @@ class FrontEndSecurityGroup:
   @property
   def sg_id(self) -> Output[str]:
     return self.sg.id
+
+  @property
+  def aws_region(self) -> str:
+    return self.vpc.aws_region
 
   def __init__(
         self,
@@ -132,10 +137,14 @@ class FrontEndSecurityGroup:
         # revoke_rules_on_delete=None,
         tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-front-end-sg"),
         vpc_id=vpc.vpc_id,
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
     else:
-      sg = ec2.SecurityGroup.get(f'{resource_prefix}front-end-sg', id=sg_id)
+      sg = ec2.SecurityGroup.get(
+          f'{resource_prefix}front-end-sg',
+          id=sg_id,
+          opts=get_aws_resource_options(self.aws_region)
+        )
     self.sg = sg
 
   def stack_export(self, export_prefix: Optional[str]=None) -> None:

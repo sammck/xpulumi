@@ -48,9 +48,9 @@ from .common import (
     default_tags,
     get_availability_zones,
     long_stack,
-    aws_resource_options,
-    aws_invoke_options,
-    aws_provider,
+    get_aws_resource_options,
+    get_aws_invoke_options,
+    get_aws_provider,
   )
 from .. import XPulumiError
 
@@ -116,6 +116,7 @@ class DnsZone:
         resource_prefix: Optional[str] = None,
         parent_zone: Optional['DnsZone'] = None,
         create: Optional[bool] = None,
+        create_region: Optional[str] = None,
       ):
     if resource_prefix is None:
       resource_prefix = ''
@@ -126,6 +127,7 @@ class DnsZone:
     if zone_name is None and not subzone_name is None:
       zone_name = prepend_subzone(parent_zone, subzone_name)
     if create:
+      aws_resource_options = get_aws_resource_options(create_region)
       if zone_name is None:
         raise XPulumiError("one of zone_name or parent_zone+subzone_name must be provided")
       self.zone_name = zone_name
@@ -138,7 +140,7 @@ class DnsZone:
           name=zone_name,
           tags=default_tags,
           # vpcs=None,
-          opts=aws_resource_options
+          opts=aws_resource_options,
         )
       if not parent_zone is None:
         # Create an NS record in the parent zone that points to our zone's name servers.
@@ -162,6 +164,7 @@ class DnsZone:
         )
 
     else:
+      aws_invoke_options = get_aws_invoke_options(create_region)
       if zone_id is None:
         if zone_name is None:
           raise XPulumiError("Either zone_name or zone_id must be provided")

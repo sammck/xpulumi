@@ -46,26 +46,32 @@ from ..util import XPulumiError
 
 from .common import (
     default_tags,
-    aws_resource_options,
+    get_aws_resource_options,
+    aws_default_region,
     long_subaccount_stack,
   )
 
 class CloudWatch:
   resource_prefix: str = ''
   log_group: cloudwatch.LogGroup
+  region: str
 
   def __init__(
         self,
         resource_prefix: Optional[str] = None,
         create: Optional[bool] = None,
         log_group_id: Optional[Input[str]] = None,
-        log_group_name: Optional[str] = None
+        log_group_name: Optional[str] = None,
+        region: Optional[str] = None,
       ):
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
     if create is None:
       create = log_group_id is None
+    if region is None:
+      region = aws_default_region
+    self.region = region
     if create:
       if log_group_name is None:
         log_group_name = f"{resource_prefix}{long_subaccount_stack}-log-group"
@@ -77,7 +83,7 @@ class CloudWatch:
           # name_prefix=None,
           retention_in_days=30,
           tags=default_tags,
-          opts=aws_resource_options,
+          opts=get_aws_resource_options(self.region),
         )
     else:
       if log_group_id is None:
@@ -85,7 +91,7 @@ class CloudWatch:
       log_group = cloudwatch.LogGroup.get(
           'cloudwatch_log_group',
           id=log_group_id,
-          opts=aws_resource_options,
+          opts=get_aws_resource_options(self.region),
         )
     self.log_group = log_group
 

@@ -30,6 +30,7 @@ from .util import (
     dedent,
     concat_and_dedent,
     future_dedent,
+    az_to_region,
   )
 from ..util import split_s3_uri
 from .s3_object_waiter import (

@@ -52,8 +52,7 @@ from .common import (
     default_tags,
     get_availability_zones,
     long_stack,
-    aws_resource_options,
-    aws_invoke_options,
+    get_aws_resource_options,
     with_default_tags,
     long_xstack,
   )
@@ -76,6 +75,7 @@ class Ec2KeyPair:
   _keypair: Optional[ec2.KeyPair] = None
   keypair_id: Optional[Input[str]] = None
   _committed: bool = False
+  _region: Optional[str] = None
 
   def __init__(
         self,
@@ -85,12 +85,17 @@ class Ec2KeyPair:
         public_key: Optional[str]=None,
         public_key_file: Optional[str]=None,
         keypair_id: Optional[Input[str]]=None,
+        region: Optional[str]=None,
         commit: bool=True,
       ):
     if resource_prefix is None:
       resource_prefix = ''
     self.resource_prefix = resource_prefix
     self.ctx = get_xpulumi_context()
+
+    if region is None:
+      region = aws_default_region
+    self._region = region
 
     if use_config and public_key is None and public_key_file is None:
       public_key = pconfig.get(f'{cfg_prefix}ssh_public_key')
@@ -154,14 +159,14 @@ class Ec2KeyPair:
             key_name_prefix=f'{long_stack}-',
             public_key=public_key,
             tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-keypair"),
-            opts=aws_resource_options,
+            opts=get_aws_resource_options(self._region),
           )
         self.keypair_id = self.keypair.id
       else:
         self._keypair = ec2.KeyPair.get(
             f'{resource_prefix}ssh-keypair',
             id=keypair_id,
-            opts=aws_resource_options,
+            opts=get_aws_resource_options(self._region),
           )
       self._committed = True
 

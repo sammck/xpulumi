@@ -23,10 +23,10 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
       stack_name,
       pulumi_project_name,
       long_stack,
-      aws_account_id,
-      aws_resource_options,
+      get_aws_account_id,
+      get_aws_resource_options,
       default_tags,
-      aws_full_subaccount_account_id,
+      get_aws_full_subaccount_account_id,
       cloud_subaccount,
       with_subaccount_prefix,
     )
@@ -52,14 +52,14 @@ def load_stack(resource_prefix: str = '', cfg_prefix: str = '', export_prefix: s
   # will create a subdir <pulumi-org>/<pulumi-project-name>/<pulumi-stack> under
   # that root key that it can play in to avoid stepping on each others toes.
 
-  bucket_name = f"{aws_full_subaccount_account_id}-{aws_region}-{long_stack}"
+  bucket_name = f"{get_aws_full_subaccount_account_id(aws_region)}-{aws_region}-{long_stack}"
 
   bucket = aws.s3.Bucket(
       f"{resource_prefix}aws-env-shared-bucket",
       bucket=bucket_name,
       acl='private',
       tags=default_tags,
-      opts=aws_resource_options,
+      opts=get_aws_resource_options(aws_region),
     )
 
   project_root_key = 'projects'

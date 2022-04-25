@@ -14,6 +14,7 @@ import threading
 import debugpy # type: ignore[import]
 import time
 import shlex
+import re
 
 import pulumi
 from pulumi import (
@@ -365,3 +366,10 @@ def future_dedent(s: Input[str], **kwargs) -> Output[str]:
 
 def concat_and_dedent(*args: str, **kwargs) -> Output[str]:
   return future_dedent(Output.concat(*args), **kwargs)
+
+_az_pattern = re.compile(r'^([a-z][a-z0-9\-]+-[0-9]+)([a-z])$')
+def az_to_region(az: str) -> str:
+  m = _az_pattern.match(az)
+  if not m:
+    raise ValueError(f"Not a valid AWS availability zone name: '{az}'")
+  return m.group(1)

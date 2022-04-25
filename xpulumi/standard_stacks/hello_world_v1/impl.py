@@ -21,8 +21,8 @@ def load_stack(
   from xpulumi.runtime.common import (
       stack_name,
       pconfig,
-      aws_resource_options,
-      aws_invoke_options,
+      get_aws_resource_options,
+      get_aws_invoke_options,
     )
 
   # The xpulumi project name and stack name from which we will
@@ -39,13 +39,15 @@ def load_stack(
   vpc = VpcEnv.stack_import(stack_name=aws_env_stack_name, import_prefix=aws_env_import_prefix)
   vpc.stack_export(export_prefix=export_prefix)
 
+  region = vpc.aws_region
+
   ami = pulumi_aws.ec2.get_ami(
       most_recent=True,
       owners=["137112412989"],  # Amazon's own account, for Amazon Linux AMIs
       filters=[
           pulumi_aws.ec2.GetAmiFilterArgs(name="name", values=["amzn-ami-hvm-*"])
         ],
-      opts=aws_invoke_options,
+      opts=get_aws_invoke_options(region),
     )
 
   sg = pulumi_aws.ec2.SecurityGroup(
@@ -60,7 +62,7 @@ def load_stack(
             ),
         ],
       vpc_id=vpc.vpc_id,
-      opts=aws_resource_options,
+      opts=get_aws_resource_options(region),
     )
 
   user_data: str = """
@@ -76,7 +78,7 @@ def load_stack(
       user_data=user_data,
       ami=ami.id,
       subnet_id=vpc.public_subnet_ids[0],
-      opts=aws_resource_options,
+      opts=get_aws_resource_options(region),
     )
 
   pulumi.export(f'{export_prefix}public_ip', server.public_ip)

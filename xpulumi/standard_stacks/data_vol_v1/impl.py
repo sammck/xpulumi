@@ -37,7 +37,7 @@ def load_stack(
       default_val,
     )
   from xpulumi.runtime.common import (
-      aws_account_id,
+      get_aws_account_id,
       pulumi_project_name,
       stack_name,
       pconfig,

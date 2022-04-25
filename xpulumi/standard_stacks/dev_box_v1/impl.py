@@ -44,7 +44,7 @@ def load_stack(
       SyncStackOutputs,
     )
   from xpulumi.runtime.common import (
-      aws_account_id,
+      get_aws_account_id,
       pulumi_project_name,
       stack_name,
       pconfig,
@@ -400,7 +400,7 @@ def load_stack(
   # region, and for each AWS account. Also, there is a customized authentication
   # plugin for docker that allows you to access the repository using your AWS
   # credentials.
-  ecr_domain: str = f"{aws_account_id}.dkr.ecr.{aws_region}.amazonaws.com"
+  ecr_domain: str = f"{get_aws_account_id(aws_region)}.dkr.ecr.{aws_region}.amazonaws.com"
 
   docker_config_obj = {
       "credHelpers": {

@@ -62,9 +62,9 @@ from .common import (
     default_tags,
     get_availability_zones,
     long_stack,
-    aws_provider,
-    aws_resource_options,
-    aws_invoke_options,
+    get_aws_provider,
+    get_aws_resource_options,
+    get_aws_invoke_options,
     with_default_tags,
     long_xstack,
   )
@@ -546,12 +546,17 @@ class Ec2Instance:
       cfg_prefix=cfg_prefix,
       public_key=public_key,
       public_key_file=public_key_file,
+      region=self.aws_region,
       commit=False
     )
 
     # ---- start creating resources
     if commit:
       self.commit()
+
+  @property
+  def aws_region(self) -> str:
+    return self.vpc.aws_region
 
   @property
   def ami_arch(self) -> str:
@@ -620,6 +625,7 @@ class Ec2Instance:
           use_config=use_config,
           cfg_prefix=cfg_prefix,
           volid=volid,
+          region=self.aws_region,
           commit=False   # We will commit at self.commit_volumes() time
         )
     assert isinstance(vol, EbsVolume)
@@ -644,7 +650,7 @@ class Ec2Instance:
         description=f"Custom role policy for {self.description}",
         policy=jsonify_promise(self.role_policy_obj),
         tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
 
     # Create an IAM role for our EC2 instance to run in.
@@ -661,7 +667,7 @@ class Ec2Instance:
         path=f'/pstack={long_stack}/',
         # permissions_boundary=None,
         tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
 
     # Attach policy to the EC2 instance role to allow cloudwatch monitoring.
@@ -669,7 +675,7 @@ class Ec2Instance:
         f'{resource_prefix}ec2-attached-policy-cloudwatch-agent',
         role=self.role.name,
         policy_arn="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
     self.instance_dependencies.append(self.cloudwatch_agent_attached_policy)
 
@@ -678,7 +684,7 @@ class Ec2Instance:
         f'{resource_prefix}ec2-attached-policy-ssm-managed',
         role=self.role.name,
         policy_arn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
     self.instance_dependencies.append(self.ssm_attached_policy)
 
@@ -687,7 +693,7 @@ class Ec2Instance:
         f'{resource_prefix}ec2-attached-policy',
         role=self.role.name,
         policy_arn=self.role_policy.arn,
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
     self.instance_dependencies.append(self.attached_policy)
 
@@ -696,7 +702,7 @@ class Ec2Instance:
         f"{resource_prefix}ec2-instance-profile",
         role=self.role.name,
         tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-instance"),
-        opts=aws_resource_options,
+        opts=get_aws_resource_options(self.aws_region),
       )
 
     self.keypair.commit()
@@ -717,7 +723,7 @@ class Ec2Instance:
               ),
           ],
         owners=[self.ami_owner],
-        opts=aws_invoke_options,
+        opts=get_aws_invoke_options(self.aws_region),
       )
 
     if self.use_elastic_ip:
@@ -727,7 +733,7 @@ class Ec2Instance:
           f'{resource_prefix}ec2-instance-eip',
           vpc=True,
           tags=with_default_tags(Name=self.instance_name),
-          opts=aws_resource_options,
+          opts=get_aws_resource_options(self.aws_region),
         )
       self.instance_dependencies.append(self.eip)
 
@@ -752,7 +758,7 @@ class Ec2Instance:
               type='A',
               # weighted_routing_policies=None,
               zone_id=self.parent_dns_zone.zone_id,
-              opts=aws_resource_options,
+              opts=get_aws_resource_options(self.aws_region),
             )
           if cname_target is None:
             cname_target = dn
@@ -774,7 +780,7 @@ class Ec2Instance:
               type='CNAME',
               # weighted_routing_policies=None,
               zone_id=self.parent_dns_zone.zone_id,
-              opts=aws_resource_options,
+              opts=get_aws_resource_options(self.aws_region),
             )
         dns_records.append(dns_record)
         self.instance_dependencies.append(dns_record)
@@ -807,7 +813,7 @@ class Ec2Instance:
         user_data_base64=rendered_user_data,
         tags=with_default_tags(Name=self.instance_name),
         volume_tags=with_default_tags(Name=f"{self.instance_name}-sys"),
-        opts=ResourceOptions(provider=aws_provider, depends_on=self.instance_dependencies, delete_before_replace=True)
+        opts=ResourceOptions(provider=get_aws_provider(self.aws_region), depends_on=self.instance_dependencies, delete_before_replace=True)
       )
 
     # associate the EIP with the instance
@@ -816,7 +822,7 @@ class Ec2Instance:
           f"{resource_prefix}ec2-eip-assoc",
           instance_id=self.ec2_instance.id,
           allocation_id=self.eip.id,
-          opts=aws_resource_options,
+          opts=get_aws_resource_options(self.aws_region),
         )
 
     for ec2_vol in self.data_volumes:
@@ -827,7 +833,7 @@ class Ec2Instance:
           volume_id = ec2_vol.get_volume_id(),
           instance_id = self.ec2_instance.id,
           stop_instance_before_detaching=True,
-          opts=ResourceOptions(provider=aws_provider, delete_before_replace=True)
+          opts=ResourceOptions(provider=get_aws_provider(self.aws_region), delete_before_replace=True)
         )
     self._committed = True
 

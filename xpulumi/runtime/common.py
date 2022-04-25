@@ -4,15 +4,32 @@
 #
 
 """Common runtime values"""
-from typing import Optional, Dict, Callable, Type, cast, Any
+from typing import (
+    Optional,
+    Dict,
+    Callable,
+    Type,
+    cast,
+    Any,
+    Union,
+    Mapping,
+    Iterator,
+    Iterable,
+    ItemsView,
+    KeysView,
+    ValuesView,
+    TypeVar,
+    overload,
+  )
 
 from copy import deepcopy
 import os
 import string
 from dataclasses import dataclass
+import collections.abc
 import pulumi
 import threading
-from pulumi import ( InvokeOptions, ResourceOptions, get_stack, Output )
+from pulumi import ( InvokeOptions, ResourceOptions, get_stack, Output, Config as RawPulumiConfig)
 import pulumi_aws
 import pulumi_random
 from pulumi_aws import (
@@ -85,13 +102,15 @@ def register_config_property(key: str, info: Optional[ConfigPropertyInfo]=None) 
         cfg_desc = {}
         rtc['stack_config_properties'] = cfg_desc
         rtc.save()
-        cfg_desc = rtc['stack_config_properties']
+        cfg_desc = cast(Dict[str, JsonableDict], rtc['stack_config_properties'])
+        assert not cfg_desc is None
+
       if not key in cfg_desc:
-        rtc_data = dict((k, deepcopy(v)) for k, v in info.__dict__.items() if not v is None) 
+        rtc_data = dict((k, deepcopy(v)) for k, v in info.__dict__.items() if not v is None)
         cfg_desc[key] = rtc_data
         rtc.save()
 
-class Config(pulumi.Config):
+class Config(RawPulumiConfig):
   # pylint: disable=unused-argument
 
   def register_config_property(
@@ -195,15 +214,69 @@ class Config(pulumi.Config):
     return super().require_secret_object(key)
 
 pconfig = Config()
-template_env: Dict[str, str] = {}
+
+_T = TypeVar('_T')
+
+class TemplateEnv(Mapping[str, str]):
+  _data: Dict[str, Union[str, Callable[[], str]]]
+  def __init__(self):
+    self._data = {}
+
+  def __getitem__(self, key: str) -> str:
+    result = self._data[key]
+    if not isinstance(result, str):
+      result = result()
+    return result
+
+  @overload
+  def get(self, key: str) -> Optional[str]:  # pylint: disable=arguments-differ
+    ...
+  @overload
+  def get(self, key: str, default: _T) -> Union[str, _T]:  # pylint: disable=signature-differs
+    ...
+
+  def get(self, key: str, default: Any = None) -> Any:
+    if key in self._data:
+      result: Any = self[key]
+    else:
+      result = default
+    return result
+
+  def __contains__(self, key: Any) -> bool:
+    return key in self._data
+
+  def __len__(self) -> int:
+    return len(self._data)
+
+  def __iter__(self) -> Iterator[str]:
+    return iter(self._data)
+
+  def get_resolved_dict(self) -> Dict[str, str]:
+    result: Dict[str, str] = {}
+    for k, v in self._data.items():
+      if not isinstance(v, str):
+        v = v()
+      result[k] = v
+    return result
+
+  def items(self) -> ItemsView[str, str]:
+    return self.get_resolved_dict().items()
+
+  def values(self) -> ValuesView[str]:
+    return self.get_resolved_dict().values()
+
+  def add_items(self, data: Dict[str, Union[str, Callable[[], str]]]) -> None:
+    self._data.update(data)
+
+template_env = TemplateEnv()
 
 class TemplateConfig(Config):
   _parent: Config
-  _env: Dict[str, str]
+  _env: Mapping[str, str]
   def __init__(
         self,
         parent: Optional[Config] = None,
-        env: Optional[Dict[str, str]] = None
+        env: Optional[Mapping[str, str]] = None
       ) -> None:
     if parent is None:
       parent = pconfig
@@ -211,7 +284,7 @@ class TemplateConfig(Config):
     if env is None:
       env = template_env
     self._parent = parent
-    self._env = template_env
+    self._env = env
 
   def register_config_property(
         self,
@@ -270,9 +343,11 @@ if not cloud_subaccount is None:
   long_subaccount_xstack = f"{cloud_subaccount}::{long_xstack}"
 
 aws_global_region = 'us-east-1'
-aws_default_region = pconfig.get('aws:region')
-if aws_default_region is None:
-  aws_default_region = 'us-west-2'
+_aws_default_region = cast(Optional[str], Config('aws').get('region'))
+assert _aws_default_region is None or isinstance(_aws_default_region, str)
+if _aws_default_region is None:
+  _aws_default_region = 'us-west-2'
+aws_default_region: str = _aws_default_region
 aws_region = aws_default_region
 
 class AwsRegionData:
@@ -311,20 +386,43 @@ def get_aws_region_data(region: Optional[str]=None) -> AwsRegionData:
       _aws_regions[region] = result
   return result
 
-aws_region_data = get_aws_region_data(aws_region)
-aws_provider = aws_region_data.aws_provider
-aws_resource_options = aws_region_data.resource_options
-aws_invoke_options = aws_region_data.invoke_options
-aws_account_id = aws_region_data.account_id
-aws_full_subaccount_account_id = aws_region_data.full_subaccount_id
+#aws_region_data = get_aws_region_data(aws_region)
+#aws_provider = aws_region_data.aws_provider
+def get_aws_provider(region: Optional[str]=None) -> pulumi_aws.Provider:
+  return get_aws_region_data(region).aws_provider
+def get_aws_resource_options(region: Optional[str]=None) -> ResourceOptions:
+  return get_aws_region_data(region).resource_options
+def get_aws_invoke_options(region: Optional[str]=None) -> InvokeOptions:
+  return get_aws_region_data(region).invoke_options
+def get_aws_account_id(region: Optional[str]=None) -> str:
+  return get_aws_region_data(region).account_id
+def get_aws_full_subaccount_account_id(region: Optional[str]=None) -> str:
+  return get_aws_region_data(region).full_subaccount_id
 
-aws_global_region_data = get_aws_region_data(aws_global_region)
-aws_global_provider = aws_global_region_data.aws_provider
-aws_global_resource_options = aws_global_region_data.resource_options
-aws_global_invoke_options = aws_global_region_data.invoke_options
-aws_global_account_id = aws_global_region_data.account_id
-aws_global_full_subaccount_account_id = aws_global_region_data.full_subaccount_id
+#aws_resource_options = aws_region_data.resource_options
+#aws_invoke_options = aws_region_data.invoke_options
+#aws_account_id = aws_region_data.account_id
+#aws_full_subaccount_account_id = aws_region_data.full_subaccount_id
 
+def get_aws_global_region_data() -> AwsRegionData:
+  return get_aws_region_data(aws_global_region)
+def get_aws_global_provider() -> pulumi_aws.Provider:
+  return get_aws_global_region_data().aws_provider
+def get_aws_global_resource_options() -> ResourceOptions:
+  return get_aws_global_region_data().resource_options
+def get_aws_global_invoke_options() -> InvokeOptions:
+  return get_aws_global_region_data().invoke_options
+def get_aws_global_account_id() -> str:
+  return get_aws_global_region_data().account_id
+def get_aws_global_full_subaccount_account_id() -> str:
+  return get_aws_global_region_data().full_subaccount_id
+
+#aws_global_region_data = get_aws_region_data(aws_global_region)
+#aws_global_provider = aws_global_region_data.aws_provider
+#aws_global_resource_options = aws_global_region_data.resource_options
+#aws_global_invoke_options = aws_global_region_data.invoke_options
+#aws_global_account_id = aws_global_region_data.account_id
+#aws_global_full_subaccount_account_id = aws_global_region_data.full_subaccount_id
 
 def with_subaccount_prefix(s: str) -> str:
   return s if cloud_subaccount is None else f"{cloud_subaccount}-{s}"
@@ -361,7 +459,7 @@ def get_stack_random_alphanumeric_id(numchars: int=16) -> Output[str]:
   result = pulumi_id.b64_url.apply(lambda x: x.replace('_','').replace('-', '')[:numchars])
   return result
 
-template_env.update(
+template_env.add_items(dict(
     stack_name=stack_name,
     pulumi_project_name=pulumi_project_name,
     xpulumi_project_name=xpulumi_project_name,
@@ -371,8 +469,8 @@ template_env.update(
     long_xstack=long_xstack,
     aws_global_region=aws_global_region,
     aws_region=aws_region,
-    aws_account_id=aws_account_id,
-    aws_full_subaccount_account_id=aws_full_subaccount_account_id,
-    aws_global_account_id=aws_global_account_id,
-    aws_global_full_subaccount_account_id=aws_global_full_subaccount_account_id,
-  )
+    aws_account_id=get_aws_account_id,
+    aws_full_subaccount_account_id=get_aws_full_subaccount_account_id,
+    aws_global_account_id=get_aws_global_account_id,
+    aws_global_full_subaccount_account_id=get_aws_global_full_subaccount_account_id,
+  ))

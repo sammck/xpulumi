@@ -1,93 +1,26 @@
-from base64 import b64encode
-import base64
-from copy import deepcopy
-from typing import Optional, List, Union, Set, Tuple, Dict, OrderedDict, Iterable, Callable, cast
+from typing import Optional, List, Union, Callable, cast, Tuple
 
-import subprocess
-import os
-import json
-import ipaddress
-import yaml
-import io
-from io import BytesIO
-import gzip
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import email.parser
-import time
-from collections import OrderedDict as ordereddict
 from cloud_init_gen import (
     CloudInitDoc,
     CloudInitDocConvertible,
     CloudInitPart,
-    CloudInitRenderable,
     MimeHeadersConvertible,
-    render_cloud_init_base64,
+    CloudInitRenderable,
     render_cloud_init_binary,
-    render_cloud_init_text,
+    render_cloud_init_base64,
+    render_cloud_init_text
   )
 from cloud_init_gen.part import CloudInitPartConvertible
 
 import pulumi
 from pulumi import (
-  ResourceOptions,
   Output,
   Input,
 )
 
-from pulumi_aws import (
-  ec2,
-  route53,
-  acm,
-  cognito,
-  ebs,
-  ecs,
-  ecr,
-  elasticloadbalancingv2 as elbv2,
-  iam,
-  cloudwatch,
-  rds,
-  kms,
-  secretsmanager,
-  AwaitableGetAmiResult,
-)
-
-from ..internal_types import JsonableDict
-
-from .util import (
-  TTL_SECOND,
-  TTL_MINUTE,
-  TTL_HOUR,
-  TTL_DAY,
-  jsonify_promise,
-  list_of_promises,
-  default_val,
-  get_ami_arch_from_instance_type,
-  future_func,
-  yamlify_promise,
-)
-
-from .stack_outputs import SyncStackOutputs
-from .common import (
-    aws_default_region,
-    get_aws_region_data,
-    pconfig,
-    default_tags,
-    get_availability_zones,
-    long_stack,
-    aws_provider,
-    aws_resource_options,
-    aws_invoke_options,
-    with_default_tags,
-    long_xstack,
-  )
-from .. import XPulumiError
-from .vpc import VpcEnv
-from .security_group import FrontEndSecurityGroup
-from .ec2_keypair import Ec2KeyPair
-from .dns import DnsZone
 from project_init_tools import multiline_indent
+
+_unused_exported_symbols = [ CloudInitRenderable, render_cloud_init_binary, render_cloud_init_base64, render_cloud_init_text ]
 
 UserDataPartConvertible = Union['UserDataPart', Input[CloudInitPartConvertible]]
 
