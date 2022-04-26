@@ -7,7 +7,7 @@
 
 """Wrapper for standard Pulumi CLI that passes xpulumi envionment forward"""
 
-from typing import (Any, Dict, List, Optional, Union, Set, Type, TextIO, Sequence)
+from typing import (Any, Dict, List, Optional, Union, Set, Type, TextIO, Sequence, Tuple)
 
 from copy import deepcopy
 from lib2to3.pgen2.token import OP
@@ -17,12 +17,15 @@ import json
 import subprocess
 import colorama # type: ignore[import]
 from colorama import Fore, Back, Style
+from project_init_tools import deactivate_virtualenv, find_command_in_path, get_git_root_dir
 
 # NOTE: this module runs with -m; do not use relative imports
 from xpulumi.backend import XPulumiBackend
+from xpulumi.context import XPulumiContext
 from xpulumi.project import XPulumiProject
 from xpulumi.stack import XPulumiStack
 from xpulumi.base_context import XPulumiContextBase
+from xpulumi.config import XPulumiConfig
 from xpulumi.exceptions import XPulumiError
 from xpulumi.internal_types import JsonableTypes
 from xpulumi.pulumi_cli.help_metadata import (
@@ -615,3 +618,57 @@ class PulumiWrapper:
 
   def ecolor(self, codes: str) -> str:
     return codes if self._colorize_stderr else ""
+
+def _get_base_prefix() -> str:
+  return getattr(sys, "base_prefix", None) or getattr(sys, "real_prefix", None) or sys.prefix
+
+def _get_virtualenv() -> Optional[str]:
+  return None if sys.prefix == _get_base_prefix() else sys.prefix
+
+def _get_raw_pulumi() -> Tuple[str, str]:
+  pulumi_home: Optional[str] = os.environ.get('PULUMI_HOME', '')
+  if pulumi_home == '':
+    project_root_dir = get_git_root_dir()
+    if not project_root_dir is None:
+      project_pulumi_home = os.path.join(project_root_dir, '.local', '.pulumi')
+      project_pulumi_prog = os.path.join(project_pulumi_home, 'bin', 'pulumi')
+      if os.path.exists(project_pulumi_prog):
+        return project_pulumi_prog, project_pulumi_home
+    virtualenv_dir = _get_virtualenv()
+    if not virtualenv_dir is None:
+      project_root_dir = get_git_root_dir(starting_dir=virtualenv_dir)
+      if not project_root_dir is None:
+        project_pulumi_home = os.path.join(project_root_dir, '.local', '.pulumi')
+        project_pulumi_prog = os.path.join(project_pulumi_home, 'bin', 'pulumi')
+        if os.path.exists(project_pulumi_prog):
+          return project_pulumi_prog, project_pulumi_home
+    novenv = dict(os.environ)
+    deactivate_virtualenv(novenv)
+    path_pulumi_prog = find_command_in_path('pulumi', searchpath=novenv['PATH'])
+    if not path_pulumi_prog is None:
+      path_pulumi_home = os.path.dirname(os.path.dirname(path_pulumi_prog))
+      return path_pulumi_prog, path_pulumi_home
+  else:
+    pulumi_prog = os.path.join(pulumi_home, 'bin', 'pulumi')
+    if os.path.exists(pulumi_prog):
+      return pulumi_prog, pulumi_home
+  raise XPulumiError("Unable to locate wrapped pulumi executable")
+
+  
+def _run_raw_pulumi(arglist: List[str]) -> int:
+  pulumi_prog, pulumi_home = _get_raw_pulumi()
+  os.environ['PULUMI_HOME'] = pulumi_home
+  result = subprocess.call([ pulumi_prog ] + arglist)
+  return result
+
+def run_pulumi_wrapper(arglist: List[str]) -> int:
+  cfg: Optional[XPulumiConfig] = None
+  try:
+    cfg = XPulumiConfig()
+  except FileNotFoundError:
+    pass
+  if cfg is None:
+    return _run_raw_pulumi(arglist)
+  ctx = XPulumiContextBase(config=cfg)
+  result = PulumiWrapper(arglist, ctx=ctx).call()
+  return result

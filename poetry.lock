@@ -923,7 +923,7 @@ test = ["appdirs (==1.4.4)", "pytest-cov (>=2.7)", "pytest-mock (>=3.6)", "pytes
 
 [[package]]
 name = "project-init-tools"
-version = "0.12.0"
+version = "0.16.0"
 description = "Tools to help initialize/setup github projects, install prerequisites, etc."
 category = "main"
 optional = false
@@ -942,7 +942,7 @@ tomlkit = "^0.10.1"
 type = "git"
 url = "https://github.com/sammck/project-init-tools.git"
 reference = "stable"
-resolved_reference = "cf6324601e6b60c7ade1a891fc1945902a8bf679"
+resolved_reference = "8f3658ab73e070689ddb6d35f51584c0590ba11d"
 
 [[package]]
 name = "protobuf"
@@ -972,6 +972,19 @@ six = ">=1.12.0"
 name = "pulumi-aws"
 version = "4.38.1"
 description = "A Pulumi package for creating and managing Amazon Web Services (AWS) cloud resources."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+parver = ">=0.2.1"
+pulumi = ">=3.0.0,<4.0.0"
+semver = ">=2.8.1"
+
+[[package]]
+name = "pulumi-random"
+version = "4.5.0"
+description = "A Pulumi package to safely use randomness in Pulumi programs."
 category = "main"
 optional = false
 python-versions = "*"
@@ -1506,7 +1519,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "2ebe3f4ad095d32016b5186464da1d5a83326b02726e7ccc4aafe95a0e707d6f"
+content-hash = "40f79f6a775d258f4fd5df6b7d257eed49b75386c09841e23025d8f744ae8c68"
 
 [metadata.files]
 argcomplete = [
@@ -1978,6 +1991,9 @@ pulumi = [
 ]
 pulumi-aws = [
     {file = "pulumi_aws-4.38.1.tar.gz", hash = "sha256:0cd807241e574c726bc8355c545ed2f04bf8c84c1f6c4d5f13afd715a599bf8d"},
+]
+pulumi-random = [
+    {file = "pulumi_random-4.5.0.tar.gz", hash = "sha256:e770f8979b24f7803b59e9f82bfc6315ab0d3c55814276905b75bd0d8c629e0a"},
 ]
 pycparser = [
     {file = "pycparser-2.21-py2.py3-none-any.whl", hash = "sha256:8ee45429555515e1f6b185e78100aea234072576aa43ab53aefcae078162fca9"},
