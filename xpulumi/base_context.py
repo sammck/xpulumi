@@ -164,12 +164,27 @@ class XPulumiContextBase(XPulumiContext):
   def default_stack_name(self) -> Optional[str]:
     return self._default_stack_name
 
+  def get_optional_config(self) -> Optional[XPulumiConfig]:
+    if self._config is None:
+      try:
+        config = XPulumiConfig(starting_dir=self._cwd)
+      except FileNotFoundError:
+        return None
+      self.init_from_config(config)
+      assert not self._config is None
+    return self._config
+
   def get_config(self) -> XPulumiConfig:
     if self._config is None:
       config = XPulumiConfig(starting_dir=self._cwd)
       self.init_from_config(config)
       assert not self._config is None
     return self._config
+
+  def get_optional_project_root_dir(self) -> Optional[str]:
+    if self._project_root_dir is None:
+      self.get_optional_config()
+    return self._project_root_dir
 
   def get_project_root_dir(self) -> str:
     if self._project_root_dir is None:
@@ -184,6 +199,8 @@ class XPulumiContextBase(XPulumiContext):
     return os.path.join(self.get_infra_dir(), 'project', self.get_project_name(project_name, cwd=cwd))
 
   def get_optional_project_name(self, project_name: Optional[str]=None, cwd: Optional[str]=None) -> Optional[str]:
+    if self.get_optional_project_root_dir() is None:
+      return None
     if project_name is None:
       if cwd is None:
         cwd = self.get_cwd()
@@ -469,6 +486,8 @@ class XPulumiContextBase(XPulumiContext):
     return os.path.join(self.get_infra_dir(), 'backend', backend_name)
 
   def get_optional_backend_name(self, backend_name: Optional[str]=None, cwd: Optional[str]=None) -> Optional[str]:
+    if self.get_optional_project_root_dir() is None:
+      return None
     if backend_name is None:
       if cwd is None:
         cwd = self.get_cwd()

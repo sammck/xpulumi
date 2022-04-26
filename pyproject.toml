@@ -36,7 +36,6 @@ cloud-init-gen = "^1.1.0"
 #project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
 project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "stable" }
 dnspython = "^2.2.1"
-pulumi-random = "^4.4.2"
 tabulate = "^0.8.9"
 humanize = "^4.0.0"
 pytz = "^2022.1"
