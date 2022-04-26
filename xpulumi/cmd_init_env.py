@@ -1408,23 +1408,14 @@ class CmdInitEnv(CommandHandler):
           'python3-dev',
           'python3-pip',
           'libsqlcipher0',
-          'libsqlcipher-dev,'
+          'libsqlcipher-dev',
         ])
       pl.add_package_if_cmd_missing('sha256sum', 'coreutils')
       pl.add_package_if_cmd_missing('curl')
       pl.add_package_if_cmd_missing('git')
+      pl.add_package_if_cmd_missing('jq')
       pl.install_all()
 
-      subprocess.check_call(['python3', '-m', 'venv', './.venv'], cwd=project_root_dir, env=self.get_no_venv_eviron())
-      subprocess.check_call(['python3', '-m', 'venv', './.venv'], cwd=project_root_dir, env=self.get_venv_eviron())
-      subprocess.check_call(['pip3', 'install', '--upgrade', 'pip'], cwd=project_root_dir, env=self.get_venv_eviron())
-      subprocess.check_call(['pip3', 'install', '--upgrade', 'wheel'], cwd=project_root_dir, env=self.get_venv_eviron())
-      subprocess.check_call(['pip3', 'install', 'grpcio==1.43'], cwd=project_root_dir, env=self.get_venv_eviron())
-      subprocess.check_call(['pip3', 'install', '--upgrade', 'https://github.com/sammck/xpulumi.git'], cwd=project_root_dir, env=self.get_venv_eviron())
-      return subprocess.call(
-          [os.path.join(os.path.expanduser('~'), '.venv', 'bin', 'xpulumi'), 'init-env', '--phase-two'],
-          cwd=project_root_dir, env=self.get_venv_eviron()
-        )
 
     # ================================================================
     # Everything from here down can be done after xpulumi is installed
