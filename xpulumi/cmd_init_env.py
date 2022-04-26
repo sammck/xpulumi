@@ -1430,6 +1430,7 @@ class CmdInitEnv(CommandHandler):
     # Everything from here down can be done after xpulumi is installed
 
     from project_init_tools.installer.docker import install_docker
+    from project_init_tools.installer.docker_compose import install_docker_compose
     from project_init_tools.installer.aws_cli import install_aws_cli
     from project_init_tools.installer.gh import install_gh
     from project_init_tools.installer.pulumi import install_pulumi
@@ -1650,7 +1651,8 @@ class CmdInitEnv(CommandHandler):
       xpulumi_config.data['default_cloud_subaccount'] = self.get_cloud_subaccount()
     xpulumi_config.save()
 
-    #install_docker(force=True)
+    install_docker()
+    install_docker_compose()
     install_aws_cli()
     install_gh()
 
