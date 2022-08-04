@@ -181,7 +181,7 @@ class DnsZone:
               opts=aws_invoke_options
             )
           zone_name = zone_info.name
-          pulumi.log.info(f"fetched zone name is {zone_name}")
+          pulumi.log.debug(f"fetched zone name is {zone_name}")
         self.zone_name = zone_name
 
 

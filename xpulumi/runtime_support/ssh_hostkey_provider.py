@@ -1,6 +1,10 @@
+import pulumi
+
+#pulumi.info(f"Loading {__name__}")
+
 from ..internal_types import Jsonable, JsonableDict
 from ..util import split_s3_uri
-from typing import Any, Optional, List, cast, Tuple
+from typing import Any, Optional, List, cast, Tuple, TYPE_CHECKING
 import json
 import subprocess
 import os
@@ -8,9 +12,9 @@ import socket
 
 from pulumi.dynamic import ResourceProvider, CreateResult, Resource, DiffResult, UpdateResult, CheckResult, CheckFailure
 from pulumi import ResourceOptions, Input, Output
-import pulumi
 
-from .s3_future_object_provider import S3FutureObject
+if TYPE_CHECKING:
+  from .s3_future_object_provider import S3FutureObject
 
 _DEBUG_PROVIDER = False
 
@@ -79,7 +83,7 @@ class SshCachedHostKeyProvider(ResourceProvider):
     dns_name = cast(Optional[str], props.get('dns_name', None))
 
     log_text = update_host_keys(ip_address=ip_address, dns_name=dns_name)
-    pulumi.log.info(f"SshCachedHostKey: cmd output={log_text}")
+    if _DEBUG_PROVIDER: pulumi.log.info(f"SshCachedHostKey: cmd output={log_text}")
 
     result: JsonableDict = dict(
         instance_id = instance_id,
@@ -123,7 +127,7 @@ class SshCachedHostKeyProvider(ResourceProvider):
         rid += f"-{ip_address}"
 
       outs = self._gen_outs(props)
-      pulumi.log.info(f"SshCachedHostKeyProvider.create() ==> CreateResult(id={rid}, outs={outs})")
+      if _DEBUG_PROVIDER: pulumi.log.info(f"SshCachedHostKeyProvider.create() ==> CreateResult(id={rid}, outs={outs})")
     except Exception as e:
       if _DEBUG_PROVIDER: pulumi.log.warn(f"SshCachedHostKeyProvider.create() ==> Exception: {repr(e)}")
       raise
@@ -172,7 +176,7 @@ class SshCachedHostKey(Resource):
         instance_id: Input[str],
         ip_address: Input[Optional[str]]=None,
         dns_name: Input[Optional[str]]=None,
-        cloudinit_result: Optional[S3FutureObject]=None,
+        cloudinit_result: Optional['S3FutureObject']=None,
         opts: Optional[ResourceOptions]=None,
       ):
 
@@ -189,3 +193,5 @@ class SshCachedHostKey(Resource):
           ),
         opts=opts
       )
+
+#pulumi.info(f"Done Loading {__name__}")

@@ -6,6 +6,6 @@
 """Runtime support code that does not assume a running pulumi app (e.g., dynamic providers)
 """
 
-from .hashed_password_provider import ( HashedPassword, HashedPasswordProvider )
-from .s3_future_object_provider import ( S3FutureObject, S3FutureObjectProvider )
-from .ssh_hostkey_provider import (SshCachedHostKey, SshCachedHostKeyProvider )
+#from .hashed_password_provider import ( HashedPassword, HashedPasswordProvider )
+#from .s3_future_object_provider import ( S3FutureObject, S3FutureObjectProvider )
+#from .ssh_hostkey_provider import (SshCachedHostKey, SshCachedHostKeyProvider )

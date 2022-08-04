@@ -81,7 +81,7 @@ class S3FutureObjectProvider(ResourceProvider):
       # we will use the URI as the unique ID
       uri = cast(str, props["uri"])
       outs = self._gen_outs(props)
-      pulumi.log.info(f"S3FutureObjectProvider.create() ==> CreateResult(id={uri}, outs={outs})")
+      if _DEBUG_PROVIDER: pulumi.log.info(f"S3FutureObjectProvider.create() ==> CreateResult(id={uri}, outs={outs})")
     except Exception as e:
       if _DEBUG_PROVIDER: pulumi.log.warn(f"S3FutureObjectProvider.create() ==> Exception: {repr(e)}")
       raise

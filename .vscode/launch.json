@@ -53,6 +53,16 @@
             "justMyCode": false
         },
         {
+            "name": "help",
+            "type": "python",
+            "request": "launch",
+            "module": "xpulumi.pulumi_cli",
+            "args": [
+                "--help"
+            ],
+            "justMyCode": false,
+        },
+        {
             "name": "stack output",
             "type": "python",
             "request": "launch",

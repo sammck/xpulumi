@@ -50,6 +50,7 @@ from .util import (
   list_of_promises,
   default_val,
   get_ami_arch_from_instance_type,
+  get_processor_arches_from_instance_type,
   future_func,
   yamlify_promise,
 )
@@ -90,7 +91,7 @@ def get_ami_name_filter(ami_arch: str, ami_distro: str, ami_os_version: str) -> 
   return f"ubuntu/images/hvm-ssd/ubuntu-{ami_distro}-{ami_os_version}-{ami_arch}-server-*"
 
 class Ec2Volume:
-  r"""
+  """
   Metadata about a single mounted data volume on an EC2 instance.
 
   Keeps track of the EBS volume, as well as which device name it is
@@ -323,6 +324,7 @@ class Ec2Instance:
   role_policy: iam.Policy
   attached_policy: iam.RolePolicyAttachment
   _ami_arch: Optional[str]=None
+  _processor_arches: Optional[List[str]]=None
   ami_owner: str
   ami_distro: str
   ami_os_version: str
@@ -351,7 +353,12 @@ class Ec2Instance:
   wait_for_volumes_at_boot: bool = True
   _wait_for_volumes_added: bool = False
   _volumes_committed: bool = False
+  _role_policy_committed: bool = False
+  _role_committed: bool = False
+  _role_policy_attachments_committed: bool = False
   _committed: bool = False
+  _policy_attachment_index: int = 0
+  _debug_log: bool = False
 
   def __init__(
         self,
@@ -381,7 +388,9 @@ class Ec2Instance:
         az: Input[Optional[str]] = None,
         subnet_id: Optional[Input[str]] = None,
         commit: bool=True,
+        debug_log: bool=False,
       ):
+    self._debug_log = debug_log
     self.data_volumes = []
     if resource_prefix is None:
       resource_prefix = ''
@@ -614,6 +623,13 @@ class Ec2Instance:
       assert isinstance(self._ami_arch, str)
     return self._ami_arch
 
+  @property
+  def processor_arches(self) -> List[str]:
+    if self._processor_arches is None:
+      self._processor_arches = cast(List[str], get_processor_arches_from_instance_type(self.instance_type))
+      assert isinstance(self._processor_arches, list)
+    return self._processor_arches
+
   def add_user_data(
         self,
         content: Union[UserDataPart, Input[CloudInitPartConvertible]],
@@ -688,63 +704,89 @@ class Ec2Instance:
         ec2_vol.commit()
       self._volumes_committed = True
 
+  def commit_role_policy(self) -> iam.Policy:
+    if not self._role_policy_committed:
+      resource_prefix = self.resource_prefix
+      self.role_policy = iam.Policy(
+          f"{resource_prefix}ec2-role-policy",
+          path="/",
+          description=f"Custom role policy for {self.description}",
+          policy=jsonify_promise(self.role_policy_obj),
+          tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
+          opts=get_aws_resource_options(self.aws_region),
+        )
+      self._role_policy_committed = True
+    return self.role_policy
+
+  def commit_role(self) -> iam.Role:
+    if not self._role_committed:
+      resource_prefix = self.resource_prefix
+      self.commit_role_policy()
+      # Create an IAM role for our EC2 instance to run in.
+      # The role "name" must be unique in the AWS account so
+      # we will append a random stack identifier.
+      self.role = iam.Role(
+          f'{resource_prefix}ec2-instance-role',
+          assume_role_policy=json.dumps(self.assume_role_policy_obj, sort_keys=True),
+          description=f"Role for {self.description}",
+          # force_detach_policies=None,
+          max_session_duration=12*TTL_HOUR,
+          name=Output.concat(f'{resource_prefix}{long_xstack.replace(":", "-")}-ec2-', get_stack_random_alphanumeric_id()),
+          # name_prefix=None,
+          path=f'/pstack={long_stack}/',
+          # permissions_boundary=None,
+          tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
+          opts=get_aws_resource_options(self.aws_region),
+        )
+
+      self._role_committed = True
+    return self.role
+
+  def attach_role_policy(self, policy_arn: Input[str], resource_name: Optional[str]=None, opts: Optional[ResourceOptions]=None) -> iam.RolePolicyAttachment:
+    resource_prefix = self.resource_prefix
+    role = self.commit_role()
+    self._policy_attachment_index += 1
+    if resource_name is None:
+      resource_name = f'{resource_prefix}ec2-attached-policy-{self._policy_attachment_index}'
+    attached_policy = iam.RolePolicyAttachment(
+        resource_name,
+        role=role.name,
+        policy_arn=policy_arn,
+        opts=get_aws_resource_options(self.aws_region) if opts is None else opts,
+      )
+    self.instance_dependencies.append(attached_policy)
+    return attached_policy
+
+  def commit_role_policy_attachments(self):
+    if not self._role_policy_attachments_committed:
+      resource_prefix = self.resource_prefix
+
+      # Attach policy to the EC2 instance role to allow cloudwatch monitoring.
+      self.cloudwatch_agent_attached_policy = self.attach_role_policy(
+          policy_arn="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
+          resource_name=f'{resource_prefix}ec2-attached-policy-cloudwatch-agent',
+        )
+
+      # Attach policy to the EC2 instance role to allow SSM management.
+      self.ssm_attached_policy = self.attach_role_policy(
+          policy_arn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
+          resource_name=f'{resource_prefix}ec2-attached-policy-ssm-managed',
+        )
+
+      # Attach our custom policy to the EC2 instance role.
+      self.attached_policy = self.attach_role_policy(
+          policy_arn=self.role_policy.arn,
+          resource_name=f'{resource_prefix}ec2-attached-policy',
+        )
+
+      self._role_policy_attachments_committed = True
+
   def commit(self):
     if self._committed:
       return
 
     resource_prefix = self.resource_prefix
-    self.role_policy = iam.Policy(
-        f"{resource_prefix}ec2-role-policy",
-        path="/",
-        description=f"Custom role policy for {self.description}",
-        policy=jsonify_promise(self.role_policy_obj),
-        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
-        opts=get_aws_resource_options(self.aws_region),
-      )
-
-    # Create an IAM role for our EC2 instance to run in.
-    # The role "name" must be unique in the AWS account so
-    # we will append a random stack identifier.
-    self.role = iam.Role(
-        f'{resource_prefix}ec2-instance-role',
-        assume_role_policy=json.dumps(self.assume_role_policy_obj, sort_keys=True),
-        description=f"Role for {self.description}",
-        # force_detach_policies=None,
-        max_session_duration=12*TTL_HOUR,
-        name=Output.concat(f'{resource_prefix}{long_xstack.replace(":", "-")}-ec2-', get_stack_random_alphanumeric_id()),
-        # name_prefix=None,
-        path=f'/pstack={long_stack}/',
-        # permissions_boundary=None,
-        tags=with_default_tags(Name=f"{resource_prefix}{long_xstack}-ec2-role"),
-        opts=get_aws_resource_options(self.aws_region),
-      )
-
-    # Attach policy to the EC2 instance role to allow cloudwatch monitoring.
-    self.cloudwatch_agent_attached_policy = iam.RolePolicyAttachment(
-        f'{resource_prefix}ec2-attached-policy-cloudwatch-agent',
-        role=self.role.name,
-        policy_arn="arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy",
-        opts=get_aws_resource_options(self.aws_region),
-      )
-    self.instance_dependencies.append(self.cloudwatch_agent_attached_policy)
-
-    # Attach policy to the EC2 instance role to allow SSM management.
-    self.ssm_attached_policy = iam.RolePolicyAttachment(
-        f'{resource_prefix}ec2-attached-policy-ssm-managed',
-        role=self.role.name,
-        policy_arn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
-        opts=get_aws_resource_options(self.aws_region),
-      )
-    self.instance_dependencies.append(self.ssm_attached_policy)
-
-    # Attach our custom policy to the EC2 instance role.
-    self.attached_policy = iam.RolePolicyAttachment(
-        f'{resource_prefix}ec2-attached-policy',
-        role=self.role.name,
-        policy_arn=self.role_policy.arn,
-        opts=get_aws_resource_options(self.aws_region),
-      )
-    self.instance_dependencies.append(self.attached_policy)
+    self.commit_role_policy_attachments()
 
     # create an instance profile for our instance that allows it to assume the above role
     self.instance_profile = iam.InstanceProfile(
@@ -846,7 +888,7 @@ class Ec2Instance:
     if self.wait_for_volumes_at_boot:
       self.add_wait_for_volumes_boothook()
 
-    rendered_user_data = render_user_data_base64(self.user_data, debug_log=True)
+    rendered_user_data = render_user_data_base64(self.user_data, debug_log=self._debug_log)
 
     # Create an EC2 instance
     self.ec2_instance = ec2.Instance(

@@ -73,7 +73,7 @@ def enable_debugging(host: str='localhost', port: int=5678, max_wait_secs: int=3
     else:
       pulumi.log.info("Pulumi debugger did not attach; resuming")
   else:
-    pulumi.log.info("Pulumi debugger not activated")
+    pulumi.log.debug("Pulumi debugger not activated")
 
 
 
@@ -248,6 +248,24 @@ def get_ami_arch_from_instance_type(instance_type: Input[str], region_name: Inpu
     result = Output.all(instance_type, region_name).apply(lambda args: sync_get_ami_arch_from_instance_type(*args))  # type: ignore [arg-type]
   return result
 
+def get_processor_arches_from_instance_type(instance_type: Input[str], region_name: Input[Optional[str]]=None) -> Input[List[str]]:
+  """For a given EC2 instance type (as a promise), returns the processir architectures associated with the instance type as a promise
+
+  Args:
+      instance_type (Input[str]): An EC2 instance type; e.g., "t2.micro", as a promise
+      region_name (Input[Optional[str]]], optional):
+                                  AWS region to use for query, as a promise,
+                                  or None to use the default region. Defaults to None.
+
+  Returns:
+      Input[List[str]]: A list of the processor architecture associated with instance_type. If parameters are concrete,
+                  result is concrete; otherwise it is a promise
+  """
+  if isinstance(instance_type, str) and (region_name is None or isinstance(region_name, str)):
+    result: Input[List[str]] = sync_get_processor_arches_from_instance_type(instance_type, region_name=region_name)
+  else:
+    result = Output.all(instance_type, region_name).apply(lambda args: sync_get_processor_arches_from_instance_type(*args))  # type: ignore [arg-type]
+  return result
 
 def yamlify_promise(
       future_obj: Input[Jsonable],

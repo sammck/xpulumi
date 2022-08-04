@@ -99,6 +99,10 @@ class PulumiCmdHandlerUpPreview(PrecreatePulumiCommandHandler):
         print(f"==============================================================================={self.ecolor(Style.RESET_ALL)}\n", file=sys.stderr)
 
     stack.project.init_stack(stack.stack_name)
+    project_dir = stack.project_dir
+    predeploy_script = os.path.join(project_dir, 'predeploy')
+    if os.path.exists(predeploy_script):
+      subprocess.check_call([predeploy_script, '--stack', stack.stack_name])
     return None
 
 

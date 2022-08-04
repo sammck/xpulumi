@@ -47,7 +47,7 @@ class HashedPasswordProvider(ResourceProvider):
       # by the caller
       rid = cast(str, props["name"])
       outs = self._gen_outs(rid, cast(str, props['password']))
-      pulumi.log.info(f"HashedPasswordProvider.create() ==> CreateResult(id={rid}, outs={outs})")
+      if _DEBUG_PROVIDER: pulumi.log.info(f"HashedPasswordProvider.create() ==> CreateResult(id={rid}, outs={outs})")
     except Exception as e:
       if _DEBUG_PROVIDER: pulumi.log.warn(f"HashedPasswordProvider.create() ==> Exception: {repr(e)}")
       raise

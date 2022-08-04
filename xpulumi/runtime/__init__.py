@@ -5,7 +5,14 @@
 
 """Runtime utilities directly usable from within pulumi project __main__.py code"""
 
-from .stack_outputs import StackOutputs, SyncStackOutputs, get_stack_outputs, get_stack_output, require_stack_output
+from .stack_outputs import (
+    StackOutputs,
+    SyncStackOutputs,
+    get_stack_outputs,
+    get_stack_output,
+    require_stack_output
+  )
+
 from .util import (
     future_func,
     TTL_SECOND, TTL_MINUTE, TTL_HOUR, TTL_DAY,
@@ -70,12 +77,8 @@ from .user_data import (
 from .ec2_instance import (
     Ec2Instance,
   )
+from .ebs_volume import EbsVolume
 from .cloudwatch import CloudWatch
-from ..runtime_support import (
-    HashedPasswordProvider,
-    HashedPassword,
-    S3FutureObject,
-    S3FutureObjectProvider,
-    SshCachedHostKey,
-    SshCachedHostKeyProvider,
-  )
+from ..runtime_support.hashed_password_provider import ( HashedPassword, HashedPasswordProvider )
+from ..runtime_support.s3_future_object_provider import ( S3FutureObject, S3FutureObjectProvider )
+from ..runtime_support.ssh_hostkey_provider import (SshCachedHostKey, SshCachedHostKeyProvider )

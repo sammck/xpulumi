@@ -113,6 +113,7 @@ class OptionInfo:
 
 class TopicInfo:
   subcmd_regex = re.compile(r'^  (?P<subcmd_name>[a-zA-Z0-9\-]+)\s+(?P<subcmd_description>[^ ].*)$')
+  cmd_category_regex = re.compile(r'^(?P<category_name>[^ ][a-zA-Z0-9\- ]*) Commands:$')
 
   metadata: 'PulumiMetadata'
   parent: Optional['TopicInfo']
@@ -121,6 +122,7 @@ class TopicInfo:
   title: str
   detailed_description: str
   usage: str
+  category: str
 
   aliases: List[str]
   """short command aliases for this subcommand. Affects the parent's merged_subtopics"""
@@ -167,7 +169,8 @@ class TopicInfo:
         subcmd: Optional[Union[str, List[str]]] = None,
         parent: Optional['TopicInfo'] = None,
         parent_description: Optional[str] = None,
-        json_data: Optional[JsonableDict] = None
+        json_data: Optional[JsonableDict] = None,
+        category: Optional[str] = None
       ):
     self.metadata = metadata
     self.parent = parent
@@ -183,6 +186,7 @@ class TopicInfo:
       return
 
     self.parent_description = parent_description
+    self.category = category
     help_text = metadata.get_help(self.subcmds)
     lines = [ x.rstrip() for x in help_text.rstrip().split('\n') ]
     i = 0
@@ -223,7 +227,11 @@ class TopicInfo:
 
       self.subtopics = {}
       self.merged_subtopics = {}
-      if lines[i] == 'Available Commands:':
+      while True:
+        m = self.cmd_category_regex.match(lines[i])
+        if not m:
+          break
+        subcmd_category = m.group('category_name')
         i += 1
         while lines[i] != '':
           m = self.subcmd_regex.match(lines[i])
@@ -231,7 +239,7 @@ class TopicInfo:
             raise RuntimeError(f"Invalid subcommand description: {lines[i]}")
           subcmd_name = m.group('subcmd_name')
           subcmd_description = m.group('subcmd_description')
-          subtopic = TopicInfo(self.metadata, self.subcmds + [ subcmd_name ], parent=self, parent_description=subcmd_description)
+          subtopic = TopicInfo(self.metadata, self.subcmds + [ subcmd_name ], parent=self, parent_description=subcmd_description, category=subcmd_category)
           assert not subcmd_name in self.merged_subtopics
           self.merged_subtopics[subcmd_name] = subtopic
           self.subtopics[subcmd_name] = subtopic
@@ -353,6 +361,7 @@ class TopicInfo:
         description=self.detailed_description,
         usage=self.usage,
         epilog=self.epilog,
+        category=self.category,
       )
     if not self.parent_description is None:
       result.update(parent_description=self.parent_description)
@@ -380,6 +389,7 @@ class TopicInfo:
     self.title = cast(str, json_data['title'])
     assert isinstance(self.title, str)
     self.parent_description = cast(Optional[str], json_data.get('parent_description', None))
+    self.category = cast(Optional[str], json_data.get('category', None))
     assert self.parent_description is None or isinstance(self.parent_description, str)
     self.detailed_description = cast(str, json_data['description'])
     assert isinstance(self.detailed_description, str)
@@ -486,6 +496,8 @@ class TopicInfo:
       print(f"  parent: {self.parent.full_subcmd}")
       print(f"  parent's description of this subcmd: {self.parent_description}")
     print(f"  title: {self.title}")
+    if not self.category is None:
+      print(f"  catewgory: {self.category}")
     print(f"  detailed description:\n{multiline_indent(self.detailed_description, 4)}")
     print(f"  usage:\n{multiline_indent(self.usage, 4)}")
     if len(self.aliases) > 0:
@@ -767,12 +779,25 @@ class TopicInfo:
       print(f"  {', '.join([ self.short_subcmd ] + sorted(self.aliases))}", file=file)
 
     if len(self.subtopics) > 0:
-      print(file=file)
-      print("Available Commands:", file=file)
+      cat_topics: Dict[str, List[str]] = {}
+      for subcmd_name, subtopic in self.subtopics.items():
+        category = subtopic.category
+        if category is None:
+          category = 'Available'
+        cat_topic_list = cat_topics.get(category, None)
+        if cat_topic_list is None:
+          cat_topic_list = []
+          cat_topics[category] = cat_topic_list
+        cat_topic_list.append(subcmd_name)
+
       max_subcmd_name_len = max(14, max(len(x) for x in self.subtopics.keys()))  # pylint: disable=consider-iterating-dictionary
-      for subcmd_name in sorted(self.subtopics.keys()):
-        subtopic = self.subtopics[subcmd_name]
-        print(f"  {subcmd_name: <{max_subcmd_name_len}} {subtopic.parent_description}", file=file)
+      for category in sorted(cat_topics.keys()):
+        cat_topic_list = cat_topics[category]
+        print(file=file)
+        print(f"{category} Commands:", file=file)
+        for subcmd_name in sorted(cat_topic_list):
+          subtopic = self.subtopics[subcmd_name]
+          print(f"  {subcmd_name: <{max_subcmd_name_len}} {subtopic.parent_description}", file=file)
 
     self._print_options_help(self.added_options, 'Flags:', file)
 

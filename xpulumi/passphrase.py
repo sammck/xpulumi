@@ -142,7 +142,7 @@ class PassphraseCipher:
   NONCE_SIZE_BYTES = 12                #! Number of random bytes used for the noce on each encrypted value
   # ===========
 
-  _key: bytes                          #! AES symmetric key derived from salt and passphrase
+  _key: bytes                          #! 256-bit (32-byte) AES symmetric key derived from salt and passphrase
   _salt: bytes                         #! 8-byte random data associated with an encrypted deployment, used to salt
                                        #!  the passphrase, so encryptions across deployments cannot be correlated.
   _salt_state: str                     #! A Pulumi-compatible encryption state string that includes the salt and
@@ -153,7 +153,9 @@ class PassphraseCipher:
         self,
         passphrase: str,
         salt_state: Optional[str]=None,
-        salt: Optional[bytes]=None
+        salt: Optional[bytes]=None,
+        pbkdf2_count: Optional[int]=None,
+        verification_plaintext: Optional[str]=None,
       ):
     """Create a Pulumi-compatible passphrase-based encrypter/decrypter.
 
@@ -161,21 +163,41 @@ class PassphraseCipher:
         passphrase (str):     The passphrase to be used for encryption/decryption.
         salt_state (Optional[str], optional):
                               A Pulumi-compatible encryption state string that includes the salt and a
-                              a verifier, in the form "v1:" + b64encode(salt) + ":" + self.encrypt("pulumi").
-                              This is found in the Pulumi stack config file under 'encryptionsalt'. If None
-                              is given, then a new encryption state string will be generated--in this case
-                              it is important that the caller record the generated state string for future
-                              use in decryption, since the salt is required to properly decrypt ciphertext.
-                              Defaults to None.
+                              a verifier, in the form "v1:" + b64encode(salt) + ":" + self.encrypt(verification_plaintext).
+                              This is found in the Pulumi stack config file under 'encryptionsalt'. If
+                              provided, then the embedded salt will be used, and the embedded encrypted
+                              verification_plaintext will be verified against the expected verification_plaintext
+                              to ensure that the provided passphrase is correct; if not, an Exception will
+                              be raised. If None, then a new encryption salt_state string will be generated--
+                              in this case it is important that the caller record the generated salt_state
+                              string (or at least the generated salt) for future use in decryption, since
+                              the salt is required to properly decrypt ciphertext. Defaults to None.
         salt (Optional[bytes], optional):
                               If salt_state is None, this parameter may be provided to force the use of a
-                              specific salt when generating salt_state. If both this and salt_state are
-                              None, then a random salt will be generated. Defaults to None.
+                              specific salt when generating salt_state. Must be None if salt_state is not None.
+                              If both this and salt_state are None, then a random salt will be generated.
+                              Defaults to None.
+        pbkdf2_count(Optional[int], optional):
+                              Number of iterations of the hash function to apply to the passphrase to generate
+                              a symmetric 256-bit AES key. A large number will make initialization of the cipher
+                              slow, but will defend against dictionary attack if the passphrase is weak.
+                              For compatibility with Pulumi secrets, this must be 1,000,000, which will take
+                              up to one second to compute. If None, the Pulumi-compatible value will be used.
+                              Defaults to None.
+        verification_plaintext(Optional[str], optional):
+                              An arbitrary but well-known, public  short plaintext string that will be encrypted using
+                              the other parameters to produce a "salt_state" that can be used for verification
+                              of a passphrase. For compatibility with Pulumi secrets, this must be "pulumi".
+                              If None, the Pulumi-compatible value will be used. Defaults to None.
 
     Raises:
         XPulumiError: Both salt and salt_state were provided
         XPulumiError: Passphrase does not match the validator in the provided salt_state
     """
+    if pbkdf2_count is None:
+      pbkdf2_count = self.PBKDF2_COUNT
+    if verification_plaintext is None:
+      verification_plaintext = self.VERIFICATION_PLAINTEXT
     if salt is None:
       if salt_state is None:
         salt = get_random_bytes(8)
@@ -187,19 +209,19 @@ class PassphraseCipher:
     elif not salt_state is None:
       raise XPulumiError("Salt and salt_state cannot both be provided to PassphraseCipher")
     self._salt = salt
-    key = PBKDF2(passphrase, salt, dkLen=self.KEY_SIZE_BYTES, count=self.PBKDF2_COUNT, hmac_hash_module=self.PBKDF2_HASH_MODULE)
+    key = PBKDF2(passphrase, salt, dkLen=self.KEY_SIZE_BYTES, count=pbkdf2_count, hmac_hash_module=self.PBKDF2_HASH_MODULE)
     self._key = key
     if salt_state is None:
-      verification_ciphertext = self.encrypt(self.VERIFICATION_PLAINTEXT)
+      verification_ciphertext = self.encrypt(verification_plaintext)
       b64_salt = b64encode(self._salt).decode('utf-8')
       salt_state = f"v1:{b64_salt}:{verification_ciphertext}"
     self._salt_state = salt_state
     verification_ciphertext = salt_state.split(':', 2)[2]
     try:
-      verification_plaintext = self.decrypt(verification_ciphertext)
+      test_verification_plaintext = self.decrypt(verification_ciphertext)
     except Exception as e:
       raise XPulumiError(f"Provided passphrase [redacted] does not match salt state validatorr: {salt_state}") from e
-    if verification_plaintext != self.VERIFICATION_PLAINTEXT:
+    if test_verification_plaintext != verification_plaintext:
       raise XPulumiError(f"Provided passphrase [redacted] does not match salt state validatorr: {salt_state}")
 
   @property
