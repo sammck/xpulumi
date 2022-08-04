@@ -147,7 +147,7 @@ class PulumiCommandHandler:
       stack_name = self.stack_name
     env = dict(self.base_env)
     env['XPULUMI_RAW_PULUMI'] = '1'  # Any nested invocations will just pass through
-    env['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python'] = '1' # work aroud protobuf version dependencies
+    # env['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python'] = '1' # work aroud protobuf version dependencies
     env['PULUMI_HOME'] = self.pulumi_dir
     # Pulumi dynamic resource plugins *must* be in the path to work.
     env['PATH'] = self.pulumi_bin_dir + ':' + env['PATH']

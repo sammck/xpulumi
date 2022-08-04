@@ -36,6 +36,7 @@ cloud-init-gen = "^1.1.0"
 #project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "main" }
 #project-init-tools = { git = "https://github.com/sammck/project-init-tools.git", branch = "stable" }
 project-init-tools = {path = "../project-init-tools"}
+protobuf = ">=3.6.0,<4"  # workaround for pulumi dependency problem
 dnspython = "^2.2.1"
 tabulate = "^0.8.9"
 humanize = "^4.0.0"
