@@ -40,7 +40,7 @@ dnspython = "^2.2.1"
 tabulate = "^0.8.9"
 humanize = "^4.0.0"
 pytz = "^2022.1"
-pulumi-random = "^4.5.0"
+pulumi-random = "4.6.0"
 pulumi-crypto = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
