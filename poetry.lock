@@ -928,7 +928,7 @@ test = ["appdirs (==1.4.4)", "pytest-cov (>=2.7)", "pytest-mock (>=3.6)", "pytes
 
 [[package]]
 name = "project-init-tools"
-version = "0.17.0"
+version = "0.18.0"
 description = "Tools to help initialize/setup github projects, install prerequisites, etc."
 category = "main"
 optional = false
