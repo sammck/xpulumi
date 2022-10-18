@@ -114,6 +114,8 @@ class XPulumiContextBase(XPulumiContext):
 
   _default_cloud_subaccount: Optional[str] = None
 
+  _default_aws_profile: Optional[str] = None
+
   _project_cache: Dict[str, 'XPulumiProject']
   _all_projects_known: bool = False
 
@@ -148,6 +150,11 @@ class XPulumiContextBase(XPulumiContext):
     self._default_backend_name = config.default_backend_name
     self._default_stack_name = config.default_stack_name
     self._default_cloud_subaccount = config.default_cloud_subaccount
+    self._default_aws_profile = config.default_aws_profile
+
+  @property
+  def default_aws_profile(self) -> Optional[str]:
+    return self._default_aws_profile
 
   @property
   def default_cloud_subaccount(self) -> Optional[str]:
@@ -547,7 +554,14 @@ class XPulumiContextBase(XPulumiContext):
         aws_region: Optional[str]=None
       ) -> BotoAwsSession:
     # TODO: Find a profile in the desired AWS account. For now, just use the default profile # pylint:disable=fixme
-    s = BotoAwsSession(region_name=aws_region)
+
+    default_profile: Optional[str] = None
+    if not 'AWS_PROFILE' in os.environ:
+      default_profile = self.default_aws_profile
+      if default_profile == 'default':
+        default_profile = None
+
+    s = BotoAwsSession(profile_name=default_profile, region_name=aws_region)
     return s
 
   def get_aws_session(self, aws_account: Optional[str]=None, aws_region: Optional[str]=None) -> BotoAwsSession:
@@ -754,6 +768,7 @@ class XPulumiContextBase(XPulumiContext):
       env = dict(os.environ)
       self._environ = env
       env['PULUMI_HOME'] = ctx.get_pulumi_home()
+      env['AWS_PROFILE'] = ctx.default_aws_profile
       project = self.get_optional_project()
       backend: Optional['XPulumiBackend'] = None
       if project is None:

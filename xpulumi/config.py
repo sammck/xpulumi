@@ -84,6 +84,7 @@ class XPulumiConfig:
   _default_backend_name: Optional[str] = None
   _default_stack_name: Optional[str] = None
   _default_cloud_subaccount: Optional[str] = None
+  _default_aws_profile: Optional[str] = None
 
   def __init__(self, config_path: Optional[str]=None, starting_dir: Optional[str]=None, scan_parent_dirs: bool=True):
     self._config_file = locate_xpulumi_config_file(config_path=config_path, starting_dir=starting_dir, scan_parent_dirs=scan_parent_dirs)
@@ -105,6 +106,11 @@ class XPulumiConfig:
     self._default_backend_name = cast(Optional[str], self._config_data.get('default_backend', None))
     self._default_stack_name = cast(Optional[str], self._config_data.get('default_stack', None))
     self._default_cloud_subaccount = cast(Optional[str], self._config_data.get('default_cloud_subaccount', None))
+    self._default_aws_profile = cast(str, self._config_data.get('default_aws_profile', 'default'))
+
+  @property
+  def default_aws_profile(self) -> str:
+    return self._default_aws_profile
 
   @property
   def config_file(self) -> str:

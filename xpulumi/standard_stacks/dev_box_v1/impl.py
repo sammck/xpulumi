@@ -221,7 +221,19 @@ def load_stack(
       dns_subnames=[ '', 'www', 'api' ],
 
       # The TCP port numbers that should be open to the internet
-      open_ports=[ 22, 80, 443 ],
+      open_ports=[
+          22,    # SSH
+          80,    # HTTP
+          443,   # HTTPS
+          16443, # microk8s API server
+          10250, # microk8s kubelet
+          10255, # microk8s kubelet read-only
+          25000, # microk8s cluster-agent
+          12379, # microk8s etcd
+          10257, # microk8s kube-controller
+          10259, # microk8s kube-scheduler
+          19001, # microk8s dqlite
+        ],
 
       # The pathname to your SSH public key--The corresponding private key
       # will be used to SSH into the instance. By default it will load

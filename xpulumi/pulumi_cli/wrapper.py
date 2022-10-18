@@ -662,7 +662,9 @@ def _run_raw_pulumi(arglist: List[str]) -> int:
   result = subprocess.call([ pulumi_prog ] + arglist)
   return result
 
-def run_pulumi_wrapper(arglist: List[str]) -> int:
+def run_pulumi_wrapper(arglist: Optional[List[str]]=None) -> int:
+  if arglist is None:
+    arglist = sys.argv[1:]
   cfg: Optional[XPulumiConfig] = None
   try:
     cfg = XPulumiConfig()

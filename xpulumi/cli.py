@@ -394,6 +394,16 @@ class CommandLineInterface:
     self.update_config(default_stack=stack_name)
     return 0
 
+  def cmd_aws_default_profile(self) -> int:
+    args = self._args
+    profile_name: Optional[str] = args.default_aws_profile
+    if profile_name is None:
+      profile_name = self.get_config().default_aws_profile
+      self.pretty_print(profile_name)
+    else:
+      self.update_config(default_aws_profile=profile_name)
+    return 0
+
   def run(self) -> int:
     """Run the xpulumi command-line tool with provided arguments
 
@@ -576,6 +586,23 @@ class CommandLineInterface:
                             description='''Perform "pulumi up" on this stack and all prerequisite stacks, in order.''')
     parser_stack_all_up.set_defaults(func=self.cmd_stack_all_up)
 
+    # ======================= aws
+
+    parser_aws = subparsers.add_parser('aws',
+                            description='''Subcommands related to AWS configuration.''')
+    aws_subparsers = parser_aws.add_subparsers(
+                        title='Subcommands',
+                        description='Valid aws subcommands',
+                        help='Additional help available with "xpulumi aws <subcommand-name> -h"')
+
+    # ======================= aws default-profile
+
+    parser_aws_default_profile = aws_subparsers.add_parser('default-profile',
+                            description='''Get or set the default AWS profile used by xpulumi (does not affect AWS CLI).''')
+    parser_aws_default_profile.add_argument('default_aws_profile', nargs='?', default=None,
+                        help='The new default AWS profile name. If omitted, the current default profile name is returned')
+    parser_aws_default_profile.set_defaults(func=self.cmd_aws_default_profile)
+
     # =========================================================
 
     argcomplete.autocomplete(parser)
@@ -620,7 +647,11 @@ class CommandLineInterface:
         if traceback:
           raise
 
-        print(f"{self.ecolor(Fore.RED)}xpulumi: error: {ex}{self.ecolor(Style.RESET_ALL)}", file=sys.stderr)
+        ex_desc = str(ex)
+        if ex_desc == '':
+          ex_desc = full_type(ex)
+
+        print(f"{self.ecolor(Fore.RED)}xpulumi: error: {ex_desc}{self.ecolor(Style.RESET_ALL)}", file=sys.stderr)
     return rc
 
   @property
